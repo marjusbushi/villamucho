@@ -1,0 +1,209 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\MenuCategory;
+use App\Models\MenuItem;
+use App\Models\RoomType;
+use App\Models\Setting;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class SettingsController extends Controller
+{
+    public function index(): Response
+    {
+        return Inertia::render('Settings/Index', [
+            'settings' => Setting::allGrouped(),
+            'roomTypes' => RoomType::withCount('rooms')->orderBy('name')->get(),
+            'menuCategories' => MenuCategory::with(['items' => fn($q) => $q->orderBy('name')])
+                ->orderBy('sort_order')
+                ->get(),
+        ]);
+    }
+
+    // --- Hotel Info ---
+    public function updateHotel(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:500'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'timezone' => ['required', 'string', 'max:50'],
+            'currency' => ['required', 'string', 'in:EUR,ALL,USD,GBP'],
+            'check_in_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}$/'],
+            'check_out_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}$/'],
+        ]);
+
+        foreach (['name', 'address', 'phone', 'email', 'timezone', 'currency', 'check_in_time', 'check_out_time'] as $key) {
+            Setting::set("hotel.{$key}", $request->input($key));
+        }
+
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('logos', 'public');
+            Setting::set('hotel.logo', $path, 'image');
+        }
+
+        return back()->with('success', 'Informacionet e hotelit u ruajten.');
+    }
+
+    // --- Financial ---
+    public function updateFinancial(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'tax_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'payment_methods' => ['required', 'array', 'min:1'],
+            'payment_methods.*' => ['in:cash,card,room_charge'],
+            'currency_symbol' => ['required', 'string', 'max:5'],
+        ]);
+
+        Setting::set('financial.tax_rate', $request->tax_rate, 'number');
+        Setting::set('financial.payment_methods', $request->payment_methods, 'json');
+        Setting::set('financial.default_currency_symbol', $request->currency_symbol);
+
+        return back()->with('success', 'Konfigurimet financiare u ruajten.');
+    }
+
+    // --- Housekeeping ---
+    public function updateHousekeeping(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'task_types' => ['required', 'array', 'min:1'],
+            'task_types.*' => ['string', 'max:50'],
+            'auto_create_on_checkout' => ['required', 'boolean'],
+            'default_priority' => ['required', 'in:normal,urgent'],
+        ]);
+
+        Setting::set('housekeeping.task_types', $request->task_types, 'json');
+        Setting::set('housekeeping.auto_create_on_checkout', $request->auto_create_on_checkout ? '1' : '0', 'boolean');
+        Setting::set('housekeeping.default_priority', $request->default_priority);
+
+        return back()->with('success', 'Konfigurimet e housekeeping u ruajten.');
+    }
+
+    // --- Room Types CRUD ---
+    public function storeRoomType(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255', 'unique:room_types,name'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'base_price' => ['required', 'numeric', 'min:0'],
+            'max_occupancy' => ['required', 'integer', 'min:1', 'max:20'],
+            'amenities' => ['nullable', 'array'],
+        ]);
+
+        RoomType::create($request->validated());
+
+        return back()->with('success', 'Tipi i dhomes u shtua.');
+    }
+
+    public function updateRoomType(Request $request, RoomType $roomType): RedirectResponse
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255', 'unique:room_types,name,' . $roomType->id],
+            'description' => ['nullable', 'string', 'max:500'],
+            'base_price' => ['required', 'numeric', 'min:0'],
+            'max_occupancy' => ['required', 'integer', 'min:1', 'max:20'],
+            'amenities' => ['nullable', 'array'],
+        ]);
+
+        $roomType->update($request->validated());
+
+        return back()->with('success', 'Tipi i dhomes u perditesua.');
+    }
+
+    public function destroyRoomType(RoomType $roomType): RedirectResponse
+    {
+        if ($roomType->rooms()->exists()) {
+            return back()->with('error', "Nuk mund te fshihet — ka {$roomType->rooms()->count()} dhoma te ketij tipi.");
+        }
+
+        $roomType->delete();
+
+        return back()->with('success', 'Tipi i dhomes u fshi.');
+    }
+
+    // --- Menu Categories CRUD ---
+    public function storeMenuCategory(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255', 'unique:menu_categories,name'],
+        ]);
+
+        $maxOrder = MenuCategory::max('sort_order') ?? 0;
+        MenuCategory::create(['name' => $request->name, 'sort_order' => $maxOrder + 1]);
+
+        return back()->with('success', 'Kategoria u shtua.');
+    }
+
+    public function updateMenuCategory(Request $request, MenuCategory $menuCategory): RedirectResponse
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255', 'unique:menu_categories,name,' . $menuCategory->id],
+        ]);
+
+        $menuCategory->update(['name' => $request->name]);
+
+        return back()->with('success', 'Kategoria u perditesua.');
+    }
+
+    public function destroyMenuCategory(MenuCategory $menuCategory): RedirectResponse
+    {
+        if ($menuCategory->items()->exists()) {
+            return back()->with('error', "Nuk mund te fshihet — ka {$menuCategory->items()->count()} artikuj brenda.");
+        }
+
+        $menuCategory->delete();
+
+        return back()->with('success', 'Kategoria u fshi.');
+    }
+
+    // --- Menu Items CRUD ---
+    public function storeMenuItem(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'menu_category_id' => ['required', 'exists:menu_categories,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'price' => ['required', 'numeric', 'min:0.01'],
+        ]);
+
+        MenuItem::create([
+            'menu_category_id' => $request->menu_category_id,
+            'name' => $request->name,
+            'price' => $request->price,
+            'is_available' => true,
+        ]);
+
+        return back()->with('success', 'Artikulli u shtua.');
+    }
+
+    public function updateMenuItem(Request $request, MenuItem $menuItem): RedirectResponse
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'price' => ['required', 'numeric', 'min:0.01'],
+        ]);
+
+        $menuItem->update($request->only('name', 'price'));
+
+        return back()->with('success', 'Artikulli u perditesua.');
+    }
+
+    public function toggleMenuItem(MenuItem $menuItem): RedirectResponse
+    {
+        $menuItem->update(['is_available' => !$menuItem->is_available]);
+
+        $status = $menuItem->is_available ? 'disponueshem' : 'jo disponueshem';
+        return back()->with('success', "{$menuItem->name} tani eshte {$status}.");
+    }
+
+    public function destroyMenuItem(MenuItem $menuItem): RedirectResponse
+    {
+        $menuItem->delete();
+
+        return back()->with('success', 'Artikulli u fshi.');
+    }
+}

@@ -1,19 +1,15 @@
 <script setup>
-import Checkbox from '@/Components/Checkbox.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
+import Button from '@/Components/UI/Button.vue';
+import TextInput from '@/Components/UI/TextInput.vue';
+import Checkbox from '@/Components/UI/Checkbox.vue';
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import Alert from '@/Components/UI/Alert.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 defineProps({
-    canResetPassword: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
+    canResetPassword: { type: Boolean },
+    status: { type: String },
 });
 
 const form = useForm({
@@ -31,70 +27,61 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Log in" />
+        <Head title="Hyr ne sistem" />
 
-        <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
-            {{ status }}
+        <div>
+            <h2 class="text-h3 text-primary-900 mb-1">Miresevini</h2>
+            <p class="text-body-sm text-neutral-500 mb-6">Hyni me kredencialet tuaja per te vazhduar.</p>
         </div>
 
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="email" value="Email" />
+        <Alert v-if="status" variant="success" class="mb-4">{{ status }}</Alert>
 
+        <form @submit.prevent="submit" class="space-y-5">
+            <FormGroup label="Email" html-for="email" :error="form.errors.email" required>
                 <TextInput
                     id="email"
                     type="email"
-                    class="mt-1 block w-full"
                     v-model="form.email"
-                    required
-                    autofocus
+                    placeholder="email@hotel.com"
+                    :error="form.errors.email"
+                    :autofocus="true"
                     autocomplete="username"
                 />
+            </FormGroup>
 
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel for="password" value="Password" />
-
+            <FormGroup label="Password" html-for="password" :error="form.errors.password" required>
                 <TextInput
                     id="password"
                     type="password"
-                    class="mt-1 block w-full"
                     v-model="form.password"
-                    required
+                    placeholder="********"
+                    :error="form.errors.password"
                     autocomplete="current-password"
                 />
+            </FormGroup>
 
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
+            <div class="flex items-center justify-between">
+                <Checkbox v-model="form.remember" label="Mbaj mend" />
 
-            <div class="mt-4 block">
-                <label class="flex items-center">
-                    <Checkbox name="remember" v-model:checked="form.remember" />
-                    <span class="ms-2 text-sm text-gray-600"
-                        >Remember me</span
-                    >
-                </label>
-            </div>
-
-            <div class="mt-4 flex items-center justify-end">
                 <Link
                     v-if="canResetPassword"
                     :href="route('password.request')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    class="text-body-sm text-neutral-500 hover:text-accent-600 no-underline"
                 >
-                    Forgot your password?
+                    Harrove fjalekalimin?
                 </Link>
-
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Log in
-                </PrimaryButton>
             </div>
+
+            <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                class="w-full"
+                :loading="form.processing"
+                :disabled="form.processing"
+            >
+                Hyr ne sistem
+            </Button>
         </form>
     </GuestLayout>
 </template>

@@ -1,30 +1,34 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import AppLayout from '@/Layouts/AppLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
+import Card from '@/Components/UI/Card.vue';
+import Badge from '@/Components/UI/Badge.vue';
+import { Head, usePage } from '@inertiajs/vue3';
+
+const user = usePage().props.auth.user;
 </script>
 
 <template>
     <Head title="Dashboard" />
 
-    <AuthenticatedLayout>
-        <template #header>
-            <h2
-                class="text-xl font-semibold leading-tight text-gray-800"
-            >
-                Dashboard
-            </h2>
-        </template>
+    <AppLayout>
+        <PageHeader title="Dashboard" />
 
-        <div class="py-12">
-            <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
-                <div
-                    class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
-                >
-                    <div class="p-6 text-gray-900">
-                        You're logged in!
+        <div class="mt-6">
+            <Card>
+                <div class="flex items-center gap-4">
+                    <div class="h-12 w-12 rounded-lg bg-accent-100 flex items-center justify-center">
+                        <span class="text-h4 text-accent-700">{{ user.name.charAt(0) }}</span>
+                    </div>
+                    <div>
+                        <h3 class="text-h4 text-primary-900">Miresevini, {{ user.name }}!</h3>
+                        <div class="flex items-center gap-2 mt-1">
+                            <Badge variant="accent">{{ user.role }}</Badge>
+                            <span class="text-body-sm text-neutral-500">{{ user.email }}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </Card>
         </div>
-    </AuthenticatedLayout>
+    </AppLayout>
 </template>
