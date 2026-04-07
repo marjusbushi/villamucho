@@ -55,6 +55,39 @@ class ReservationController extends Controller
         ]);
     }
 
+    public function calendar(Request $request): Response
+    {
+        $startDate = $request->input('start', now()->startOfWeek()->toDateString());
+        $endDate = now()->parse($startDate)->addDays(13)->toDateString();
+
+        $rooms = Room::select('id', 'room_number', 'room_type_id', 'floor', 'status')
+            ->with('roomType:id,name,base_price')
+            ->orderBy('floor')
+            ->orderBy('room_number')
+            ->get();
+
+        $reservations = Reservation::select(
+            'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status', 'total_amount'
+        )
+            ->with('guest:id,first_name,last_name')
+            ->whereNotIn('status', ['cancelled'])
+            ->where('check_in_date', '<=', $endDate)
+            ->where('check_out_date', '>=', $startDate)
+            ->get();
+
+        $guests = Guest::select('id', 'first_name', 'last_name', 'email', 'phone')
+            ->orderBy('last_name')
+            ->get();
+
+        return Inertia::render('Reservations/Calendar', [
+            'rooms' => $rooms,
+            'reservations' => $reservations,
+            'guests' => $guests,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ]);
+    }
+
     public function store(ReservationStoreRequest $request): RedirectResponse
     {
         $data = $request->validated();

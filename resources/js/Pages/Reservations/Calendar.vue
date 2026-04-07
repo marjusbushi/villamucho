@@ -1,0 +1,374 @@
+<script setup>
+import { ref, computed } from 'vue';
+import { router, useForm, usePage } from '@inertiajs/vue3';
+import AppLayout from '@/Layouts/AppLayout.vue';
+import Button from '@/Components/UI/Button.vue';
+import Badge from '@/Components/UI/Badge.vue';
+import Modal from '@/Components/UI/Modal.vue';
+import TextInput from '@/Components/UI/TextInput.vue';
+import Select from '@/Components/UI/Select.vue';
+import Textarea from '@/Components/UI/Textarea.vue';
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import { Link } from '@inertiajs/vue3';
+
+const props = defineProps({
+    rooms: Array,
+    reservations: Array,
+    guests: Array,
+    startDate: String,
+    endDate: String,
+});
+
+const toasts = ref(null);
+const showCreateModal = ref(false);
+const showDetailModal = ref(false);
+const selectedReservation = ref(null);
+
+const perms = usePage().props.auth.user?.permissions || [];
+const canCreate = perms.includes('create_reservations');
+const canUpdate = perms.includes('update_reservations');
+
+// Generate 14 days array
+const days = computed(() => {
+    const result = [];
+    const start = new Date(props.startDate);
+    for (let i = 0; i < 14; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        result.push({
+            date: d.toISOString().split('T')[0],
+            day: d.getDate(),
+            weekday: d.toLocaleDateString('sq-AL', { weekday: 'short' }),
+            isToday: d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0],
+            isWeekend: d.getDay() === 0 || d.getDay() === 6,
+        });
+    }
+    return result;
+});
+
+const monthLabel = computed(() => {
+    const start = new Date(props.startDate);
+    const end = new Date(props.endDate);
+    const startMonth = start.toLocaleDateString('sq-AL', { month: 'long', year: 'numeric' });
+    const endMonth = end.toLocaleDateString('sq-AL', { month: 'long', year: 'numeric' });
+    return startMonth === endMonth ? startMonth : `${start.toLocaleDateString('sq-AL', { month: 'short' })} — ${end.toLocaleDateString('sq-AL', { month: 'short', year: 'numeric' })}`;
+});
+
+const statusColors = {
+    pending: 'bg-warning-200 border-warning-400 text-warning-800',
+    confirmed: 'bg-info-200 border-info-400 text-info-800',
+    checked_in: 'bg-accent-200 border-accent-500 text-accent-900',
+    checked_out: 'bg-neutral-200 border-neutral-400 text-neutral-600',
+};
+
+// Get reservation for a room on a specific date
+function getReservation(roomId, date) {
+    return props.reservations.find(r =>
+        r.room_id === roomId &&
+        r.check_in_date <= date &&
+        r.check_out_date > date
+    );
+}
+
+// Check if date is check-in day for a reservation
+function isCheckInDay(reservation, date) {
+    return reservation.check_in_date === date;
+}
+
+// Get span (days) for a reservation block starting from a date
+function getReservationSpan(reservation, fromDate) {
+    const end = new Date(reservation.check_out_date);
+    const from = new Date(fromDate);
+    const lastDay = new Date(props.endDate);
+    const actualEnd = end < lastDay ? end : lastDay;
+    return Math.ceil((actualEnd - from) / (1000 * 60 * 60 * 24));
+}
+
+function navigate(direction) {
+    const start = new Date(props.startDate);
+    start.setDate(start.getDate() + (direction * 14));
+    router.get(route('reservations.calendar'), { start: start.toISOString().split('T')[0] }, { preserveState: true });
+}
+
+function goToToday() {
+    const today = new Date();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - today.getDay() + 1);
+    router.get(route('reservations.calendar'), { start: monday.toISOString().split('T')[0] }, { preserveState: true });
+}
+
+function openDetail(reservation) {
+    selectedReservation.value = reservation;
+    showDetailModal.value = true;
+}
+
+// Create form
+const prefillRoom = ref('');
+const prefillDate = ref('');
+
+const guestOptions = props.guests.map(g => ({ value: g.id, label: `${g.first_name} ${g.last_name}` }));
+const roomOptions = props.rooms.map(r => ({ value: r.id, label: `${r.room_number} — ${r.room_type?.name}` }));
+
+const createForm = useForm({
+    room_id: '', guest_id: '', check_in_date: '', check_out_date: '', status: 'confirmed', adults: 1, children: 0, notes: '',
+});
+
+function openCreate(roomId, date) {
+    if (!canCreate) return;
+    createForm.reset();
+    createForm.room_id = roomId || '';
+    createForm.check_in_date = date || '';
+    const checkout = new Date(date);
+    checkout.setDate(checkout.getDate() + 1);
+    createForm.check_out_date = checkout.toISOString().split('T')[0];
+    showCreateModal.value = true;
+}
+
+function submitCreate() {
+    createForm.post(route('reservations.store'), {
+        onSuccess: () => {
+            showCreateModal.value = false;
+            createForm.reset();
+            toasts.value?.success('Rezervimi u krijua.');
+        },
+    });
+}
+
+function doCheckIn(res) {
+    router.post(route('reservations.check-in', res.id), {}, {
+        preserveScroll: true,
+        onSuccess: () => { showDetailModal.value = false; toasts.value?.success('Check-in OK'); },
+    });
+}
+
+function doCheckOut(res) {
+    router.post(route('reservations.check-out', res.id), {}, {
+        preserveScroll: true,
+        onSuccess: () => { showDetailModal.value = false; toasts.value?.success('Check-out OK'); },
+    });
+}
+
+// Build calendar grid - for each room, pre-calculate which cells are occupied
+function getRoomCalendarCells(room) {
+    const cells = [];
+    let skipUntil = null;
+
+    for (const day of days.value) {
+        if (skipUntil && day.date < skipUntil) {
+            continue; // skip — covered by colspan
+        }
+        skipUntil = null;
+
+        const res = getReservation(room.id, day.date);
+        if (res && isCheckInDay(res, day.date)) {
+            const span = getReservationSpan(res, day.date);
+            cells.push({ type: 'reservation', reservation: res, span, date: day.date });
+            const skipDate = new Date(day.date);
+            skipDate.setDate(skipDate.getDate() + span);
+            skipUntil = skipDate.toISOString().split('T')[0];
+        } else if (res) {
+            // mid-reservation — already covered by previous colspan from earlier start
+            // but if reservation started before our view, we need to show it
+            const viewStart = new Date(props.startDate);
+            const resStart = new Date(res.check_in_date);
+            if (resStart < viewStart && day.date === days.value[0].date) {
+                const span = getReservationSpan(res, day.date);
+                cells.push({ type: 'reservation', reservation: res, span, date: day.date });
+                const skipDate = new Date(day.date);
+                skipDate.setDate(skipDate.getDate() + span);
+                skipUntil = skipDate.toISOString().split('T')[0];
+            } else {
+                continue;
+            }
+        } else {
+            cells.push({ type: 'empty', date: day.date, roomId: room.id });
+        }
+    }
+    return cells;
+}
+</script>
+
+<template>
+    <AppLayout>
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-h2 text-primary-900">Kalendari i Rezervimeve</h1>
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                    <Link :href="route('reservations.index')" class="text-body-sm text-neutral-500 hover:text-accent-600 no-underline">← Lista</Link>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <Button variant="outline" size="sm" @click="navigate(-1)">← 2 jave</Button>
+                <Button variant="ghost" size="sm" @click="goToToday">Sot</Button>
+                <Button variant="outline" size="sm" @click="navigate(1)">2 jave →</Button>
+                <Button v-if="canCreate" variant="primary" size="sm" @click="openCreate(null, new Date().toISOString().split('T')[0])">+ Rezervim</Button>
+            </div>
+        </div>
+
+        <!-- Month label -->
+        <p class="text-label text-neutral-500 uppercase tracking-wider mb-3">{{ monthLabel }}</p>
+
+        <!-- Calendar grid -->
+        <div class="bg-white rounded-lg border border-neutral-200 overflow-x-auto">
+            <table class="w-full border-collapse" style="min-width: 900px;">
+                <!-- Day headers -->
+                <thead>
+                    <tr>
+                        <th class="sticky left-0 z-10 bg-neutral-50 border-b border-r border-neutral-200 px-3 py-2 text-left text-label text-neutral-600 w-28">Dhoma</th>
+                        <th
+                            v-for="day in days"
+                            :key="day.date"
+                            :class="[
+                                'border-b border-r border-neutral-200 px-1 py-2 text-center min-w-[56px]',
+                                day.isToday ? 'bg-accent-50' : day.isWeekend ? 'bg-neutral-100' : 'bg-neutral-50',
+                            ]"
+                        >
+                            <p class="text-tiny text-neutral-400 uppercase">{{ day.weekday }}</p>
+                            <p :class="[
+                                'text-body-sm font-medium mt-0.5',
+                                day.isToday ? 'text-accent-700' : 'text-neutral-700',
+                            ]">{{ day.day }}</p>
+                        </th>
+                    </tr>
+                </thead>
+
+                <!-- Room rows -->
+                <tbody>
+                    <tr v-for="room in rooms" :key="room.id" class="group">
+                        <!-- Room label -->
+                        <td class="sticky left-0 z-10 bg-white border-b border-r border-neutral-200 px-3 py-2 group-hover:bg-neutral-50 transition-colors">
+                            <p class="text-body-sm text-primary-900 font-medium">{{ room.room_number }}</p>
+                            <p class="text-tiny text-neutral-400">{{ room.room_type?.name }}</p>
+                        </td>
+
+                        <!-- Calendar cells -->
+                        <template v-for="cell in getRoomCalendarCells(room)" :key="cell.date">
+                            <!-- Reservation block -->
+                            <td
+                                v-if="cell.type === 'reservation'"
+                                :colspan="cell.span"
+                                class="border-b border-r border-neutral-200 p-0.5 h-12"
+                            >
+                                <button
+                                    :class="[
+                                        'w-full h-full rounded-md border px-2 py-1 text-left cursor-pointer transition-all duration-100 hover:shadow-md truncate',
+                                        statusColors[cell.reservation.status],
+                                    ]"
+                                    @click="openDetail(cell.reservation)"
+                                >
+                                    <p class="text-tiny font-medium truncate">{{ cell.reservation.guest?.first_name }} {{ cell.reservation.guest?.last_name }}</p>
+                                    <p class="text-tiny opacity-70">€{{ cell.reservation.total_amount }}</p>
+                                </button>
+                            </td>
+
+                            <!-- Empty cell -->
+                            <td
+                                v-else
+                                class="border-b border-r border-neutral-200 p-0.5 h-12"
+                                :class="canCreate && 'cursor-pointer hover:bg-accent-50/50'"
+                                @click="openCreate(cell.roomId, cell.date)"
+                            >
+                            </td>
+                        </template>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Legend -->
+        <div class="mt-4 flex flex-wrap gap-4">
+            <div class="flex items-center gap-1.5">
+                <div class="h-3 w-6 rounded-sm bg-warning-200 border border-warning-400"></div>
+                <span class="text-tiny text-neutral-500">Ne pritje</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <div class="h-3 w-6 rounded-sm bg-info-200 border border-info-400"></div>
+                <span class="text-tiny text-neutral-500">Konfirmuar</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <div class="h-3 w-6 rounded-sm bg-accent-200 border border-accent-500"></div>
+                <span class="text-tiny text-neutral-500">Brenda</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <div class="h-3 w-6 rounded-sm bg-neutral-200 border border-neutral-400"></div>
+                <span class="text-tiny text-neutral-500">Larguar</span>
+            </div>
+        </div>
+
+        <!-- Reservation Detail Modal -->
+        <Modal :show="showDetailModal" :title="`Rezervimi — ${selectedReservation?.guest?.first_name} ${selectedReservation?.guest?.last_name}`" max-width="md" @close="showDetailModal = false">
+            <div v-if="selectedReservation" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <p class="text-tiny text-neutral-400 uppercase">Dhoma</p>
+                        <p class="text-body-sm text-primary-900 font-medium">{{ rooms.find(r => r.id === selectedReservation.room_id)?.room_number }}</p>
+                    </div>
+                    <div>
+                        <p class="text-tiny text-neutral-400 uppercase">Total</p>
+                        <p class="text-body-sm text-accent-600 font-medium">€{{ selectedReservation.total_amount }}</p>
+                    </div>
+                    <div>
+                        <p class="text-tiny text-neutral-400 uppercase">Check-in</p>
+                        <p class="text-body-sm text-primary-900">{{ selectedReservation.check_in_date }}</p>
+                    </div>
+                    <div>
+                        <p class="text-tiny text-neutral-400 uppercase">Check-out</p>
+                        <p class="text-body-sm text-primary-900">{{ selectedReservation.check_out_date }}</p>
+                    </div>
+                </div>
+                <div>
+                    <Badge :variant="selectedReservation.status === 'checked_in' ? 'success' : selectedReservation.status === 'confirmed' ? 'info' : selectedReservation.status === 'pending' ? 'warning' : 'neutral'" dot>
+                        {{ selectedReservation.status }}
+                    </Badge>
+                </div>
+            </div>
+            <template #footer>
+                <Button v-if="canUpdate && selectedReservation?.status === 'confirmed'" variant="primary" size="sm" @click="doCheckIn(selectedReservation)">Check-in</Button>
+                <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="secondary" size="sm" @click="doCheckOut(selectedReservation)">Check-out</Button>
+                <Link :href="route('reservations.index', { search: selectedReservation?.guest?.last_name })" class="no-underline">
+                    <Button variant="outline" size="sm">Shiko ne liste</Button>
+                </Link>
+                <Button variant="ghost" @click="showDetailModal = false">Mbyll</Button>
+            </template>
+        </Modal>
+
+        <!-- Create Reservation Modal -->
+        <Modal :show="showCreateModal" title="Rezervim i ri" max-width="lg" @close="showCreateModal = false">
+            <form @submit.prevent="submitCreate" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormGroup label="Mysafiri" :error="createForm.errors.guest_id" required>
+                        <Select v-model="createForm.guest_id" :options="guestOptions" placeholder="Zgjidh mysafirin..." :error="createForm.errors.guest_id" />
+                    </FormGroup>
+                    <FormGroup label="Dhoma" :error="createForm.errors.room_id" required>
+                        <Select v-model="createForm.room_id" :options="roomOptions" placeholder="Zgjidh dhomen..." :error="createForm.errors.room_id" />
+                    </FormGroup>
+                    <FormGroup label="Check-in" :error="createForm.errors.check_in_date" required>
+                        <TextInput type="date" v-model="createForm.check_in_date" :error="createForm.errors.check_in_date" />
+                    </FormGroup>
+                    <FormGroup label="Check-out" :error="createForm.errors.check_out_date" required>
+                        <TextInput type="date" v-model="createForm.check_out_date" :error="createForm.errors.check_out_date" />
+                    </FormGroup>
+                    <FormGroup label="Te rritur">
+                        <TextInput type="number" v-model="createForm.adults" min="1" max="10" />
+                    </FormGroup>
+                    <FormGroup label="Femije">
+                        <TextInput type="number" v-model="createForm.children" min="0" max="10" />
+                    </FormGroup>
+                </div>
+                <FormGroup label="Shenime">
+                    <Textarea v-model="createForm.notes" placeholder="Kerkesa speciale..." :rows="2" />
+                </FormGroup>
+            </form>
+            <template #footer>
+                <Button variant="outline" @click="showCreateModal = false">Anulo</Button>
+                <Button variant="primary" :loading="createForm.processing" @click="submitCreate">Krijo rezervim</Button>
+            </template>
+        </Modal>
+
+        <ToastContainer ref="toasts" />
+    </AppLayout>
+</template>
