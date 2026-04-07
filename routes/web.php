@@ -8,18 +8,20 @@ use App\Http\Controllers\GuestController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\UserController;
-use Illuminate\Foundation\Application;
+use App\Http\Controllers\WebsiteController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
-});
+// ===== PUBLIC WEBSITE =====
+Route::get('/', [WebsiteController::class, 'home'])->name('website.home');
+Route::get('/rooms', [WebsiteController::class, 'rooms'])->name('website.rooms');
+Route::get('/book', [WebsiteController::class, 'bookingForm'])->name('website.book');
+Route::post('/book/check', [WebsiteController::class, 'checkAvailability'])->name('website.book.check');
+Route::post('/book', [WebsiteController::class, 'submitBooking'])->name('website.book.submit');
+Route::get('/book/confirmation/{reservation}', [WebsiteController::class, 'bookingConfirmation'])->name('website.booking.confirmation');
+Route::get('/about', [WebsiteController::class, 'about'])->name('website.about');
+Route::get('/contact', [WebsiteController::class, 'contact'])->name('website.contact');
+Route::post('/contact', [WebsiteController::class, 'submitContact'])->name('website.contact.submit');
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
@@ -29,7 +31,8 @@ Route::get('/design-system', function () {
     return Inertia::render('DesignSystem');
 })->name('design-system');
 
-Route::middleware('auth')->group(function () {
+// ===== PMS (authenticated) =====
+Route::middleware('auth')->prefix('pms')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
