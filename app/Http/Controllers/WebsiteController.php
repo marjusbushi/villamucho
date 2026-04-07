@@ -18,6 +18,7 @@ class WebsiteController extends Controller
     {
         $roomTypes = RoomType::select('id', 'name', 'description', 'base_price', 'max_occupancy', 'amenities')
             ->withCount('rooms')
+            ->with('images')
             ->get();
 
         return Inertia::render('Website/Home', [
@@ -30,6 +31,7 @@ class WebsiteController extends Controller
     {
         $roomTypes = RoomType::select('id', 'name', 'description', 'base_price', 'max_occupancy', 'amenities')
             ->withCount(['rooms', 'rooms as available_count' => fn($q) => $q->where('status', 'available')])
+            ->with('images')
             ->get();
 
         return Inertia::render('Website/Rooms', [

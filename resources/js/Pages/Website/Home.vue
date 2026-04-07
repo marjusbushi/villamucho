@@ -71,9 +71,10 @@ const amenityIcons = {
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div v-for="room in roomTypes" :key="room.id" class="group bg-white rounded-xl border border-neutral-100 overflow-hidden hover:shadow-lg transition-all duration-200">
-                        <!-- Image placeholder -->
-                        <div class="h-48 bg-gradient-to-br from-accent-100 to-neutral-100 flex items-center justify-center">
-                            <span class="text-5xl">🏨</span>
+                        <!-- Featured image -->
+                        <div class="h-48 bg-gradient-to-br from-accent-100 to-neutral-100 flex items-center justify-center overflow-hidden">
+                            <img v-if="room.images?.length" :src="`/storage/${room.images[0].path}`" :alt="room.name" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <span v-else class="text-5xl">🏨</span>
                         </div>
                         <div class="p-5">
                             <div class="flex items-start justify-between">

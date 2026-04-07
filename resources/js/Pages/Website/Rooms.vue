@@ -24,9 +24,14 @@ const amenityIcons = {
                 <div class="space-y-12">
                     <div v-for="room in roomTypes" :key="room.id" class="bg-white rounded-2xl border border-neutral-100 overflow-hidden hover:shadow-lg transition-shadow">
                         <div class="grid grid-cols-1 lg:grid-cols-2">
-                            <!-- Image -->
-                            <div class="h-64 lg:h-auto bg-gradient-to-br from-accent-50 to-neutral-100 flex items-center justify-center">
-                                <span class="text-7xl">🏨</span>
+                            <!-- Image gallery -->
+                            <div class="relative h-64 lg:h-auto bg-gradient-to-br from-accent-50 to-neutral-100 overflow-hidden">
+                                <img v-if="room.images?.length" :src="`/storage/${room.images[0].path}`" :alt="room.name" class="w-full h-full object-cover" />
+                                <span v-else class="absolute inset-0 flex items-center justify-center text-7xl">🏨</span>
+                                <!-- Image count badge -->
+                                <div v-if="room.images?.length > 1" class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-primary-950/70 text-white text-tiny font-medium backdrop-blur-sm">
+                                    📷 {{ room.images.length }} foto
+                                </div>
                             </div>
                             <!-- Info -->
                             <div class="p-6 lg:p-8 flex flex-col justify-between">

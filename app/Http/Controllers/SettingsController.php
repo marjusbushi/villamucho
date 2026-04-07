@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\RoomType;
+use App\Models\RoomTypeImage;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,7 +19,7 @@ class SettingsController extends Controller
     {
         return Inertia::render('Settings/Index', [
             'settings' => Setting::allGrouped(),
-            'roomTypes' => RoomType::withCount('rooms')->orderBy('name')->get(),
+            'roomTypes' => RoomType::withCount('rooms')->with('images')->orderBy('name')->get(),
             'menuCategories' => MenuCategory::with(['items' => fn($q) => $q->orderBy('name')])
                 ->orderBy('sort_order')
                 ->get(),
@@ -223,5 +225,48 @@ class SettingsController extends Controller
         $menuItem->delete();
 
         return back()->with('success', 'Artikulli u fshi.');
+    }
+
+    // --- Room Type Images ---
+    public function uploadRoomTypeImages(Request $request, RoomType $roomType): RedirectResponse
+    {
+        $request->validate([
+            'images' => ['required', 'array', 'min:1'],
+            'images.*' => ['image', 'max:3072'], // 3MB per image
+        ]);
+
+        $maxOrder = $roomType->images()->max('sort_order') ?? -1;
+
+        foreach ($request->file('images') as $image) {
+            $path = $image->store('room-types', 'public');
+            $roomType->images()->create([
+                'path' => $path,
+                'sort_order' => ++$maxOrder,
+            ]);
+        }
+
+        return back()->with('success', count($request->file('images')) . ' foto u ngarkuan.');
+    }
+
+    public function deleteRoomTypeImage(RoomTypeImage $roomTypeImage): RedirectResponse
+    {
+        Storage::disk('public')->delete($roomTypeImage->path);
+        $roomTypeImage->delete();
+
+        return back()->with('success', 'Foto u fshi.');
+    }
+
+    public function reorderRoomTypeImages(Request $request, RoomType $roomType): RedirectResponse
+    {
+        $request->validate([
+            'image_ids' => ['required', 'array'],
+            'image_ids.*' => ['exists:room_type_images,id'],
+        ]);
+
+        foreach ($request->image_ids as $index => $id) {
+            RoomTypeImage::where('id', $id)->update(['sort_order' => $index]);
+        }
+
+        return back()->with('success', 'Renditja u perditesua.');
     }
 }

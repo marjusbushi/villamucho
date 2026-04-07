@@ -30,4 +30,14 @@ class RoomType extends Model
     {
         return $this->hasMany(Room::class);
     }
+
+    public function images()
+    {
+        return $this->hasMany(RoomTypeImage::class)->orderBy('sort_order');
+    }
+
+    public function featuredImage()
+    {
+        return $this->hasOne(RoomTypeImage::class)->orderBy('sort_order');
+    }
 }

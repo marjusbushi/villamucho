@@ -12,13 +12,16 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 const props = defineProps({ roomTypes: Array, toasts: Object });
 
 const showModal = ref(false);
+const showImagesModal = ref(false);
 const editingType = ref(null);
+const selectedType = ref(null);
 
 const form = useForm({
     name: '', description: '', base_price: '', max_occupancy: 2, amenities: [],
 });
 
 const amenityInput = ref('');
+const imageFiles = ref(null);
 
 function openCreate() {
     editingType.value = null;
@@ -34,6 +37,11 @@ function openEdit(type) {
     form.max_occupancy = type.max_occupancy;
     form.amenities = type.amenities || [];
     showModal.value = true;
+}
+
+function openImages(type) {
+    selectedType.value = type;
+    showImagesModal.value = true;
 }
 
 function addAmenity() {
@@ -60,11 +68,49 @@ function submit() {
 }
 
 function deleteType(type) {
-    if (!confirm(`Fshi "${type.name}"? Kjo nuk mund te kthehet.`)) return;
+    if (!confirm(`Fshi "${type.name}"?`)) return;
     router.delete(route('settings.room-types.destroy', type.id), {
         preserveScroll: true,
         onSuccess: () => props.toasts?.success('Tipi u fshi.'),
         onError: () => props.toasts?.error(`Nuk mund te fshihet — ka ${type.rooms_count} dhoma.`),
+    });
+}
+
+function uploadImages() {
+    if (!imageFiles.value?.files?.length) return;
+    const formData = new FormData();
+    for (const file of imageFiles.value.files) {
+        formData.append('images[]', file);
+    }
+    router.post(route('settings.room-types.images.upload', selectedType.value.id), formData, {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            props.toasts?.success('Fotot u ngarkuan.');
+            imageFiles.value.value = '';
+        },
+    });
+}
+
+function deleteImage(imageId) {
+    if (!confirm('Fshi kete foto?')) return;
+    router.delete(route('settings.room-types.images.delete', imageId), {
+        preserveScroll: true,
+        onSuccess: () => props.toasts?.success('Foto u fshi.'),
+    });
+}
+
+function setAsFeatured(type, imageId) {
+    // Reorder: put this image first
+    const ids = type.images.map(i => i.id);
+    const idx = ids.indexOf(imageId);
+    if (idx > 0) {
+        ids.splice(idx, 1);
+        ids.unshift(imageId);
+    }
+    router.post(route('settings.room-types.images.reorder', type.id), { image_ids: ids }, {
+        preserveScroll: true,
+        onSuccess: () => props.toasts?.success('Foto kryesore u vendos.'),
     });
 }
 </script>
@@ -79,19 +125,31 @@ function deleteType(type) {
         </template>
 
         <div class="divide-y divide-neutral-100">
-            <div v-for="type in roomTypes" :key="type.id" class="flex items-center justify-between py-3">
-                <div>
-                    <div class="flex items-center gap-2">
-                        <p class="text-body-sm text-primary-900 font-medium">{{ type.name }}</p>
-                        <Badge variant="neutral" size="sm">{{ type.rooms_count }} dhoma</Badge>
+            <div v-for="type in roomTypes" :key="type.id" class="py-4">
+                <div class="flex items-start gap-4">
+                    <!-- Featured image thumbnail -->
+                    <div class="h-20 w-28 rounded-lg bg-neutral-100 overflow-hidden shrink-0 flex items-center justify-center">
+                        <img v-if="type.images?.length" :src="`/storage/${type.images[0].path}`" :alt="type.name" class="h-full w-full object-cover" />
+                        <span v-else class="text-2xl">🏨</span>
                     </div>
-                    <p class="text-small text-neutral-500 mt-0.5">
-                        €{{ type.base_price }}/nate · Max {{ type.max_occupancy }} persona
-                    </p>
-                </div>
-                <div class="flex gap-1.5">
-                    <Button size="sm" variant="ghost" @click="openEdit(type)">Edito</Button>
-                    <Button size="sm" variant="ghost" class="text-error-600" @click="deleteType(type)">Fshi</Button>
+
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <p class="text-body-sm text-primary-900 font-medium">{{ type.name }}</p>
+                            <Badge variant="neutral" size="sm">{{ type.rooms_count }} dhoma</Badge>
+                            <Badge v-if="type.images?.length" variant="accent" size="sm">{{ type.images.length }} foto</Badge>
+                            <Badge v-else variant="warning" size="sm">Pa foto</Badge>
+                        </div>
+                        <p class="text-small text-neutral-500 mt-0.5">
+                            €{{ type.base_price }}/nate · Max {{ type.max_occupancy }} persona
+                        </p>
+                    </div>
+
+                    <div class="flex gap-1.5 shrink-0">
+                        <Button size="sm" variant="ghost" @click="openImages(type)">📷 Foto</Button>
+                        <Button size="sm" variant="ghost" @click="openEdit(type)">Edito</Button>
+                        <Button size="sm" variant="ghost" class="text-error-600" @click="deleteType(type)">Fshi</Button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -99,6 +157,7 @@ function deleteType(type) {
         <div v-if="!roomTypes?.length" class="py-8 text-center text-body-sm text-neutral-500">Nuk ka tipe dhomash.</div>
     </Card>
 
+    <!-- Edit/Create Modal -->
     <Modal :show="showModal" :title="editingType ? 'Edito tipin' : 'Tip i ri dhome'" @close="showModal = false">
         <form @submit.prevent="submit" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
@@ -131,6 +190,50 @@ function deleteType(type) {
         <template #footer>
             <Button variant="outline" @click="showModal = false">Anulo</Button>
             <Button variant="primary" :loading="form.processing" @click="submit">{{ editingType ? 'Ruaj' : 'Shto' }}</Button>
+        </template>
+    </Modal>
+
+    <!-- Images Modal -->
+    <Modal :show="showImagesModal" :title="`Foto — ${selectedType?.name}`" max-width="2xl" @close="showImagesModal = false">
+        <div v-if="selectedType">
+            <!-- Upload -->
+            <div class="mb-6 p-4 bg-neutral-50 rounded-lg border border-dashed border-neutral-300">
+                <input
+                    ref="imageFiles"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    class="block w-full text-small text-neutral-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-accent-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-accent-700"
+                />
+                <p class="text-tiny text-neutral-400 mt-2">JPG, PNG, WebP. Max 3MB per foto. Mund te zgjidhni shume njeheres.</p>
+                <Button size="sm" variant="primary" class="mt-3" @click="uploadImages">Ngarko fotot</Button>
+            </div>
+
+            <!-- Gallery -->
+            <div v-if="selectedType.images?.length" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div v-for="(img, i) in selectedType.images" :key="img.id" class="relative group rounded-lg overflow-hidden border border-neutral-200">
+                    <img :src="`/storage/${img.path}`" :alt="`${selectedType.name} foto ${i+1}`" class="h-32 w-full object-cover" />
+                    <!-- Featured badge -->
+                    <div v-if="i === 0" class="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-accent-600 text-white text-tiny font-medium">
+                        Kryesore
+                    </div>
+                    <!-- Actions overlay -->
+                    <div class="absolute inset-0 bg-primary-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button v-if="i !== 0" class="px-2 py-1 rounded bg-white text-tiny font-medium text-primary-900 hover:bg-accent-50" @click="setAsFeatured(selectedType, img.id)">
+                            ⭐ Beje kryesore
+                        </button>
+                        <button class="px-2 py-1 rounded bg-error-600 text-tiny font-medium text-white hover:bg-error-700" @click="deleteImage(img.id)">
+                            Fshi
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div v-else class="py-8 text-center text-body-sm text-neutral-400">
+                Asnje foto akoma. Ngarkoni fotot e para duke klikuar butonin me lart.
+            </div>
+        </div>
+        <template #footer>
+            <Button variant="outline" @click="showImagesModal = false">Mbyll</Button>
         </template>
     </Modal>
 </template>

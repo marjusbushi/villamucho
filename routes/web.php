@@ -103,6 +103,11 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::put('/settings/room-types/{roomType}', [SettingsController::class, 'updateRoomType'])->name('settings.room-types.update');
         Route::delete('/settings/room-types/{roomType}', [SettingsController::class, 'destroyRoomType'])->name('settings.room-types.destroy');
 
+        // Settings: Room Type Images
+        Route::post('/settings/room-types/{roomType}/images', [SettingsController::class, 'uploadRoomTypeImages'])->name('settings.room-types.images.upload');
+        Route::delete('/settings/room-type-images/{roomTypeImage}', [SettingsController::class, 'deleteRoomTypeImage'])->name('settings.room-types.images.delete');
+        Route::post('/settings/room-types/{roomType}/images/reorder', [SettingsController::class, 'reorderRoomTypeImages'])->name('settings.room-types.images.reorder');
+
         // Settings: Menu
         Route::post('/settings/menu-categories', [SettingsController::class, 'storeMenuCategory'])->name('settings.menu-categories.store');
         Route::put('/settings/menu-categories/{menuCategory}', [SettingsController::class, 'updateMenuCategory'])->name('settings.menu-categories.update');
