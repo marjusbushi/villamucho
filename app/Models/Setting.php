@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -16,9 +15,7 @@ class Setting extends Model
     {
         [$group, $key] = explode('.', $path, 2);
 
-        $setting = Cache::remember("setting.{$group}.{$key}", 3600, function () use ($group, $key) {
-            return static::where('group', $group)->where('key', $key)->first();
-        });
+        $setting = static::where('group', $group)->where('key', $key)->first();
 
         if (!$setting) {
             return $default;
@@ -40,9 +37,6 @@ class Setting extends Model
             ['group' => $group, 'key' => $key],
             ['value' => $storedValue, 'type' => $type]
         );
-
-        Cache::forget("setting.{$group}.{$key}");
-        Cache::forget("settings.group.{$group}");
     }
 
     /**
@@ -50,12 +44,10 @@ class Setting extends Model
      */
     public static function getGroup(string $group): array
     {
-        return Cache::remember("settings.group.{$group}", 3600, function () use ($group) {
-            return static::where('group', $group)
-                ->get()
-                ->mapWithKeys(fn($s) => [$s->key => self::castValue($s->value, $s->type)])
-                ->toArray();
-        });
+        return static::where('group', $group)
+            ->get()
+            ->mapWithKeys(fn($s) => [$s->key => self::castValue($s->value, $s->type)])
+            ->toArray();
     }
 
     /**
