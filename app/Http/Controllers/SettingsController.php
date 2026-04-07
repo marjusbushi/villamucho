@@ -168,14 +168,21 @@ class SettingsController extends Controller
             'menu_category_id' => ['required', 'exists:menu_categories,id'],
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0.01'],
+            'image' => ['nullable', 'image', 'max:2048'],
         ]);
 
-        MenuItem::create([
+        $data = [
             'menu_category_id' => $request->menu_category_id,
             'name' => $request->name,
             'price' => $request->price,
             'is_available' => true,
-        ]);
+        ];
+
+        if ($request->hasFile('image')) {
+            $data['image_path'] = $request->file('image')->store('menu', 'public');
+        }
+
+        MenuItem::create($data);
 
         return back()->with('success', 'Artikulli u shtua.');
     }
@@ -185,9 +192,20 @@ class SettingsController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0.01'],
+            'image' => ['nullable', 'image', 'max:2048'],
         ]);
 
-        $menuItem->update($request->only('name', 'price'));
+        $data = $request->only('name', 'price');
+
+        if ($request->hasFile('image')) {
+            // Delete old image
+            if ($menuItem->image_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($menuItem->image_path);
+            }
+            $data['image_path'] = $request->file('image')->store('menu', 'public');
+        }
+
+        $menuItem->update($data);
 
         return back()->with('success', 'Artikulli u perditesua.');
     }

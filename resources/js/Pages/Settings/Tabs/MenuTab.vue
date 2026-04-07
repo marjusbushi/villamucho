@@ -42,12 +42,15 @@ function deleteCat(cat) {
 // Item
 const showItemModal = ref(false);
 const editingItem = ref(null);
-const itemForm = useForm({ menu_category_id: '', name: '', price: '' });
+const itemForm = useForm({ menu_category_id: '', name: '', price: '', image: null });
+const imagePreview = ref(null);
+const fileInput = ref(null);
 
 function openCreateItem(catId) {
     editingItem.value = null;
     itemForm.reset();
     itemForm.menu_category_id = catId;
+    imagePreview.value = null;
     showItemModal.value = true;
 }
 
@@ -56,17 +59,46 @@ function openEditItem(item) {
     itemForm.name = item.name;
     itemForm.price = item.price;
     itemForm.menu_category_id = item.menu_category_id;
+    itemForm.image = null;
+    imagePreview.value = item.image_path ? `/storage/${item.image_path}` : null;
     showItemModal.value = true;
 }
 
+function onImageChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    itemForm.image = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => { imagePreview.value = ev.target.result; };
+    reader.readAsDataURL(file);
+}
+
+function removeImage() {
+    itemForm.image = null;
+    imagePreview.value = null;
+    if (fileInput.value) fileInput.value.value = '';
+}
+
 function submitItem() {
+    // Use FormData for file upload
+    const formData = new FormData();
+    formData.append('name', itemForm.name);
+    formData.append('price', itemForm.price);
+    if (itemForm.image) formData.append('image', itemForm.image);
+
     if (editingItem.value) {
-        itemForm.put(route('settings.menu-items.update', editingItem.value.id), {
+        formData.append('_method', 'PUT');
+        router.post(route('settings.menu-items.update', editingItem.value.id), formData, {
+            forceFormData: true,
+            preserveScroll: true,
             onSuccess: () => { showItemModal.value = false; props.toasts?.success('Artikulli u perditesua.'); },
         });
     } else {
-        itemForm.post(route('settings.menu-items.store'), {
-            onSuccess: () => { showItemModal.value = false; itemForm.reset(); props.toasts?.success('Artikulli u shtua.'); },
+        formData.append('menu_category_id', itemForm.menu_category_id);
+        router.post(route('settings.menu-items.store'), formData, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => { showItemModal.value = false; itemForm.reset(); imagePreview.value = null; props.toasts?.success('Artikulli u shtua.'); },
         });
     }
 }
@@ -110,10 +142,17 @@ function deleteItem(item) {
             </template>
 
             <div v-if="cat.items?.length" class="divide-y divide-neutral-100 -my-1">
-                <div v-for="item in cat.items" :key="item.id" class="flex items-center justify-between py-2">
+                <div v-for="item in cat.items" :key="item.id" class="flex items-center justify-between py-2.5">
                     <div class="flex items-center gap-3">
-                        <span class="text-body-sm text-primary-900">{{ item.name }}</span>
-                        <span class="text-body-sm text-accent-600 font-medium">€{{ item.price }}</span>
+                        <!-- Thumbnail -->
+                        <div class="h-10 w-10 rounded-md bg-neutral-100 overflow-hidden shrink-0 flex items-center justify-center">
+                            <img v-if="item.image_path" :src="`/storage/${item.image_path}`" :alt="item.name" class="h-full w-full object-cover" />
+                            <span v-else class="text-neutral-300 text-small">IMG</span>
+                        </div>
+                        <div>
+                            <span class="text-body-sm text-primary-900 font-medium">{{ item.name }}</span>
+                            <span class="text-body-sm text-accent-600 font-medium ml-2">€{{ item.price }}</span>
+                        </div>
                         <Badge v-if="!item.is_available" variant="error" size="sm">Jo disponueshem</Badge>
                     </div>
                     <div class="flex gap-1">
@@ -143,18 +182,42 @@ function deleteItem(item) {
     </Modal>
 
     <!-- Item Modal -->
-    <Modal :show="showItemModal" :title="editingItem ? 'Edito artikullin' : 'Artikull i ri'" max-width="sm" @close="showItemModal = false">
+    <Modal :show="showItemModal" :title="editingItem ? 'Edito artikullin' : 'Artikull i ri'" max-width="md" @close="showItemModal = false">
         <div class="space-y-4">
-            <FormGroup label="Emri" :error="itemForm.errors.name" required>
-                <TextInput v-model="itemForm.name" placeholder="psh. Mojito" :error="itemForm.errors.name" />
+            <!-- Image upload -->
+            <FormGroup label="Foto" :error="itemForm.errors?.image">
+                <div class="flex items-start gap-4">
+                    <!-- Preview -->
+                    <div class="h-24 w-24 rounded-lg bg-neutral-100 overflow-hidden shrink-0 flex items-center justify-center border border-neutral-200">
+                        <img v-if="imagePreview" :src="imagePreview" class="h-full w-full object-cover" />
+                        <span v-else class="text-neutral-300 text-small">Foto</span>
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <input
+                            ref="fileInput"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            class="block w-full text-small text-neutral-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-neutral-200 file:text-body-sm file:font-medium file:bg-white file:text-neutral-700 hover:file:bg-neutral-50 file:cursor-pointer"
+                            @change="onImageChange"
+                        />
+                        <p class="text-tiny text-neutral-400">JPG, PNG ose WebP. Max 2MB.</p>
+                        <button v-if="imagePreview" type="button" class="text-small text-error-500 hover:text-error-700" @click="removeImage">Hiq foton</button>
+                    </div>
+                </div>
             </FormGroup>
-            <FormGroup label="Cmimi (€)" :error="itemForm.errors.price" required>
-                <TextInput type="number" v-model="itemForm.price" min="0.01" step="0.01" :error="itemForm.errors.price" />
-            </FormGroup>
+
+            <div class="grid grid-cols-2 gap-4">
+                <FormGroup label="Emri" :error="itemForm.errors?.name" required>
+                    <TextInput v-model="itemForm.name" placeholder="psh. Mojito" :error="itemForm.errors?.name" />
+                </FormGroup>
+                <FormGroup label="Cmimi (€)" :error="itemForm.errors?.price" required>
+                    <TextInput type="number" v-model="itemForm.price" min="0.01" step="0.01" :error="itemForm.errors?.price" />
+                </FormGroup>
+            </div>
         </div>
         <template #footer>
             <Button variant="outline" @click="showItemModal = false">Anulo</Button>
-            <Button variant="primary" :loading="itemForm.processing" @click="submitItem">{{ editingItem ? 'Ruaj' : 'Shto' }}</Button>
+            <Button variant="primary" @click="submitItem">{{ editingItem ? 'Ruaj' : 'Shto' }}</Button>
         </template>
     </Modal>
 </template>
