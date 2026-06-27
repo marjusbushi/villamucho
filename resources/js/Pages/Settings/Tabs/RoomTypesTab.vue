@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useForm, router } from '@inertiajs/vue3';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
@@ -9,7 +9,7 @@ import TextInput from '@/Components/UI/TextInput.vue';
 import Textarea from '@/Components/UI/Textarea.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 
-const props = defineProps({ roomTypes: Array, toasts: Object });
+const props = defineProps({ roomTypes: Array, amenities: { type: Array, default: () => [] }, toasts: Object });
 
 const showModal = ref(false);
 const showImagesModal = ref(false);
@@ -44,15 +44,24 @@ function openImages(type) {
     showImagesModal.value = true;
 }
 
-function addAmenity() {
-    if (amenityInput.value.trim()) {
-        form.amenities.push(amenityInput.value.trim());
-        amenityInput.value = '';
-    }
+// Master amenities + any already-selected custom names (legacy ones still show as chips).
+const allChips = computed(() => {
+    const master = props.amenities.map((a) => a.name);
+    const extra = (form.amenities || []).filter((n) => !master.includes(n));
+    return [...master, ...extra];
+});
+function isSelected(name) {
+    return form.amenities.includes(name);
 }
-
-function removeAmenity(i) {
-    form.amenities.splice(i, 1);
+function toggleAmenity(name) {
+    const i = form.amenities.indexOf(name);
+    if (i === -1) form.amenities.push(name);
+    else form.amenities.splice(i, 1);
+}
+function addAmenity() {
+    const v = amenityInput.value.trim();
+    if (v && !form.amenities.includes(v)) form.amenities.push(v);
+    amenityInput.value = '';
 }
 
 function submit() {
@@ -174,16 +183,29 @@ function setAsFeatured(type, imageId) {
             <FormGroup label="Pershkrim" :error="form.errors.description">
                 <Textarea v-model="form.description" :rows="2" placeholder="Pershkrim i shkurter..." />
             </FormGroup>
-            <FormGroup label="Amenities">
-                <div class="flex gap-2 mb-2">
-                    <TextInput v-model="amenityInput" placeholder="psh. WiFi" @keyup.enter.prevent="addAmenity" class="flex-1" />
-                    <Button type="button" size="sm" variant="outline" @click="addAmenity">+</Button>
+            <FormGroup label="Pajisjet (amenities)">
+                <div v-if="allChips.length" class="flex flex-wrap gap-1.5 mb-2">
+                    <button
+                        v-for="name in allChips"
+                        :key="name"
+                        type="button"
+                        :class="[
+                            'px-2.5 py-1 rounded-full text-small border transition-colors',
+                            isSelected(name)
+                                ? 'bg-accent-600 border-accent-600 text-white'
+                                : 'bg-white border-neutral-300 text-neutral-600 hover:border-accent-400',
+                        ]"
+                        @click="toggleAmenity(name)"
+                    >
+                        <span v-if="isSelected(name)">✓ </span>{{ name }}
+                    </button>
                 </div>
-                <div class="flex flex-wrap gap-1.5">
-                    <Badge v-for="(a, i) in form.amenities" :key="i" variant="neutral">
-                        {{ a }}
-                        <button type="button" class="ml-1 text-neutral-400 hover:text-error-500" @click="removeAmenity(i)">×</button>
-                    </Badge>
+                <p v-else class="text-small text-neutral-500 mb-2">
+                    Asnjë pajisje në listë — shtoji te skeda <b>Pajisjet</b>, ose shkruaj një këtu poshtë.
+                </p>
+                <div class="flex gap-2">
+                    <TextInput v-model="amenityInput" placeholder="Shto pajisje të re..." @keyup.enter.prevent="addAmenity" class="flex-1" />
+                    <Button type="button" size="sm" variant="outline" @click="addAmenity">+</Button>
                 </div>
             </FormGroup>
         </form>

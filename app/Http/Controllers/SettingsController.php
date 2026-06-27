@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Amenity;
 use App\Models\Floor;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
@@ -26,6 +27,7 @@ class SettingsController extends Controller
                 ->orderBy('sort_order')
                 ->get(),
             'floors' => Floor::orderBy('number')->get(),
+            'amenities' => Amenity::orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -205,6 +207,29 @@ class SettingsController extends Controller
         $roomType->delete();
 
         return back()->with('success', 'Tipi i dhomes u fshi.');
+    }
+
+    // --- Amenities master list (create once, select on room types) ---
+    public function storeAmenity(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100', 'unique:amenities,name'],
+        ]);
+
+        Amenity::create([
+            'name' => $data['name'],
+            'sort_order' => (Amenity::max('sort_order') ?? 0) + 1,
+        ]);
+
+        return back()->with('success', 'Pajisja u shtua.');
+    }
+
+    public function destroyAmenity(Amenity $amenity): RedirectResponse
+    {
+        // Removes the entry from the master list only; existing room types keep their saved names.
+        $amenity->delete();
+
+        return back()->with('success', 'Pajisja u fshi nga lista.');
     }
 
     // --- Menu Categories CRUD ---
