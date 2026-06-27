@@ -67,6 +67,11 @@ class Reservation extends Model
         return $this->hasMany(FolioItem::class);
     }
 
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
     public function getNightsAttribute(): int
     {
         return $this->check_in_date->diffInDays($this->check_out_date);

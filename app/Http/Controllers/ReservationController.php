@@ -7,6 +7,7 @@ use App\Http\Requests\ReservationUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\CleaningTask;
 use App\Models\Guest;
+use App\Models\Payment;
 use App\Models\PosOrder;
 use App\Models\Reservation;
 use App\Models\Room;
@@ -99,19 +100,23 @@ class ReservationController extends Controller
             'room.roomType:id,name,base_price',
             'guest:id,first_name,last_name,email,phone',
             'folioItems' => fn($q) => $q->orderBy('charge_date')->orderBy('id'),
+            'payments' => fn($q) => $q->orderBy('created_at'),
         ]);
 
-        // The folio = the room charge (reservations.total_amount) + every posted folio line.
-        // total_amount stays the ROOM charge; the live balance is computed here so it always
-        // reflects POS room-charges instead of a frozen number.
+        // Balance = room charge + folio charges - discounts - payments.
+        // total_amount stays the ROOM charge; the live balance is computed here.
         $roomCharge = (float) $reservation->total_amount;
-        $extras = (float) $reservation->folioItems->sum('amount');
-        $grandTotal = round($roomCharge + $extras, 2);
+        $folioCharges = (float) $reservation->folioItems->where('type', '!=', 'discount')->sum('amount');
+        $discounts = (float) $reservation->folioItems->where('type', 'discount')->sum('amount');
+        $gross = round($roomCharge + $folioCharges - $discounts, 2);
 
         // Menu/room prices are treated as VAT-INCLUSIVE (Albanian norm: shown price = paid price).
         // We surface the tax portion without inflating what the guest owes.
         $taxRate = (float) Setting::get('financial.tax_rate', 20);
-        $taxAmount = $taxRate > 0 ? round($grandTotal - ($grandTotal / (1 + $taxRate / 100)), 2) : 0.0;
+        $taxAmount = $taxRate > 0 ? round($gross - ($gross / (1 + $taxRate / 100)), 2) : 0.0;
+
+        $paid = (float) $reservation->payments->sum('amount');
+        $outstanding = round($gross - $paid, 2);
 
         $openPosOrders = PosOrder::where('reservation_id', $reservation->id)
             ->where('status', 'open')
@@ -148,15 +153,62 @@ class ReservationController extends Controller
                     'amount' => (float) $i->amount,
                     'charge_date' => $i->charge_date?->toDateString(),
                 ]),
-                'extras' => round($extras, 2),
-                'grandTotal' => $grandTotal,
+                'discounts' => round($discounts, 2),
+                'gross' => $gross,
                 'taxRate' => $taxRate,
                 'taxAmount' => $taxAmount,
-                'net' => round($grandTotal - $taxAmount, 2),
+                'net' => round($gross - $taxAmount, 2),
+                'paid' => round($paid, 2),
+                'outstanding' => $outstanding,
             ],
+            'payments' => $reservation->payments->map(fn($p) => [
+                'id' => $p->id,
+                'amount' => (float) $p->amount,
+                'method' => $p->method,
+                'date' => $p->created_at?->toDateString(),
+            ]),
             'openPosOrders' => $openPosOrders,
             'currency' => Setting::get('financial.default_currency_symbol', '€'),
         ]);
+    }
+
+    public function addFolioLine(Request $request, Reservation $reservation): RedirectResponse
+    {
+        $data = $request->validate([
+            'type' => ['required', 'in:restaurant,bar,minibar,extra,discount'],
+            'description' => ['required', 'string', 'max:255'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:1000000'],
+            'charge_date' => ['nullable', 'date'],
+        ]);
+
+        $reservation->folioItems()->create([
+            'description' => $data['description'],
+            'amount' => $data['amount'],
+            'type' => $data['type'],
+            'charge_date' => $data['charge_date'] ?? today(),
+        ]);
+
+        AuditLog::record('folio.add_line', $reservation, ['type' => $data['type'], 'amount' => $data['amount']]);
+
+        return back()->with('success', 'Rreshti u shtua ne folio.');
+    }
+
+    public function recordPayment(Request $request, Reservation $reservation): RedirectResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:1000000'],
+            'method' => ['required', 'in:cash,card'],
+        ]);
+
+        $reservation->payments()->create([
+            'amount' => $data['amount'],
+            'method' => $data['method'],
+            'created_by' => auth()->id(),
+        ]);
+
+        AuditLog::record('payment.record', $reservation, ['amount' => $data['amount'], 'method' => $data['method']]);
+
+        return back()->with('success', 'Pagesa u regjistrua.');
     }
 
     public function store(ReservationStoreRequest $request): RedirectResponse
