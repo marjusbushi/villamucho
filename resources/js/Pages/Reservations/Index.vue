@@ -223,7 +223,9 @@ function formatDate(d) {
                                             <Button size="sm" variant="ghost">Detaje</Button>
                                         </Link>
                                         <Button v-if="canUpdate && res.status === 'confirmed'" size="sm" variant="primary" @click="doCheckIn(res)">Check-in</Button>
-                                        <Button v-if="canUpdate && res.status === 'checked_in'" size="sm" variant="secondary" @click="doCheckOut(res)">Check-out</Button>
+                                        <Link v-if="canUpdate && res.status === 'checked_in'" :href="route('reservations.show', res.id)" class="no-underline">
+                                            <Button size="sm" variant="secondary">Check-out</Button>
+                                        </Link>
                                         <Button v-if="canUpdate && !['checked_in','checked_out','cancelled'].includes(res.status)" size="sm" variant="ghost" @click="openEdit(res)">Edito</Button>
                                         <Button v-if="canUpdate && ['pending','confirmed'].includes(res.status)" size="sm" variant="ghost" class="text-error-600" @click="doCancel(res)">Anulo</Button>
                                     </div>

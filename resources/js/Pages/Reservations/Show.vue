@@ -24,6 +24,7 @@ const toasts = ref(null);
 const checkingOut = ref(false);
 const showLineModal = ref(false);
 const showPayModal = ref(false);
+const showInvoice = ref(false);
 
 const perms = usePage().props.auth.user?.permissions || [];
 const canUpdate = perms.includes('update_reservations');
@@ -56,6 +57,20 @@ const methodOptions = [
 
 const hasOpenOrders = computed(() => (props.openPosOrders?.length || 0) > 0);
 const unsettled = computed(() => Number(props.folio.outstanding) > 0.005);
+const hotelName = usePage().props.settings?.hotel_name || 'Hotel';
+
+// Group folio charges by category for the invoice (room + bar + restaurant + ...).
+const invoiceGroups = computed(() => {
+    const g = { room: Number(props.folio.roomCharge) || 0, bar: 0, restaurant: 0, minibar: 0, extra: 0, discount: 0 };
+    for (const it of (props.folio.items || [])) g[it.type] = (g[it.type] || 0) + Number(it.amount);
+    return ['room', 'bar', 'restaurant', 'minibar', 'extra', 'discount']
+        .filter((k) => g[k] > 0)
+        .map((k) => ({ key: k, label: typeLabel[k], amount: g[k] }));
+});
+
+function printInvoice() {
+    window.print();
+}
 
 const lineForm = useForm({ type: 'extra', description: '', amount: '', charge_date: '' });
 const payForm = useForm({ amount: '', method: 'cash' });
@@ -106,6 +121,7 @@ function doCheckOut() {
                 </Badge>
                 <Button v-if="canUpdate" variant="outline" @click="showLineModal = true">+ Rresht</Button>
                 <Button v-if="canUpdate" variant="outline" @click="showPayModal = true">Regjistro pagese</Button>
+                <Button variant="outline" @click="showInvoice = true">Fature</Button>
                 <Button
                     v-if="canUpdate && reservation.status === 'checked_in'"
                     variant="primary"
@@ -284,6 +300,61 @@ function doCheckOut() {
             </template>
         </Modal>
 
+        <!-- Invoice (Fature) modal -->
+        <Modal :show="showInvoice" title="Fature" max-width="lg" @close="showInvoice = false">
+            <div id="invoice" class="space-y-4 text-primary-900">
+                <div class="text-center border-b border-neutral-200 pb-3">
+                    <p class="text-h3">{{ hotelName }}</p>
+                    <p class="text-body-sm text-neutral-500">Fature — Rezervimi #{{ reservation.id }}</p>
+                </div>
+
+                <div class="flex justify-between text-body-sm">
+                    <div>
+                        <p class="text-neutral-500">Mysafiri</p>
+                        <p class="font-medium">{{ reservation.guest?.name }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-neutral-500">Dhoma {{ reservation.room?.room_number }} — {{ reservation.room?.room_type }}</p>
+                        <p>{{ formatDate(reservation.check_in_date) }} → {{ formatDate(reservation.check_out_date) }} · {{ reservation.nights }} net</p>
+                    </div>
+                </div>
+
+                <table class="w-full text-body-sm">
+                    <tbody>
+                        <tr v-for="g in invoiceGroups" :key="g.key" class="border-b border-neutral-100">
+                            <td class="py-2">{{ g.label }}</td>
+                            <td class="py-2 text-right" :class="g.key === 'discount' ? 'text-success-600' : ''">{{ g.key === 'discount' ? '−' : '' }}{{ money(g.amount) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="space-y-1.5 text-body-sm border-t border-neutral-200 pt-3">
+                    <div class="flex justify-between text-neutral-500"><span>Nentotali (pa TVSH)</span><span>{{ money(folio.net) }}</span></div>
+                    <div class="flex justify-between text-neutral-500"><span>TVSH ({{ folio.taxRate }}%)</span><span>{{ money(folio.taxAmount) }}</span></div>
+                    <div class="flex justify-between font-medium border-t border-neutral-100 pt-1.5"><span>Total</span><span>{{ money(folio.gross) }}</span></div>
+                    <div class="flex justify-between text-neutral-500"><span>Paguar</span><span>− {{ money(folio.paid) }}</span></div>
+                    <div class="flex justify-between border-t border-neutral-200 pt-2">
+                        <span class="font-semibold">Mbetur per t'u paguar</span>
+                        <span class="text-h4" :class="unsettled ? 'text-error-600' : 'text-success-600'">{{ money(folio.outstanding) }}</span>
+                    </div>
+                </div>
+
+                <p class="text-tiny text-neutral-400 text-center pt-2">Faleminderit per qendrimin!</p>
+            </div>
+            <template #footer>
+                <Button variant="outline" @click="showInvoice = false">Mbyll</Button>
+                <Button variant="primary" @click="printInvoice">Printo</Button>
+            </template>
+        </Modal>
+
         <ToastContainer ref="toasts" />
     </AppLayout>
 </template>
+
+<style>
+@media print {
+    body * { visibility: hidden !important; }
+    #invoice, #invoice * { visibility: visible !important; }
+    #invoice { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+}
+</style>
