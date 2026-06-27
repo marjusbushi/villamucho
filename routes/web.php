@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CleaningTaskController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\PosShiftController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\GuestController;
 use App\Http\Controllers\ReportsController;
@@ -11,11 +12,19 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WebsiteController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 // ===== PUBLIC WEBSITE =====
-Route::get('/', [WebsiteController::class, 'home'])->name('website.home');
+// Root is host-aware: the admin subdomain (admin.villamucho.com) goes straight
+// to the back-office; every other host (apex, www, localhost) gets the public site.
+Route::get('/', function (Request $request) {
+    if (str_starts_with($request->getHost(), 'admin.')) {
+        return redirect()->route('dashboard');
+    }
+    return app(WebsiteController::class)->home();
+})->name('website.home');
 Route::get('/rooms', [WebsiteController::class, 'rooms'])->name('website.rooms');
 Route::get('/book', [WebsiteController::class, 'bookingForm'])->name('website.book');
 Route::post('/book/check', [WebsiteController::class, 'checkAvailability'])->middleware('throttle:30,1')->name('website.book.check');
@@ -86,6 +95,10 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/pos', [PosController::class, 'store'])->middleware('permission:create_pos_orders')->name('pos.store');
         Route::post('/pos/{posOrder}/complete', [PosController::class, 'complete'])->middleware('permission:update_pos_orders')->name('pos.complete');
         Route::post('/pos/{posOrder}/cancel', [PosController::class, 'cancel'])->middleware('permission:update_pos_orders')->name('pos.cancel');
+
+        // Cash-drawer shifts (hapje/mbyllje turni)
+        Route::post('/pos/shift/open', [PosShiftController::class, 'open'])->middleware('permission:open_pos_shift')->name('pos.shift.open');
+        Route::post('/pos/shift/{posShift}/close', [PosShiftController::class, 'close'])->middleware('permission:close_pos_shift')->name('pos.shift.close');
     });
 
     // Reports

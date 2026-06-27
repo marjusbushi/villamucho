@@ -11,6 +11,7 @@ const props = defineProps({
     filters: Object,
     summary: Object,
     byStatus: Array,
+    shifts: { type: Array, default: () => [] },
     currency: { type: String, default: '€' },
 });
 
@@ -30,6 +31,15 @@ function apply() {
 
 function money(v) {
     return `${props.currency}${Number(v ?? 0).toFixed(2)}`;
+}
+
+function overShortVariant(v) {
+    return Math.abs(Number(v)) < 0.01 ? 'success' : (Number(v) < 0 ? 'error' : 'warning');
+}
+function overShortLabel(v) {
+    const n = Number(v);
+    if (Math.abs(n) < 0.01) return 'Përputhet';
+    return n < 0 ? `Mungesë ${money(Math.abs(n))}` : `Tepricë ${money(n)}`;
 }
 
 const cards = [
@@ -98,6 +108,50 @@ const cards = [
                 </table>
                 <div v-if="!byStatus.length" class="px-6 py-10 text-center text-body-sm text-neutral-500">
                     Asnje rezervim ne kete periudhe.
+                </div>
+            </Card>
+        </div>
+
+        <!-- Shifts (Z-Report) -->
+        <div class="mt-6">
+            <Card :padding="false">
+                <div class="px-5 py-4 border-b border-neutral-200">
+                    <h3 class="text-label text-neutral-600 uppercase tracking-wider">Turnet (Z-Report)</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-neutral-200">
+                        <thead class="bg-neutral-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-label text-neutral-600">Përdoruesi</th>
+                                <th class="px-4 py-3 text-left text-label text-neutral-600">Hapur → Mbyllur</th>
+                                <th class="px-4 py-3 text-right text-label text-neutral-600">Fondi</th>
+                                <th class="px-4 py-3 text-right text-label text-neutral-600">💶 Kesh</th>
+                                <th class="px-4 py-3 text-right text-label text-neutral-600">💳 Kartë</th>
+                                <th class="px-4 py-3 text-right text-label text-neutral-600">🏨 Folio</th>
+                                <th class="px-4 py-3 text-right text-label text-neutral-600">Pritur</th>
+                                <th class="px-4 py-3 text-right text-label text-neutral-600">Numëruar</th>
+                                <th class="px-4 py-3 text-right text-label text-neutral-600">Diferenca</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100">
+                            <tr v-for="s in shifts" :key="s.id" class="hover:bg-neutral-50">
+                                <td class="px-4 py-3 text-body-sm text-primary-900 font-medium whitespace-nowrap">{{ s.user || '—' }}</td>
+                                <td class="px-4 py-3 text-body-sm text-neutral-500 whitespace-nowrap">{{ s.opened_at }} → {{ s.closed_at }}</td>
+                                <td class="px-4 py-3 text-right text-body-sm text-neutral-600">{{ money(s.opening_float) }}</td>
+                                <td class="px-4 py-3 text-right text-body-sm text-success-700">{{ money(s.cash_sales) }}</td>
+                                <td class="px-4 py-3 text-right text-body-sm text-neutral-600">{{ money(s.card_sales) }}</td>
+                                <td class="px-4 py-3 text-right text-body-sm text-neutral-600">{{ money(s.room_charge_sales) }}</td>
+                                <td class="px-4 py-3 text-right text-body-sm text-neutral-700">{{ money(s.expected_cash) }}</td>
+                                <td class="px-4 py-3 text-right text-body-sm text-primary-900 font-medium">{{ money(s.counted_cash) }}</td>
+                                <td class="px-4 py-3 text-right whitespace-nowrap">
+                                    <Badge :variant="overShortVariant(s.over_short)" size="sm">{{ overShortLabel(s.over_short) }}</Badge>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-if="!shifts.length" class="px-6 py-10 text-center text-body-sm text-neutral-500">
+                    Asnjë turn i mbyllur në këtë periudhë.
                 </div>
             </Card>
         </div>

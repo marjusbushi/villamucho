@@ -11,6 +11,7 @@ import Select from '@/Components/UI/Select.vue';
 import TextInput from '@/Components/UI/TextInput.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import ShiftBanner from '@/Components/Pos/ShiftBanner.vue';
 
 const props = defineProps({
     orders: Object,
@@ -18,6 +19,10 @@ const props = defineProps({
     activeReservations: Array,
     filters: Object,
     stats: Object,
+    currentShift: { type: Object, default: null },
+    canOpenShift: { type: Boolean, default: false },
+    canCloseShift: { type: Boolean, default: false },
+    defaultOpeningFloat: { type: Number, default: 0 },
 });
 
 const toasts = ref(null);
@@ -43,6 +48,71 @@ const paymentOptions = [
 ];
 const paymentMethod = ref('');
 const selectedPayReservation = ref('');
+
+// ===== Cash-drawer shift (hapje/mbyllje turni) =====
+const showOpenShift = ref(false);
+const showCloseShift = ref(false);
+const hasOpenShift = computed(() => !!props.currentShift);
+
+const openShiftForm = useForm({ opening_float: props.defaultOpeningFloat ?? 0 });
+const closeShiftForm = useForm({ counted_cash: '', closing_note: '' });
+
+function money(v) {
+    return `€${Number(v ?? 0).toFixed(2)}`;
+}
+
+function submitOpenShift() {
+    openShiftForm.post(route('pos.shift.open'), {
+        preserveScroll: true,
+        onSuccess: () => { showOpenShift.value = false; toasts.value?.success('Turni u hap 🟢'); },
+        onError: () => toasts.value?.error('Hapja e turnit dështoi.'),
+    });
+}
+
+function openCloseModal() {
+    closeShiftForm.reset();
+    closeShiftForm.clearErrors();
+    showCloseShift.value = true;
+}
+
+const expectedCash = computed(() => Number(props.currentShift?.expected_cash ?? 0));
+const totalSales = computed(() => {
+    const s = props.currentShift;
+    if (!s) return 0;
+    return Number(s.cash_sales) + Number(s.card_sales) + Number(s.room_charge_sales);
+});
+const countedNum = computed(() => {
+    const v = parseFloat(closeShiftForm.counted_cash);
+    return isNaN(v) ? null : v;
+});
+const variance = computed(() =>
+    countedNum.value === null ? null : Math.round((countedNum.value - expectedCash.value) * 100) / 100
+);
+const varianceLabel = computed(() => {
+    if (variance.value === null) return '';
+    if (Math.abs(variance.value) < 0.01) return 'Kasa përputhet ✅';
+    if (variance.value < 0) return `Mungesë €${Math.abs(variance.value).toFixed(2)} 🔴`;
+    return `Tepricë €${variance.value.toFixed(2)} 🟡`;
+});
+const varianceClass = computed(() => {
+    if (variance.value === null) return 'text-neutral-400';
+    if (Math.abs(variance.value) < 0.01) return 'text-success-600';
+    if (variance.value < 0) return 'text-error-600';
+    return 'text-warning-600';
+});
+
+function submitCloseShift() {
+    if (countedNum.value === null) { toasts.value?.error('Shëno sa kesh ke numëruar.'); return; }
+    closeShiftForm.post(route('pos.shift.close', props.currentShift.id), {
+        preserveScroll: true,
+        onSuccess: () => { showCloseShift.value = false; toasts.value?.success('Turni u mbyll — Z-Report gati 🧾'); },
+        onError: () => toasts.value?.error('Mbyllja e turnit dështoi.'),
+    });
+}
+
+function printZReport() {
+    window.print();
+}
 
 const cartTotal = computed(() =>
     cart.value.reduce((sum, item) => sum + item.price * item.qty, 0)
@@ -89,6 +159,7 @@ function getItemEmoji(item) {
 }
 
 function addToCart(menuItem) {
+    if (!hasOpenShift.value) { toasts.value?.error('Hap një turn së pari.'); return; }
     const existing = cart.value.find((c) => c.id === menuItem.id);
     if (existing) {
         existing.qty++;
@@ -120,6 +191,7 @@ function clearCart() {
 
 function submitOrder() {
     if (!cart.value.length) return;
+    if (!hasOpenShift.value) { toasts.value?.error('Hap një turn së pari.'); return; }
     const form = useForm({
         table_number: tableNumber.value || null,
         reservation_id: selectedReservation.value || null,
@@ -135,6 +207,7 @@ function submitOrder() {
 }
 
 function openPay(order) {
+    if (!hasOpenShift.value) { toasts.value?.error('Hap një turn së pari.'); return; }
     selectedOrder.value = order;
     paymentMethod.value = '';
     selectedPayReservation.value = order.reservation_id || '';
@@ -177,6 +250,14 @@ function formatTime(d) {
 
 <template>
     <AppLayout>
+        <ShiftBanner
+            :shift="currentShift"
+            :can-open="canOpenShift"
+            :can-close="canCloseShift"
+            class="mb-5"
+            @open="showOpenShift = true"
+            @close="openCloseModal"
+        />
         <div class="flex flex-col lg:flex-row gap-6 h-full">
             <!-- LEFT: Menu area -->
             <div class="flex-1 min-w-0">
@@ -225,7 +306,7 @@ function formatTime(d) {
                                         <td class="px-4 py-2.5 text-right text-body-sm font-medium">€{{ order.total_amount }}</td>
                                         <td class="px-4 py-2.5 text-right">
                                             <div v-if="order.status === 'open'" class="flex justify-end gap-1">
-                                                <Button size="sm" variant="primary" @click="openPay(order)">Paguaj</Button>
+                                                <Button size="sm" variant="primary" :disabled="!hasOpenShift" @click="openPay(order)">Paguaj</Button>
                                                 <Button size="sm" variant="ghost" class="text-error-600" @click="cancelOrder(order)">×</Button>
                                             </div>
                                             <Badge v-else-if="order.payment_method" variant="neutral" size="sm">{{ payLabel[order.payment_method] }}</Badge>
@@ -259,8 +340,16 @@ function formatTime(d) {
                         </button>
                     </div>
 
+                    <!-- Locked when no shift is open -->
+                    <div v-if="!hasOpenShift" class="mb-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-center">
+                        <span class="text-body-sm font-medium text-warning-900">🔒 Hap turnin për të filluar porositë</span>
+                    </div>
+
                     <!-- Item grid -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    <div
+                        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
+                        :class="{ 'opacity-50 pointer-events-none': !hasOpenShift }"
+                    >
                         <button
                             v-for="item in activeMenuItems"
                             :key="item.id"
@@ -344,7 +433,7 @@ function formatTime(d) {
                             <span class="text-label text-neutral-500">Total</span>
                             <span class="text-h3 text-primary-900">€{{ cartTotal.toFixed(2) }}</span>
                         </div>
-                        <Button variant="primary" size="lg" class="w-full" @click="submitOrder">
+                        <Button variant="primary" size="lg" class="w-full" :disabled="!hasOpenShift" @click="submitOrder">
                             Krijo porosine
                         </Button>
                     </div>
@@ -389,6 +478,85 @@ function formatTime(d) {
             </template>
         </Modal>
 
+        <!-- Open shift modal -->
+        <Modal :show="showOpenShift" title="Hap Turn" max-width="sm" @close="showOpenShift = false">
+            <div class="space-y-4">
+                <div class="text-center py-1"><span class="text-4xl">🔓</span></div>
+                <FormGroup label="Para në kasë (fillestare)" :error="openShiftForm.errors.opening_float" required>
+                    <TextInput type="number" step="0.01" min="0" v-model="openShiftForm.opening_float" placeholder="0.00" :error="openShiftForm.errors.opening_float" />
+                </FormGroup>
+                <p class="text-small text-neutral-500">Shëno sa para cash ke në sirtar tani, në fillim të turnit.</p>
+            </div>
+            <template #footer>
+                <Button variant="outline" @click="showOpenShift = false">Anulo</Button>
+                <Button variant="primary" :loading="openShiftForm.processing" @click="submitOpenShift">Hap Turnin</Button>
+            </template>
+        </Modal>
+
+        <!-- Close shift modal (Z-Report) -->
+        <Modal :show="showCloseShift" title="Mbyll Turn — Raporti i Turnit" max-width="md" @close="showCloseShift = false">
+            <div v-if="currentShift" class="space-y-4">
+                <div id="zreport" class="space-y-4">
+                    <!-- Drawer expected -->
+                    <div class="rounded-lg bg-neutral-50 border border-neutral-200 p-4 space-y-1.5 text-body-sm">
+                        <div class="flex justify-between text-neutral-600"><span>Para në kasë (fillestare)</span><span>{{ money(currentShift.opening_float) }}</span></div>
+                        <div class="flex justify-between text-neutral-600"><span>💶 Shitje kesh</span><span>{{ money(currentShift.cash_sales) }}</span></div>
+                        <div class="flex justify-between font-semibold text-primary-900 border-t border-neutral-200 pt-1.5"><span>= Arkë e pritur</span><span>{{ money(expectedCash) }}</span></div>
+                    </div>
+
+                    <!-- Reported but not in drawer -->
+                    <div class="rounded-lg bg-neutral-50/70 px-4 py-3 text-small text-neutral-500 space-y-1">
+                        <p class="font-medium text-neutral-600">Për informacion — s'prekin kasën:</p>
+                        <div class="flex justify-between"><span>💳 Kartë</span><span>{{ money(currentShift.card_sales) }}</span></div>
+                        <div class="flex justify-between"><span>🏨 Në folio (dhomë)</span><span>{{ money(currentShift.room_charge_sales) }}</span></div>
+                        <div class="flex justify-between border-t border-neutral-200 pt-1 text-neutral-600"><span>Shitje gjithsej · {{ currentShift.completed_orders }} porosi</span><span>{{ money(totalSales) }}</span></div>
+                    </div>
+
+                    <!-- counted result (prints with the report once typed) -->
+                    <div v-if="countedNum !== null" class="space-y-1 border-t border-neutral-100 pt-2">
+                        <div class="flex justify-between text-body-sm">
+                            <span class="text-neutral-600">Kesh i numëruar</span>
+                            <span class="text-primary-900 font-medium">{{ money(countedNum) }}</span>
+                        </div>
+                        <p class="text-center text-body-sm font-semibold" :class="varianceClass">{{ varianceLabel }}</p>
+                    </div>
+                </div>
+
+                <!-- open orders warning -->
+                <div v-if="currentShift.open_orders" class="rounded-lg bg-warning-50 border border-warning-200 px-3 py-2 text-small text-warning-800 print:hidden">
+                    ⚠️ {{ currentShift.open_orders }} porosi të pambyllura në këtë turn — mbyllja nuk i fshin, por kontrolloji.
+                </div>
+
+                <!-- mandatory count input -->
+                <FormGroup label="Numëro kesh-in në sirtar" :error="closeShiftForm.errors.counted_cash" required class="print:hidden">
+                    <TextInput type="number" step="0.01" min="0" v-model="closeShiftForm.counted_cash" placeholder="0.00" :error="closeShiftForm.errors.counted_cash" />
+                </FormGroup>
+
+                <FormGroup label="Shënim (opsional)" :error="closeShiftForm.errors.closing_note" class="print:hidden">
+                    <textarea
+                        v-model="closeShiftForm.closing_note"
+                        rows="2"
+                        maxlength="500"
+                        class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+                        placeholder="P.sh. arsye për mungesë/tepricë..."
+                    ></textarea>
+                </FormGroup>
+            </div>
+            <template #footer>
+                <Button variant="outline" @click="showCloseShift = false">Anulo</Button>
+                <Button variant="outline" :disabled="countedNum === null" @click="printZReport">🖨️ Printo</Button>
+                <Button variant="primary" :loading="closeShiftForm.processing" :disabled="countedNum === null" @click="submitCloseShift">Mbyll Turnin</Button>
+            </template>
+        </Modal>
+
         <ToastContainer ref="toasts" />
     </AppLayout>
 </template>
+
+<style>
+@media print {
+    body * { visibility: hidden !important; }
+    #zreport, #zreport * { visibility: visible !important; }
+    #zreport { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+}
+</style>

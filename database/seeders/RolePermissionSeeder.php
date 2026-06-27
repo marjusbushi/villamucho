@@ -20,6 +20,8 @@ class RolePermissionSeeder extends Seeder
             'guests'       => ['view', 'create', 'update', 'delete'],
             'housekeeping' => ['view', 'create', 'update', 'delete'],
             'pos_orders'   => ['view', 'create', 'update', 'delete'],
+            // POS cash-drawer shifts: open/close your own turn; close_any = manager force-close.
+            'pos_shift'    => ['open', 'close', 'close_any'],
             'reports'      => ['view'],
             'settings'     => ['view', 'update'],
             'users'        => ['view', 'create', 'update', 'delete'],
@@ -56,6 +58,7 @@ class RolePermissionSeeder extends Seeder
             'view_reservations', 'create_reservations', 'update_reservations', 'delete_reservations',
             'view_guests', 'create_guests', 'update_guests',
             'view_pos_orders', 'create_pos_orders', 'update_pos_orders',
+            'open_pos_shift', 'close_pos_shift',
             'view_reports',
         ]);
 
@@ -70,6 +73,7 @@ class RolePermissionSeeder extends Seeder
         $posStaff = Role::firstOrCreate(['name' => 'pos_staff', 'guard_name' => 'web']);
         $posStaff->syncPermissions([
             'view_pos_orders', 'create_pos_orders', 'update_pos_orders',
+            'open_pos_shift', 'close_pos_shift',
             'view_rooms',
         ]);
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PosOrder;
+use App\Models\PosShift;
 use App\Models\Reservation;
 use App\Models\Setting;
 use Illuminate\Http\Request;
@@ -37,6 +38,13 @@ class ReportsController extends Controller
             ->groupBy('status')
             ->get();
 
+        // Closed cash-drawer shifts (Z-reports) closed within the range.
+        $shifts = PosShift::with('user:id,name')
+            ->where('status', 'closed')
+            ->whereBetween('closed_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+            ->orderByDesc('closed_at')
+            ->get();
+
         return Inertia::render('Reports/Index', [
             'filters' => ['from' => $from, 'to' => $to],
             'summary' => [
@@ -51,6 +59,20 @@ class ReportsController extends Controller
                 'status' => $r->status,
                 'count' => (int) $r->count,
                 'revenue' => (float) $r->revenue,
+            ]),
+            'shifts' => $shifts->map(fn($s) => [
+                'id' => $s->id,
+                'user' => $s->user?->name,
+                'opened_at' => $s->opened_at?->format('d/m H:i'),
+                'closed_at' => $s->closed_at?->format('d/m H:i'),
+                'opening_float' => (float) $s->opening_float,
+                'cash_sales' => (float) $s->cash_sales,
+                'card_sales' => (float) $s->card_sales,
+                'room_charge_sales' => (float) $s->room_charge_sales,
+                'total_sales' => (float) $s->total_sales,
+                'expected_cash' => (float) $s->expected_cash,
+                'counted_cash' => (float) $s->counted_cash,
+                'over_short' => (float) $s->over_short,
             ]),
             'currency' => Setting::get('financial.default_currency_symbol', '€'),
         ]);

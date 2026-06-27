@@ -13,6 +13,7 @@ class PosOrder extends Model
         'payment_method',
         'total_amount',
         'created_by',
+        'pos_shift_id',
     ];
 
     protected function casts(): array
@@ -35,6 +36,11 @@ class PosOrder extends Model
     public function items()
     {
         return $this->hasMany(PosOrderItem::class);
+    }
+
+    public function shift()
+    {
+        return $this->belongsTo(PosShift::class, 'pos_shift_id');
     }
 
     public function recalculateTotal(): void

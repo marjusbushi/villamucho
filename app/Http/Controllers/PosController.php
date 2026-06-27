@@ -8,7 +8,9 @@ use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
+use App\Models\PosShift;
 use App\Models\Reservation;
+use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +39,34 @@ class PosController extends Controller
             ->select('id', 'room_id', 'guest_id')
             ->get();
 
+        // Current user's open cash-drawer shift (per-user model), with live running totals.
+        $shift = PosShift::currentFor(auth()->id());
+        $currentShift = null;
+        if ($shift) {
+            $byMethod = $shift->orders()
+                ->where('status', 'completed')
+                ->selectRaw('payment_method, COUNT(*) as cnt, SUM(total_amount) as sum')
+                ->groupBy('payment_method')
+                ->get();
+            $cash = (float) ($byMethod->firstWhere('payment_method', 'cash')->sum ?? 0);
+            $card = (float) ($byMethod->firstWhere('payment_method', 'card')->sum ?? 0);
+            $room = (float) ($byMethod->firstWhere('payment_method', 'room_charge')->sum ?? 0);
+
+            $currentShift = [
+                'id' => $shift->id,
+                'opened_at' => $shift->opened_at?->format('H:i'),
+                'opening_float' => (float) $shift->opening_float,
+                'user_name' => auth()->user()->name,
+                'open_orders' => (int) $shift->orders()->where('status', 'open')->count(),
+                'completed_orders' => (int) $byMethod->sum('cnt'),
+                'cash_sales' => $cash,
+                'card_sales' => $card,
+                'room_charge_sales' => $room,
+                // Only cash drives the drawer; card + room_charge are reported separately.
+                'expected_cash' => round((float) $shift->opening_float + $cash, 2),
+            ];
+        }
+
         return Inertia::render('Pos/Index', [
             'orders' => $query->paginate(15),
             'menu' => MenuCategory::with(['items' => fn($q) => $q->where('is_available', true)])
@@ -44,6 +74,10 @@ class PosController extends Controller
                 ->get(),
             'activeReservations' => $activeReservations,
             'filters' => $request->only('status'),
+            'currentShift' => $currentShift,
+            'canOpenShift' => $request->user()->can('open_pos_shift'),
+            'canCloseShift' => $request->user()->can('close_pos_shift'),
+            'defaultOpeningFloat' => (float) Setting::get('pos.default_opening_float', 0),
             'stats' => [
                 'open' => PosOrder::where('status', 'open')->count(),
                 'today_completed' => PosOrder::where('status', 'completed')->whereDate('created_at', today())->count(),
@@ -62,10 +96,18 @@ class PosController extends Controller
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:50'],
         ]);
 
-        $order = DB::transaction(function () use ($request) {
+        // No order without an open cash-drawer shift for the acting user.
+        $shift = PosShift::currentFor(auth()->id());
+        if (!$shift) {
+            AuditLog::record('pos.shift.blocked', null, ['attempted_action' => 'store']);
+            return back()->with('error', 'Hap nje turn para se te krijosh porosi.');
+        }
+
+        $order = DB::transaction(function () use ($request, $shift) {
             $order = PosOrder::create([
                 'table_number' => $request->table_number,
                 'reservation_id' => $request->reservation_id,
+                'pos_shift_id' => $shift->id,
                 'status' => 'open',
                 'created_by' => auth()->id(),
                 'total_amount' => 0,
@@ -106,7 +148,14 @@ class PosController extends Controller
             return back()->with('error', 'Kjo porosi nuk eshte e hapur.');
         }
 
-        DB::transaction(function () use ($posOrder, $request) {
+        // A sale only finalizes inside the acting user's open shift (cash hits a live drawer).
+        $shift = PosShift::currentFor(auth()->id());
+        if (!$shift) {
+            AuditLog::record('pos.shift.blocked', $posOrder, ['attempted_action' => 'complete']);
+            return back()->with('error', 'Hap nje turn para se te mbyllesh porosine.');
+        }
+
+        DB::transaction(function () use ($posOrder, $request, $shift) {
             // Room charge can target a reservation chosen at payment time;
             // otherwise keep the one set when the order was created.
             $reservationId = $request->payment_method === 'room_charge'
@@ -117,6 +166,9 @@ class PosController extends Controller
                 'status' => 'completed',
                 'payment_method' => $request->payment_method,
                 'reservation_id' => $reservationId,
+                // Cash physically enters the drawer of whoever finalizes the sale, so attribute the
+                // order to the completing user's shift — fixes cross-shift completion + legacy NULL orders.
+                'pos_shift_id' => $shift->id,
             ]);
 
             // Room charge → add a traceable line to the reservation folio
@@ -148,7 +200,14 @@ class PosController extends Controller
             return back()->with('error', 'Vetem porosite e hapura mund te anulohen.');
         }
 
-        $posOrder->update(['status' => 'cancelled']);
+        // Voiding a ticket is a cash-control event — only inside the acting user's open shift.
+        $shift = PosShift::currentFor(auth()->id());
+        if (!$shift) {
+            AuditLog::record('pos.shift.blocked', $posOrder, ['attempted_action' => 'cancel']);
+            return back()->with('error', 'Hap nje turn para se te anulosh porosine.');
+        }
+
+        $posOrder->update(['status' => 'cancelled', 'pos_shift_id' => $shift->id]);
 
         AuditLog::record('pos.cancel', $posOrder, ['amount' => $posOrder->total_amount]);
 
