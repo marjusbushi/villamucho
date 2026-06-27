@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ReservationStoreRequest;
 use App\Http\Requests\ReservationUpdateRequest;
+use App\Models\AuditLog;
+use App\Models\CleaningTask;
 use App\Models\Guest;
+use App\Models\PosOrder;
 use App\Models\Reservation;
 use App\Models\Room;
+use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -88,6 +92,73 @@ class ReservationController extends Controller
         ]);
     }
 
+    public function show(Reservation $reservation): Response
+    {
+        $reservation->load([
+            'room:id,room_number,room_type_id',
+            'room.roomType:id,name,base_price',
+            'guest:id,first_name,last_name,email,phone',
+            'folioItems' => fn($q) => $q->orderBy('charge_date')->orderBy('id'),
+        ]);
+
+        // The folio = the room charge (reservations.total_amount) + every posted folio line.
+        // total_amount stays the ROOM charge; the live balance is computed here so it always
+        // reflects POS room-charges instead of a frozen number.
+        $roomCharge = (float) $reservation->total_amount;
+        $extras = (float) $reservation->folioItems->sum('amount');
+        $grandTotal = round($roomCharge + $extras, 2);
+
+        // Menu/room prices are treated as VAT-INCLUSIVE (Albanian norm: shown price = paid price).
+        // We surface the tax portion without inflating what the guest owes.
+        $taxRate = (float) Setting::get('financial.tax_rate', 20);
+        $taxAmount = $taxRate > 0 ? round($grandTotal - ($grandTotal / (1 + $taxRate / 100)), 2) : 0.0;
+
+        $openPosOrders = PosOrder::where('reservation_id', $reservation->id)
+            ->where('status', 'open')
+            ->select('id', 'table_number', 'total_amount', 'created_at')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return Inertia::render('Reservations/Show', [
+            'reservation' => [
+                'id' => $reservation->id,
+                'status' => $reservation->status,
+                'check_in_date' => $reservation->check_in_date?->toDateString(),
+                'check_out_date' => $reservation->check_out_date?->toDateString(),
+                'nights' => $reservation->nights,
+                'adults' => $reservation->adults,
+                'children' => $reservation->children,
+                'notes' => $reservation->notes,
+                'guest' => [
+                    'name' => $reservation->guest?->full_name,
+                    'email' => $reservation->guest?->email,
+                    'phone' => $reservation->guest?->phone,
+                ],
+                'room' => [
+                    'room_number' => $reservation->room?->room_number,
+                    'room_type' => $reservation->room?->roomType?->name,
+                ],
+            ],
+            'folio' => [
+                'roomCharge' => $roomCharge,
+                'items' => $reservation->folioItems->map(fn($i) => [
+                    'id' => $i->id,
+                    'description' => $i->description,
+                    'type' => $i->type,
+                    'amount' => (float) $i->amount,
+                    'charge_date' => $i->charge_date?->toDateString(),
+                ]),
+                'extras' => round($extras, 2),
+                'grandTotal' => $grandTotal,
+                'taxRate' => $taxRate,
+                'taxAmount' => $taxAmount,
+                'net' => round($grandTotal - $taxAmount, 2),
+            ],
+            'openPosOrders' => $openPosOrders,
+            'currency' => Setting::get('financial.default_currency_symbol', '€'),
+        ]);
+    }
+
     public function store(ReservationStoreRequest $request): RedirectResponse
     {
         $data = $request->validated();
@@ -101,7 +172,21 @@ class ReservationController extends Controller
         $data['created_by'] = auth()->id();
         $data['status'] = $data['status'] ?? 'pending';
 
-        Reservation::create($data);
+        try {
+            // The FormRequest already pre-checks availability; re-check under a row lock
+            // inside the transaction to close the check-then-write race (no double-book).
+            DB::transaction(function () use ($data, $room) {
+                Room::where('id', $room->id)->lockForUpdate()->first();
+
+                if (!Reservation::isRoomAvailable($room->id, $data['check_in_date'], $data['check_out_date'])) {
+                    throw new \RuntimeException('room_unavailable');
+                }
+
+                Reservation::create($data);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', 'Dhoma nuk eshte e disponueshme per keto data.');
+        }
 
         return back()->with('success', 'Rezervimi u krijua me sukses.');
     }
@@ -132,6 +217,8 @@ class ReservationController extends Controller
             $reservation->room->update(['status' => 'occupied']);
         });
 
+        AuditLog::record('reservation.check_in', $reservation, ['room' => $reservation->room->room_number]);
+
         return back()->with('success', "Check-in per dhomen {$reservation->room->room_number} u krye.");
     }
 
@@ -141,10 +228,38 @@ class ReservationController extends Controller
             return back()->with('error', 'Vetem mysafiret brenda mund te bejne check-out.');
         }
 
+        // Don't let a guest leave with an unsettled bar/restaurant tab still open.
+        $openOrders = PosOrder::where('reservation_id', $reservation->id)
+            ->where('status', 'open')
+            ->count();
+        if ($openOrders > 0) {
+            return back()->with('error', "Ka {$openOrders} porosi POS te hapura per kete rezervim — mbyllini perpara check-out.");
+        }
+
         DB::transaction(function () use ($reservation) {
             $reservation->update(['status' => 'checked_out']);
             $reservation->room->update(['status' => 'cleaning']);
+
+            // Auto-create a housekeeping task so the cleaning board reflects the checkout
+            // (activates the housekeeping.auto_create_on_checkout setting, previously dead).
+            if (Setting::get('housekeeping.auto_create_on_checkout', true)) {
+                $alreadyOpen = CleaningTask::where('room_id', $reservation->room_id)
+                    ->where('type', 'checkout_clean')
+                    ->whereIn('status', ['pending', 'in_progress'])
+                    ->exists();
+
+                if (!$alreadyOpen) {
+                    CleaningTask::create([
+                        'room_id' => $reservation->room_id,
+                        'type' => 'checkout_clean',
+                        'status' => 'pending',
+                        'priority' => Setting::get('housekeeping.default_priority', 'normal'),
+                    ]);
+                }
+            }
         });
+
+        AuditLog::record('reservation.check_out', $reservation, ['room' => $reservation->room->room_number]);
 
         return back()->with('success', "Check-out per dhomen {$reservation->room->room_number} u krye.");
     }
@@ -156,6 +271,8 @@ class ReservationController extends Controller
         }
 
         $reservation->update(['status' => 'cancelled']);
+
+        AuditLog::record('reservation.cancel', $reservation);
 
         return back()->with('success', 'Rezervimi u anulua.');
     }

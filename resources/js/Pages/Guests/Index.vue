@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { useForm, router, usePage } from '@inertiajs/vue3';
+import { useForm, router, usePage, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
@@ -155,6 +155,9 @@ function submitDelete() {
                                 </td>
                                 <td class="px-5 py-3 text-right">
                                     <div class="flex items-center justify-end gap-2">
+                                        <Link :href="route('guests.show', guest.id)" class="no-underline">
+                                            <Button size="sm" variant="ghost">Shiko</Button>
+                                        </Link>
                                         <Button v-if="canUpdate" size="sm" variant="ghost" @click="openEdit(guest)">Edito</Button>
                                         <Button v-if="canDelete" size="sm" variant="ghost" class="text-error-600" @click="openDelete(guest)">Fshi</Button>
                                     </div>

@@ -7,8 +7,11 @@ use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -90,6 +93,11 @@ class WebsiteController extends Controller
 
     public function submitBooking(Request $request): RedirectResponse
     {
+        // Honeypot — bots fill this hidden field; real visitors never do.
+        if ($request->filled('website')) {
+            return redirect()->route('website.home');
+        }
+
         $request->validate([
             'room_id' => ['required', 'exists:rooms,id'],
             'check_in' => ['required', 'date', 'after_or_equal:today'],
@@ -104,43 +112,78 @@ class WebsiteController extends Controller
 
         $room = Room::with('roomType')->findOrFail($request->room_id);
 
-        if (!Reservation::isRoomAvailable($room->id, $request->check_in, $request->check_out)) {
-            return back()->with('error', 'Kjo dhome nuk eshte me e disponueshme per keto data.');
+        if ($room->roomType && $request->adults > $room->roomType->max_occupancy) {
+            return back()->with('error', "Kjo dhome lejon maksimumi {$room->roomType->max_occupancy} persona.");
         }
 
         $nights = now()->parse($request->check_in)->diffInDays($request->check_out);
 
-        // Find or create guest
-        $guest = Guest::firstOrCreate(
-            ['email' => $request->email],
-            [
-                'first_name' => $request->first_name,
-                'last_name' => $request->last_name,
-                'phone' => $request->phone,
-            ]
+        // Attribute public bookings to a stable system user (self-seeding) — never a hardcoded
+        // id, so a missing/renumbered user 1 can't 500 the public booking funnel.
+        $creator = User::firstOrCreate(
+            ['email' => 'system@villamucho.local'],
+            ['name' => 'Website Booking', 'password' => Str::random(40)]
         );
 
-        $reservation = Reservation::create([
-            'room_id' => $room->id,
-            'guest_id' => $guest->id,
-            'check_in_date' => $request->check_in,
-            'check_out_date' => $request->check_out,
-            'status' => 'pending',
-            'total_amount' => $room->roomType->base_price * $nights,
-            'adults' => $request->adults,
-            'notes' => $request->notes,
-            'created_by' => 1, // system/website
-        ]);
+        try {
+            // Lock the room row + re-check availability INSIDE the transaction so two
+            // concurrent bookings for the same room can't both pass the check (no double-book).
+            $reservation = DB::transaction(function () use ($request, $room, $nights, $creator) {
+                Room::where('id', $room->id)->lockForUpdate()->first();
 
-        return redirect()->route('website.booking.confirmation', $reservation->id);
+                if (!Reservation::isRoomAvailable($room->id, $request->check_in, $request->check_out)) {
+                    throw new \RuntimeException('room_unavailable');
+                }
+
+                // Match on normalized email; update name/phone on an existing guest
+                // instead of discarding them (and don't create case/whitespace duplicates).
+                $guest = Guest::updateOrCreate(
+                    ['email' => strtolower(trim($request->email))],
+                    [
+                        'first_name' => $request->first_name,
+                        'last_name' => $request->last_name,
+                        'phone' => $request->phone,
+                    ]
+                );
+
+                return Reservation::create([
+                    'room_id' => $room->id,
+                    'guest_id' => $guest->id,
+                    'check_in_date' => $request->check_in,
+                    'check_out_date' => $request->check_out,
+                    'status' => 'pending',
+                    'total_amount' => $room->roomType->base_price * $nights,
+                    'adults' => $request->adults,
+                    'notes' => $request->notes,
+                    'created_by' => $creator->id,
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', 'Kjo dhome nuk eshte me e disponueshme per keto data.');
+        }
+
+        return redirect()->route('website.booking.confirmation', $reservation->confirmation_token);
     }
 
-    public function bookingConfirmation(Reservation $reservation): Response
+    public function bookingConfirmation(string $token): Response
     {
-        $reservation->load(['room.roomType', 'guest']);
+        // Look up by the unguessable token, never by the sequential id (IDOR-safe).
+        $reservation = Reservation::where('confirmation_token', $token)
+            ->with(['room.roomType', 'guest'])
+            ->firstOrFail();
 
+        // Pass ONLY the fields this page renders — never the full Guest model
+        // (document_number, date_of_birth, etc. must not reach the public props).
         return Inertia::render('Website/BookingConfirmation', [
-            'reservation' => $reservation,
+            'reservation' => [
+                'reference' => strtoupper(substr($reservation->confirmation_token, 0, 8)),
+                'guest_name' => $reservation->guest?->full_name,
+                'room_number' => $reservation->room?->room_number,
+                'room_type' => $reservation->room?->roomType?->name,
+                'check_in_date' => $reservation->check_in_date?->toDateString(),
+                'check_out_date' => $reservation->check_out_date?->toDateString(),
+                'total_amount' => $reservation->total_amount,
+            ],
             'hotel' => Setting::getGroup('hotel'),
         ]);
     }
@@ -161,6 +204,11 @@ class WebsiteController extends Controller
 
     public function submitContact(Request $request): RedirectResponse
     {
+        // Honeypot — silently accept (so bots don't learn) but do nothing.
+        if ($request->filled('website')) {
+            return back()->with('success', 'Faleminderit! Mesazhi juaj u derua me sukses.');
+        }
+
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],

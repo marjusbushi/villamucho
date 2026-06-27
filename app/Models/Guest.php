@@ -35,4 +35,23 @@ class Guest extends Model
     {
         return "{$this->first_name} {$this->last_name}";
     }
+
+    /**
+     * Normalize email + phone on save so dedup/search are deterministic across
+     * staff and website entry (case/whitespace and phone formatting variants).
+     */
+    public function setEmailAttribute($value): void
+    {
+        $this->attributes['email'] = $value ? strtolower(trim($value)) : $value;
+    }
+
+    public function setPhoneAttribute($value): void
+    {
+        $this->attributes['phone'] = $value ? preg_replace('/[^\d+]/', '', $value) : $value;
+    }
+
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class);
+    }
 }

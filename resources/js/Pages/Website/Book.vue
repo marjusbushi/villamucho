@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
+import { CalendarX2 } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 
 const props = defineProps({
@@ -31,9 +32,11 @@ const guestForm = useForm({
     phone: '',
     notes: '',
     adults: 1,
+    website: '', // honeypot — must stay empty
 });
 
 const nights = ref(0);
+const flashError = computed(() => usePage().props.flash?.error);
 
 const typeOptions = props.roomTypes.map(t => ({ value: t.id, label: `${t.name} (€${t.base_price}/nate)` }));
 
@@ -87,10 +90,15 @@ function goBack(toStep) {
                 <!-- Steps indicator -->
                 <div class="flex items-center justify-center gap-2 mb-10">
                     <div v-for="s in 3" :key="s" :class="['flex items-center gap-2', s < 3 && 'flex-1']">
-                        <div :class="['h-8 w-8 rounded-full flex items-center justify-center text-small font-medium shrink-0', step >= s ? 'bg-accent-600 text-white' : 'bg-neutral-200 text-neutral-500']">{{ s }}</div>
-                        <span :class="['text-body-sm hidden sm:block', step >= s ? 'text-accent-700 font-medium' : 'text-neutral-400']">{{ s === 1 ? 'Datat' : s === 2 ? 'Dhoma' : 'Te dhenat' }}</span>
-                        <div v-if="s < 3" :class="['flex-1 h-0.5 mx-2', step > s ? 'bg-accent-400' : 'bg-neutral-200']" />
+                        <div :class="['h-8 w-8 rounded-full flex items-center justify-center text-small font-medium shrink-0', step >= s ? 'bg-ink text-bone' : 'bg-limestone text-driftwood']">{{ s }}</div>
+                        <span :class="['text-body-sm hidden sm:block', step >= s ? 'text-ink font-medium' : 'text-driftwood']">{{ s === 1 ? 'Datat' : s === 2 ? 'Dhoma' : 'Te dhenat' }}</span>
+                        <div v-if="s < 3" :class="['flex-1 h-0.5 mx-2', step > s ? 'bg-ink/30' : 'bg-driftwood/20']" />
                     </div>
+                </div>
+
+                <!-- Flash error (e.g. room no longer available) -->
+                <div v-if="flashError" class="mb-6 p-3 rounded-lg bg-error-50 border border-error-200 text-body-sm text-error-700">
+                    {{ flashError }}
                 </div>
 
                 <!-- Step 1: Dates -->
@@ -99,27 +107,27 @@ function goBack(toStep) {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">Check-in *</label>
-                            <input type="date" v-model="searchForm.check_in" :min="new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                            <input type="date" v-model="searchForm.check_in" :min="new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">Check-out *</label>
-                            <input type="date" v-model="searchForm.check_out" :min="searchForm.check_in || new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                            <input type="date" v-model="searchForm.check_out" :min="searchForm.check_in || new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">Tipi i dhomes</label>
-                            <select v-model="searchForm.room_type_id" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40">
+                            <select v-model="searchForm.room_type_id" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30">
                                 <option value="">Te gjitha tipet</option>
                                 <option v-for="t in roomTypes" :key="t.id" :value="t.id">{{ t.name }} (€{{ t.base_price }})</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">Mysafire</label>
-                            <input type="number" v-model="searchForm.adults" min="1" max="10" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                            <input type="number" v-model="searchForm.adults" min="1" max="10" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                     </div>
                     <button
                         :disabled="!searchForm.check_in || !searchForm.check_out || loading"
-                        class="mt-6 w-full px-6 py-3 rounded-lg bg-accent-600 text-white font-medium hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        class="btn-reserve w-full mt-6"
                         @click="checkAvailability"
                     >
                         {{ loading ? 'Duke kontrolluar...' : 'Kontrollo Disponueshmerine' }}
@@ -130,7 +138,7 @@ function goBack(toStep) {
                 <div v-if="step === 2">
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-h3 text-primary-900">Dhomat e lira</h2>
-                        <button class="text-body-sm text-accent-600 hover:text-accent-700" @click="goBack(1)">← Ndrysho datat</button>
+                        <button class="text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(1)">← Ndrysho datat</button>
                     </div>
                     <p class="text-body-sm text-neutral-500 mb-6">{{ searchForm.check_in }} → {{ searchForm.check_out }} · {{ nights }} net</p>
 
@@ -138,7 +146,7 @@ function goBack(toStep) {
                         <button
                             v-for="room in availableRooms"
                             :key="room.id"
-                            class="w-full bg-white rounded-xl border border-neutral-100 p-5 text-left hover:border-accent-300 hover:shadow-md transition-all"
+                            class="w-full bg-bone border border-driftwood/20 p-5 text-left hover:border-ionian/50 transition-colors"
                             @click="selectRoom(room)"
                         >
                             <div class="flex items-start justify-between">
@@ -147,17 +155,17 @@ function goBack(toStep) {
                                     <p class="text-body-sm text-neutral-500">{{ room.room_type }} · Kati {{ room.floor }} · Max {{ room.max_occupancy }} persona</p>
                                 </div>
                                 <div class="text-right">
-                                    <p class="text-h4 text-accent-600">€{{ room.total_price }}</p>
+                                    <p class="text-h4 text-brass">€{{ room.total_price }}</p>
                                     <p class="text-tiny text-neutral-400">{{ nights }} net × €{{ room.price_per_night }}</p>
                                 </div>
                             </div>
                         </button>
                     </div>
 
-                    <div v-else class="bg-white rounded-xl border border-neutral-100 p-8 text-center">
-                        <p class="text-3xl mb-2">😔</p>
-                        <p class="text-body text-neutral-600">Nuk ka dhoma te lira per keto data.</p>
-                        <button class="mt-3 text-body-sm text-accent-600 hover:text-accent-700" @click="goBack(1)">Provoni data te tjera</button>
+                    <div v-else class="bg-bone border border-driftwood/20 p-10 text-center">
+                        <CalendarX2 class="h-10 w-10 mx-auto mb-3 text-driftwood" :stroke-width="1.1" />
+                        <p class="text-body text-ink/70">Nuk ka dhoma te lira per keto data.</p>
+                        <button class="mt-3 text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(1)">Provoni data te tjera</button>
                     </div>
                 </div>
 
@@ -165,7 +173,7 @@ function goBack(toStep) {
                 <div v-if="step === 3" class="bg-white rounded-2xl border border-neutral-100 p-6 sm:p-8">
                     <div class="flex items-center justify-between mb-6">
                         <h2 class="text-h3 text-primary-900">Te dhenat tuaja</h2>
-                        <button class="text-body-sm text-accent-600 hover:text-accent-700" @click="goBack(2)">← Ndrysho dhomen</button>
+                        <button class="text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(2)">← Ndrysho dhomen</button>
                     </div>
 
                     <!-- Summary -->
@@ -175,41 +183,43 @@ function goBack(toStep) {
                                 <p class="text-label text-primary-900">Dhoma {{ selectedRoom?.room_number }} — {{ selectedRoom?.room_type }}</p>
                                 <p class="text-body-sm text-neutral-500">{{ searchForm.check_in }} → {{ searchForm.check_out }} · {{ nights }} net</p>
                             </div>
-                            <p class="text-h3 text-accent-600">€{{ selectedRoom?.total_price }}</p>
+                            <p class="text-h3 text-brass">€{{ selectedRoom?.total_price }}</p>
                         </div>
                     </div>
 
                     <form @submit.prevent="submitBooking" class="space-y-4">
+                        <!-- Honeypot: hidden from humans, bots fill it -->
+                        <input v-model="guestForm.website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-label text-neutral-700 mb-1.5">Emri *</label>
-                                <input v-model="guestForm.first_name" type="text" placeholder="Emri" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                                <input v-model="guestForm.first_name" type="text" placeholder="Emri" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.first_name" class="text-small text-error-600 mt-1">{{ guestForm.errors.first_name }}</p>
                             </div>
                             <div>
                                 <label class="block text-label text-neutral-700 mb-1.5">Mbiemri *</label>
-                                <input v-model="guestForm.last_name" type="text" placeholder="Mbiemri" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                                <input v-model="guestForm.last_name" type="text" placeholder="Mbiemri" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.last_name" class="text-small text-error-600 mt-1">{{ guestForm.errors.last_name }}</p>
                             </div>
                             <div>
                                 <label class="block text-label text-neutral-700 mb-1.5">Email *</label>
-                                <input v-model="guestForm.email" type="email" placeholder="email@example.com" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                                <input v-model="guestForm.email" type="email" placeholder="email@example.com" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.email" class="text-small text-error-600 mt-1">{{ guestForm.errors.email }}</p>
                             </div>
                             <div>
                                 <label class="block text-label text-neutral-700 mb-1.5">Telefon *</label>
-                                <input v-model="guestForm.phone" type="tel" placeholder="+355 69..." class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                                <input v-model="guestForm.phone" type="tel" placeholder="+355 69..." class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.phone" class="text-small text-error-600 mt-1">{{ guestForm.errors.phone }}</p>
                             </div>
                         </div>
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">Kerkesa speciale</label>
-                            <textarea v-model="guestForm.notes" rows="3" placeholder="Shenime shtese..." class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                            <textarea v-model="guestForm.notes" rows="3" placeholder="Shenime shtese..." class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                         <button
                             type="submit"
                             :disabled="guestForm.processing"
-                            class="w-full px-6 py-3.5 rounded-lg bg-accent-600 text-white font-medium hover:bg-accent-700 disabled:opacity-50 transition-colors"
+                            class="btn-reserve w-full"
                         >
                             {{ guestForm.processing ? 'Duke derguar...' : `Konfirmo Rezervimin — €${selectedRoom?.total_price}` }}
                         </button>

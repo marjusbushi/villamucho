@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Reservation extends Model
 {
@@ -14,6 +15,7 @@ class Reservation extends Model
         'room_id',
         'guest_id',
         'created_by',
+        'confirmation_token',
         'check_in_date',
         'check_out_date',
         'status',
@@ -22,6 +24,19 @@ class Reservation extends Model
         'children',
         'notes',
     ];
+
+    /**
+     * Auto-assign an unguessable confirmation token on creation (admin + website),
+     * so the public confirmation page is never reachable by enumerating the id.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Reservation $reservation) {
+            if (empty($reservation->confirmation_token)) {
+                $reservation->confirmation_token = (string) Str::random(40);
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -62,6 +77,11 @@ class Reservation extends Model
      */
     public static function isRoomAvailable(int $roomId, string $checkIn, string $checkOut, ?int $excludeId = null): bool
     {
+        // A room under maintenance is never bookable, regardless of date overlap.
+        if (Room::whereKey($roomId)->where('status', 'maintenance')->exists()) {
+            return false;
+        }
+
         $query = static::where('room_id', $roomId)
             ->whereNotIn('status', ['cancelled', 'checked_out'])
             ->where('check_in_date', '<', $checkOut)

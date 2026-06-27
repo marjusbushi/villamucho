@@ -8,6 +8,7 @@ class FolioItem extends Model
 {
     protected $fillable = [
         'reservation_id',
+        'pos_order_id',
         'description',
         'amount',
         'type',
@@ -25,5 +26,10 @@ class FolioItem extends Model
     public function reservation()
     {
         return $this->belongsTo(Reservation::class);
+    }
+
+    public function posOrder()
+    {
+        return $this->belongsTo(PosOrder::class);
     }
 }

@@ -219,6 +219,9 @@ function formatDate(d) {
                                 <td class="px-5 py-3 text-right text-body-sm text-primary-900 font-medium">€{{ res.total_amount }}</td>
                                 <td class="px-5 py-3 text-right">
                                     <div class="flex items-center justify-end gap-1.5">
+                                        <Link :href="route('reservations.show', res.id)" class="no-underline">
+                                            <Button size="sm" variant="ghost">Detaje</Button>
+                                        </Link>
                                         <Button v-if="canUpdate && res.status === 'confirmed'" size="sm" variant="primary" @click="doCheckIn(res)">Check-in</Button>
                                         <Button v-if="canUpdate && res.status === 'checked_in'" size="sm" variant="secondary" @click="doCheckOut(res)">Check-out</Button>
                                         <Button v-if="canUpdate && !['checked_in','checked_out','cancelled'].includes(res.status)" size="sm" variant="ghost" @click="openEdit(res)">Edito</Button>

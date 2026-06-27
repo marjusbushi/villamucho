@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\FolioItem;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
@@ -98,16 +99,23 @@ class PosController extends Controller
             return back()->with('error', 'Kjo porosi nuk eshte e hapur.');
         }
 
+        // A room charge MUST land on a reservation folio — never silently swallow it.
+        if ($request->payment_method === 'room_charge' && !$posOrder->reservation_id) {
+            return back()->with('error', 'Kjo porosi nuk eshte e lidhur me nje rezervim — nuk mund te ngarkohet ne dhome.');
+        }
+
         DB::transaction(function () use ($posOrder, $request) {
             $posOrder->update([
                 'status' => 'completed',
                 'payment_method' => $request->payment_method,
             ]);
 
-            // Room charge → add to reservation folio
-            if ($request->payment_method === 'room_charge' && $posOrder->reservation_id) {
+            // Room charge → add a traceable line to the reservation folio
+            if ($request->payment_method === 'room_charge') {
+                $posOrder->loadMissing('items.menuItem.category');
                 FolioItem::create([
                     'reservation_id' => $posOrder->reservation_id,
+                    'pos_order_id' => $posOrder->id,
                     'description' => "POS Porosi #{$posOrder->id}" . ($posOrder->table_number ? " (Tavolina {$posOrder->table_number})" : ''),
                     'amount' => $posOrder->total_amount,
                     'type' => $posOrder->items->first()?->menuItem?->category?->name === 'Pije' ? 'bar' : 'restaurant',
@@ -115,6 +123,11 @@ class PosController extends Controller
                 ]);
             }
         });
+
+        AuditLog::record('pos.complete', $posOrder, [
+            'amount' => $posOrder->total_amount,
+            'payment_method' => $request->payment_method,
+        ]);
 
         return back()->with('success', 'Porosia u perfundua.');
     }
@@ -126,6 +139,8 @@ class PosController extends Controller
         }
 
         $posOrder->update(['status' => 'cancelled']);
+
+        AuditLog::record('pos.cancel', $posOrder, ['amount' => $posOrder->total_amount]);
 
         return back()->with('success', 'Porosia u anulua.');
     }

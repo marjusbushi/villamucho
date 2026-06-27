@@ -16,12 +16,12 @@ use Inertia\Inertia;
 Route::get('/', [WebsiteController::class, 'home'])->name('website.home');
 Route::get('/rooms', [WebsiteController::class, 'rooms'])->name('website.rooms');
 Route::get('/book', [WebsiteController::class, 'bookingForm'])->name('website.book');
-Route::post('/book/check', [WebsiteController::class, 'checkAvailability'])->name('website.book.check');
-Route::post('/book', [WebsiteController::class, 'submitBooking'])->name('website.book.submit');
-Route::get('/book/confirmation/{reservation}', [WebsiteController::class, 'bookingConfirmation'])->name('website.booking.confirmation');
+Route::post('/book/check', [WebsiteController::class, 'checkAvailability'])->middleware('throttle:30,1')->name('website.book.check');
+Route::post('/book', [WebsiteController::class, 'submitBooking'])->middleware('throttle:10,1')->name('website.book.submit');
+Route::get('/book/confirmation/{token}', [WebsiteController::class, 'bookingConfirmation'])->name('website.booking.confirmation');
 Route::get('/about', [WebsiteController::class, 'about'])->name('website.about');
 Route::get('/contact', [WebsiteController::class, 'contact'])->name('website.contact');
-Route::post('/contact', [WebsiteController::class, 'submitContact'])->name('website.contact.submit');
+Route::post('/contact', [WebsiteController::class, 'submitContact'])->middleware('throttle:5,1')->name('website.contact.submit');
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
@@ -40,48 +40,49 @@ Route::middleware('auth')->prefix('pms')->group(function () {
     // Room Management
     Route::middleware('permission:view_rooms')->group(function () {
         Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
-        Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
-        Route::put('/rooms/{room}', [RoomController::class, 'update'])->name('rooms.update');
-        Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])->name('rooms.destroy');
-        Route::patch('/rooms/{room}/status', [RoomController::class, 'updateStatus'])->name('rooms.status');
+        Route::post('/rooms', [RoomController::class, 'store'])->middleware('permission:create_rooms')->name('rooms.store');
+        Route::put('/rooms/{room}', [RoomController::class, 'update'])->middleware('permission:update_rooms')->name('rooms.update');
+        Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])->middleware('permission:delete_rooms')->name('rooms.destroy');
+        Route::patch('/rooms/{room}/status', [RoomController::class, 'updateStatus'])->middleware('permission:update_rooms')->name('rooms.status');
     });
 
     // Guest Profiles
     Route::middleware('permission:view_guests')->group(function () {
         Route::get('/guests', [GuestController::class, 'index'])->name('guests.index');
         Route::get('/guests/{guest}', [GuestController::class, 'show'])->name('guests.show');
-        Route::post('/guests', [GuestController::class, 'store'])->name('guests.store');
-        Route::put('/guests/{guest}', [GuestController::class, 'update'])->name('guests.update');
-        Route::delete('/guests/{guest}', [GuestController::class, 'destroy'])->name('guests.destroy');
+        Route::post('/guests', [GuestController::class, 'store'])->middleware('permission:create_guests')->name('guests.store');
+        Route::put('/guests/{guest}', [GuestController::class, 'update'])->middleware('permission:update_guests')->name('guests.update');
+        Route::delete('/guests/{guest}', [GuestController::class, 'destroy'])->middleware('permission:delete_guests')->name('guests.destroy');
     });
 
     // Reservations
     Route::middleware('permission:view_reservations')->group(function () {
         Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
         Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])->name('reservations.calendar');
-        Route::post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
-        Route::put('/reservations/{reservation}', [ReservationController::class, 'update'])->name('reservations.update');
-        Route::delete('/reservations/{reservation}', [ReservationController::class, 'destroy'])->name('reservations.destroy');
-        Route::post('/reservations/{reservation}/check-in', [ReservationController::class, 'checkIn'])->name('reservations.check-in');
-        Route::post('/reservations/{reservation}/check-out', [ReservationController::class, 'checkOut'])->name('reservations.check-out');
-        Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])->name('reservations.cancel');
+        Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
+        Route::post('/reservations', [ReservationController::class, 'store'])->middleware('permission:create_reservations')->name('reservations.store');
+        Route::put('/reservations/{reservation}', [ReservationController::class, 'update'])->middleware('permission:update_reservations')->name('reservations.update');
+        Route::delete('/reservations/{reservation}', [ReservationController::class, 'destroy'])->middleware('permission:delete_reservations')->name('reservations.destroy');
+        Route::post('/reservations/{reservation}/check-in', [ReservationController::class, 'checkIn'])->middleware('permission:update_reservations')->name('reservations.check-in');
+        Route::post('/reservations/{reservation}/check-out', [ReservationController::class, 'checkOut'])->middleware('permission:update_reservations')->name('reservations.check-out');
+        Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])->middleware('permission:update_reservations')->name('reservations.cancel');
     });
 
     // Housekeeping
     Route::middleware('permission:view_housekeeping')->group(function () {
         Route::get('/housekeeping', [CleaningTaskController::class, 'index'])->name('housekeeping.index');
-        Route::post('/housekeeping', [CleaningTaskController::class, 'store'])->name('housekeeping.store');
-        Route::patch('/housekeeping/{cleaningTask}/status', [CleaningTaskController::class, 'updateStatus'])->name('housekeeping.status');
-        Route::patch('/housekeeping/{cleaningTask}/assign', [CleaningTaskController::class, 'assign'])->name('housekeeping.assign');
-        Route::post('/housekeeping/{cleaningTask}/issue', [CleaningTaskController::class, 'reportIssue'])->name('housekeeping.issue');
+        Route::post('/housekeeping', [CleaningTaskController::class, 'store'])->middleware('permission:create_housekeeping')->name('housekeeping.store');
+        Route::patch('/housekeeping/{cleaningTask}/status', [CleaningTaskController::class, 'updateStatus'])->middleware('permission:update_housekeeping')->name('housekeeping.status');
+        Route::patch('/housekeeping/{cleaningTask}/assign', [CleaningTaskController::class, 'assign'])->middleware('permission:update_housekeeping')->name('housekeeping.assign');
+        Route::post('/housekeeping/{cleaningTask}/issue', [CleaningTaskController::class, 'reportIssue'])->middleware('permission:update_housekeeping')->name('housekeeping.issue');
     });
 
     // POS Bar/Restaurant
     Route::middleware('permission:view_pos_orders')->group(function () {
         Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
-        Route::post('/pos', [PosController::class, 'store'])->name('pos.store');
-        Route::post('/pos/{posOrder}/complete', [PosController::class, 'complete'])->name('pos.complete');
-        Route::post('/pos/{posOrder}/cancel', [PosController::class, 'cancel'])->name('pos.cancel');
+        Route::post('/pos', [PosController::class, 'store'])->middleware('permission:create_pos_orders')->name('pos.store');
+        Route::post('/pos/{posOrder}/complete', [PosController::class, 'complete'])->middleware('permission:update_pos_orders')->name('pos.complete');
+        Route::post('/pos/{posOrder}/cancel', [PosController::class, 'cancel'])->middleware('permission:update_pos_orders')->name('pos.cancel');
     });
 
     // Admin-only: User Management + Settings

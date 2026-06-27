@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UserStoreRequest;
 use App\Http\Requests\UserUpdateRequest;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -36,6 +37,8 @@ class UserController extends Controller
 
         $user->assignRole($request->validated('role'));
 
+        AuditLog::record('user.create', $user, ['role' => $request->validated('role')]);
+
         return back()->with('success', 'Perdoruesi u krijua me sukses.');
     }
 
@@ -53,6 +56,8 @@ class UserController extends Controller
         $user->update($data);
         $user->syncRoles([$request->validated('role')]);
 
+        AuditLog::record('user.update', $user, ['role' => $request->validated('role')]);
+
         return back()->with('success', 'Perdoruesi u perditesua me sukses.');
     }
 
@@ -63,6 +68,8 @@ class UserController extends Controller
         }
 
         $user->delete();
+
+        AuditLog::record('user.delete', $user);
 
         return back()->with('success', 'Perdoruesi u deaktivizua.');
     }

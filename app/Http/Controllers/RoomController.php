@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\RoomStoreRequest;
 use App\Http\Requests\RoomUpdateRequest;
+use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use Illuminate\Http\RedirectResponse;
@@ -54,7 +55,13 @@ class RoomController extends Controller
 
     public function update(RoomUpdateRequest $request, Room $room): RedirectResponse
     {
-        $room->update($request->validated());
+        $data = $request->validated();
+
+        if ($data['status'] === 'available' && $this->roomHasActiveStay($room)) {
+            return back()->with('error', 'Dhoma ka nje mysafir brenda (check-in) — nuk mund te kalohet ne te lire.');
+        }
+
+        $room->update($data);
 
         return back()->with('success', 'Dhoma u perditesua me sukses.');
     }
@@ -80,8 +87,22 @@ class RoomController extends Controller
             'status' => ['required', 'in:available,occupied,cleaning,maintenance'],
         ]);
 
+        if ($request->status === 'available' && $this->roomHasActiveStay($room)) {
+            return back()->with('error', 'Dhoma ka nje mysafir brenda (check-in) — nuk mund te kalohet ne te lire.');
+        }
+
         $room->update(['status' => $request->status]);
 
         return back()->with('success', "Statusi u ndryshua ne {$request->status}.");
+    }
+
+    /**
+     * Is this room currently occupied by a guest who has checked in (not yet out)?
+     */
+    private function roomHasActiveStay(Room $room): bool
+    {
+        return Reservation::where('room_id', $room->id)
+            ->where('status', 'checked_in')
+            ->exists();
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Reservation;
+use App\Models\Room;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ReservationUpdateRequest extends FormRequest
@@ -33,6 +34,15 @@ class ReservationUpdateRequest extends FormRequest
                 $excludeId = $this->route('reservation')->id;
                 if (!Reservation::isRoomAvailable($this->room_id, $this->check_in_date, $this->check_out_date, $excludeId)) {
                     $validator->errors()->add('room_id', 'Kjo dhome eshte e zene per keto data.');
+                }
+            }
+
+            if ($this->room_id) {
+                $maxOccupancy = Room::with('roomType:id,max_occupancy')
+                    ->find($this->room_id)?->roomType?->max_occupancy;
+                $guests = (int) $this->adults + (int) $this->children;
+                if ($maxOccupancy && $guests > $maxOccupancy) {
+                    $validator->errors()->add('adults', "Kjo dhome lejon maksimumi {$maxOccupancy} persona.");
                 }
             }
         });
