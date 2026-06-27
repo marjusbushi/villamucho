@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { Waves, UtensilsCrossed, Wifi, SquareParking, ArrowRight, Coffee } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 import RoomGallery from '@/Components/Website/RoomGallery.vue';
@@ -35,6 +36,26 @@ const heroFromSettings = computed(() => props.hotel?.hero_image);
 const heroSrc = computed(() => heroFromSettings.value ? `/storage/${heroFromSettings.value}` : HERO_FALLBACK_LG);
 const heroSrcset = computed(() => heroFromSettings.value ? null : `${HERO_FALLBACK_SM} 960w, ${HERO_FALLBACK_LG} 1920w`);
 
+// Hero TEXT is owner-editable per language in Settings → Faqja Web. Fallback chain:
+// chosen language → Albanian value → built-in default for the language → Albanian default.
+const { locale } = useI18n();
+const HERO_DEFAULTS = {
+    eyebrow: { sq: 'Ksamil · Bregu Jon', en: 'Ksamil · Ionian Shore' },
+    title: { sq: 'Nje shtepi e madhe mbi detin Jon', en: 'A grand house above the Ionian Sea' },
+    subtitle: {
+        sq: 'Qetesi, gur i bardhe dhe mikpritje e vertete ne brigjet e Ksamilit.',
+        en: 'Calm, white stone and true hospitality on the shores of Ksamil.',
+    },
+};
+function heroText(field) {
+    const h = props.hotel || {};
+    const lc = locale.value;
+    return h[`hero_${field}_${lc}`] || h[`hero_${field}_sq`] || HERO_DEFAULTS[field][lc] || HERO_DEFAULTS[field].sq;
+}
+const heroEyebrow = computed(() => heroText('eyebrow'));
+const heroTitle = computed(() => heroText('title'));
+const heroSubtitle = computed(() => heroText('subtitle'));
+
 const features = [
     { icon: Waves, title: 'Afer Detit', desc: 'Vetem 2 minuta ne kembe nga plazhi i Ksamilit' },
     { icon: UtensilsCrossed, title: 'Restorant', desc: 'Kuzhine mesdhetare me produkte lokale te fresketa' },
@@ -62,11 +83,11 @@ const features = [
 
             <!-- Content sits low, inside the scrim, for legibility -->
             <div class="relative z-10 flex h-full flex-col items-center justify-end text-center px-4 pb-24 sm:pb-28 [text-shadow:0_2px_28px_rgba(31,29,26,0.5)]">
-                <span class="eyebrow text-bone/90">Ksamil · Bregu Jon</span>
+                <span class="eyebrow text-bone/90">{{ heroEyebrow }}</span>
                 <span class="mt-4 h-px w-12 bg-brass" />
-                <h1 class="text-hero text-bone mt-6 max-w-4xl">Nje shtepi e madhe mbi detin Jon</h1>
+                <h1 class="text-hero text-bone mt-6 max-w-4xl">{{ heroTitle }}</h1>
                 <p class="text-lead text-bone/85 mt-5 max-w-xl">
-                    Qetesi, gur i bardhe dhe mikpritje e vertete ne brigjet e Ksamilit.
+                    {{ heroSubtitle }}
                 </p>
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-9">
                     <Link href="/book" class="btn-reserve">Rezervo Tani</Link>

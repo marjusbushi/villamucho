@@ -104,9 +104,21 @@ class SettingsController extends Controller
             'maps_url' => ['nullable', 'string', 'max:2000'],
             'logo' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:3072'],
             'hero_image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:6144'],
+            // Hero text, editable per language (Albanian + English).
+            'hero_eyebrow_sq' => ['nullable', 'string', 'max:120'],
+            'hero_eyebrow_en' => ['nullable', 'string', 'max:120'],
+            'hero_title_sq' => ['nullable', 'string', 'max:200'],
+            'hero_title_en' => ['nullable', 'string', 'max:200'],
+            'hero_subtitle_sq' => ['nullable', 'string', 'max:400'],
+            'hero_subtitle_en' => ['nullable', 'string', 'max:400'],
         ]);
 
-        foreach (['instagram', 'facebook', 'maps_url'] as $key) {
+        foreach ([
+            'instagram', 'facebook', 'maps_url',
+            'hero_eyebrow_sq', 'hero_eyebrow_en',
+            'hero_title_sq', 'hero_title_en',
+            'hero_subtitle_sq', 'hero_subtitle_en',
+        ] as $key) {
             Setting::set("hotel.{$key}", $request->input($key));
         }
 
