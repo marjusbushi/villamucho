@@ -25,6 +25,7 @@ const checkingOut = ref(false);
 const showLineModal = ref(false);
 const showPayModal = ref(false);
 const showInvoice = ref(false);
+const checkoutMode = ref(false);
 
 const perms = usePage().props.auth.user?.permissions || [];
 const canUpdate = perms.includes('update_reservations');
@@ -97,15 +98,38 @@ function submitPay() {
         onError: () => toasts.value?.error('Deshtoi regjistrimi i pageses.'),
     });
 }
-function doCheckOut() {
+// "Faturë" just views/prints the bill. "Check-out" opens the SAME invoice in checkout mode,
+// where you settle the outstanding (cash/card) and only THEN does the guest leave.
+function openInvoice() {
+    checkoutMode.value = false;
+    showInvoice.value = true;
+}
+function openCheckout() {
+    if (hasOpenOrders.value) { toasts.value?.error('Mbyll porosite POS te hapura perpara check-out.'); return; }
+    checkoutMode.value = true;
+    showInvoice.value = true;
+}
+function settleAndCheckout(method) {
     if (hasOpenOrders.value) { toasts.value?.error('Mbyll porosite POS te hapura perpara check-out.'); return; }
     checkingOut.value = true;
-    router.post(route('reservations.check-out', props.reservation.id), {}, {
-        preserveScroll: true,
-        onSuccess: () => toasts.value?.success('Check-out u krye.'),
-        onError: () => toasts.value?.error('Check-out deshtoi.'),
-        onFinish: () => { checkingOut.value = false; },
-    });
+    router.post(
+        route('reservations.check-out', props.reservation.id),
+        method ? { settle_method: method } : {},
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showInvoice.value = false;
+                checkoutMode.value = false;
+                toasts.value?.success(
+                    method
+                        ? `Pagesa u regjistrua (${methodLabel[method]}) dhe check-out u krye.`
+                        : 'Check-out u krye.'
+                );
+            },
+            onError: () => toasts.value?.error('Check-out deshtoi.'),
+            onFinish: () => { checkingOut.value = false; },
+        }
+    );
 }
 </script>
 
@@ -121,13 +145,12 @@ function doCheckOut() {
                 </Badge>
                 <Button v-if="canUpdate" variant="outline" @click="showLineModal = true">+ Rresht</Button>
                 <Button v-if="canUpdate" variant="outline" @click="showPayModal = true">Regjistro pagese</Button>
-                <Button variant="outline" @click="showInvoice = true">Fature</Button>
+                <Button variant="outline" @click="openInvoice">Fature</Button>
                 <Button
                     v-if="canUpdate && reservation.status === 'checked_in'"
                     variant="primary"
-                    :loading="checkingOut"
                     :disabled="hasOpenOrders"
-                    @click="doCheckOut"
+                    @click="openCheckout"
                 >
                     Check-out
                 </Button>
@@ -300,8 +323,8 @@ function doCheckOut() {
             </template>
         </Modal>
 
-        <!-- Invoice (Fature) modal -->
-        <Modal :show="showInvoice" title="Fature" max-width="lg" @close="showInvoice = false">
+        <!-- Invoice (Fature) modal — also the settle-then-checkout flow -->
+        <Modal :show="showInvoice" :title="checkoutMode ? 'Mbyll llogarine & Check-out' : 'Fature'" max-width="lg" @close="showInvoice = false">
             <div id="invoice" class="space-y-4 text-primary-900">
                 <div class="text-center border-b border-neutral-200 pb-3">
                     <p class="text-h3">{{ hotelName }}</p>
@@ -341,9 +364,40 @@ function doCheckOut() {
 
                 <p class="text-tiny text-neutral-400 text-center pt-2">Faleminderit per qendrimin!</p>
             </div>
+
+            <!-- Checkout call-to-action (not part of the printed invoice) -->
+            <div v-if="checkoutMode" class="mt-4 rounded-lg border px-4 py-3 print:hidden"
+                 :class="hasOpenOrders ? 'border-warning-200 bg-warning-50' : 'border-primary-200 bg-primary-50'">
+                <p v-if="hasOpenOrders" class="text-body-sm text-warning-800 font-medium">
+                    Ka porosi POS te hapura — mbyllini perpara se te mbyllni llogarine.
+                </p>
+                <template v-else>
+                    <p class="text-body-sm text-primary-800 font-medium mb-0.5">Mbyllja e llogarise</p>
+                    <p v-if="unsettled" class="text-small text-neutral-600">
+                        Zgjidh menyren e pageses per te shlyer <b>{{ money(folio.outstanding) }}</b> dhe per te bere check-out.
+                    </p>
+                    <p v-else class="text-small text-success-700">
+                        Llogaria eshte e shlyer plotesisht. Konfirmo check-out.
+                    </p>
+                </template>
+            </div>
+
             <template #footer>
-                <Button variant="outline" @click="showInvoice = false">Mbyll</Button>
-                <Button variant="primary" @click="printInvoice">Printo</Button>
+                <template v-if="checkoutMode">
+                    <Button variant="outline" @click="showInvoice = false">Anulo</Button>
+                    <Button variant="outline" @click="printInvoice">Printo</Button>
+                    <template v-if="!hasOpenOrders">
+                        <template v-if="unsettled">
+                            <Button variant="outline" :loading="checkingOut" @click="settleAndCheckout('cash')">Paguaj Kesh & Check-out</Button>
+                            <Button variant="primary" :loading="checkingOut" @click="settleAndCheckout('card')">Paguaj Karte & Check-out</Button>
+                        </template>
+                        <Button v-else variant="primary" :loading="checkingOut" @click="settleAndCheckout(null)">Konfirmo Check-out</Button>
+                    </template>
+                </template>
+                <template v-else>
+                    <Button variant="outline" @click="showInvoice = false">Mbyll</Button>
+                    <Button variant="primary" @click="printInvoice">Printo</Button>
+                </template>
             </template>
         </Modal>
 

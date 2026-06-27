@@ -122,7 +122,9 @@ class ReservationController extends Controller
         // Balance = room charge + folio charges - discounts - payments.
         // total_amount stays the ROOM charge; the live balance is computed here.
         $roomCharge = (float) $reservation->total_amount;
-        $folioCharges = (float) $reservation->folioItems->where('type', '!=', 'discount')->sum('amount');
+        // total_amount already represents the room charge ("Qendrimi ne dhome"); any type='room'
+        // folio lines (e.g. per-night room lines) would double-count it, so exclude them everywhere.
+        $folioCharges = (float) $reservation->folioItems->whereNotIn('type', ['discount', 'room'])->sum('amount');
         $discounts = (float) $reservation->folioItems->where('type', 'discount')->sum('amount');
         $gross = round($roomCharge + $folioCharges - $discounts, 2);
 
@@ -162,13 +164,16 @@ class ReservationController extends Controller
             ],
             'folio' => [
                 'roomCharge' => $roomCharge,
-                'items' => $reservation->folioItems->map(fn($i) => [
-                    'id' => $i->id,
-                    'description' => $i->description,
-                    'type' => $i->type,
-                    'amount' => (float) $i->amount,
-                    'charge_date' => $i->charge_date?->toDateString(),
-                ]),
+                'items' => $reservation->folioItems
+                    ->where('type', '!=', 'room')
+                    ->values()
+                    ->map(fn($i) => [
+                        'id' => $i->id,
+                        'description' => $i->description,
+                        'type' => $i->type,
+                        'amount' => (float) $i->amount,
+                        'charge_date' => $i->charge_date?->toDateString(),
+                    ]),
                 'discounts' => round($discounts, 2),
                 'gross' => $gross,
                 'taxRate' => $taxRate,
@@ -290,7 +295,7 @@ class ReservationController extends Controller
         return back()->with('success', "Check-in per dhomen {$reservation->room->room_number} u krye.");
     }
 
-    public function checkOut(Reservation $reservation): RedirectResponse
+    public function checkOut(Request $request, Reservation $reservation): RedirectResponse
     {
         if ($reservation->status !== 'checked_in') {
             return back()->with('error', 'Vetem mysafiret brenda mund te bejne check-out.');
@@ -304,7 +309,35 @@ class ReservationController extends Controller
             return back()->with('error', "Ka {$openOrders} porosi POS te hapura per kete rezervim — mbyllini perpara check-out.");
         }
 
-        DB::transaction(function () use ($reservation) {
+        // Checkout settles the bill: the invoice is marked paid (cash/card) and only THEN does the guest leave.
+        $data = $request->validate([
+            'settle_method' => ['nullable', 'in:cash,card'],
+        ]);
+
+        DB::transaction(function () use ($reservation, $data) {
+            // Record a payment for whatever is still owed, with the chosen method, before flipping status.
+            if (!empty($data['settle_method'])) {
+                $reservation->loadMissing('folioItems', 'payments');
+                $roomCharge = (float) $reservation->total_amount;
+                $folioCharges = (float) $reservation->folioItems->whereNotIn('type', ['discount', 'room'])->sum('amount');
+                $discounts = (float) $reservation->folioItems->where('type', 'discount')->sum('amount');
+                $paid = (float) $reservation->payments->sum('amount');
+                $outstanding = round($roomCharge + $folioCharges - $discounts - $paid, 2);
+
+                if ($outstanding > 0) {
+                    $reservation->payments()->create([
+                        'amount' => $outstanding,
+                        'method' => $data['settle_method'],
+                        'created_by' => auth()->id(),
+                    ]);
+                    AuditLog::record('payment.record', $reservation, [
+                        'amount' => $outstanding,
+                        'method' => $data['settle_method'],
+                        'context' => 'checkout_settle',
+                    ]);
+                }
+            }
+
             $reservation->update(['status' => 'checked_out']);
             $reservation->room->update(['status' => 'cleaning']);
 
