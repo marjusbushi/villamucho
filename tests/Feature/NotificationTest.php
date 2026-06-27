@@ -23,9 +23,10 @@ class NotificationTest extends TestCase
         $type = RoomType::create(['name' => 'Std', 'base_price' => 50, 'max_occupancy' => 2, 'amenities' => []]);
         $room = Room::create(['room_type_id' => $type->id, 'room_number' => '101', 'floor' => 1, 'status' => 'available']);
         $guest = Guest::create(['first_name' => 'Test', 'last_name' => 'Guest', 'email' => 'g@example.com', 'phone' => '+355600000000']);
+        $creator = User::factory()->create();
 
         return Reservation::create([
-            'room_id' => $room->id, 'guest_id' => $guest->id,
+            'room_id' => $room->id, 'guest_id' => $guest->id, 'created_by' => $creator->id,
             'check_in_date' => '2026-07-01', 'check_out_date' => '2026-07-03',
             'status' => $status, 'total_amount' => 100, 'adults' => 2, 'children' => 0,
         ]);
