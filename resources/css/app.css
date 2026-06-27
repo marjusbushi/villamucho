@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -54,4 +54,84 @@
     .divider {
         @apply border-t border-neutral-200/80;
     }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   "IONIAN CALM" — PUBLIC WEBSITE ONLY
+   Everything here is scoped under `.site` (the root of WebsiteLayout),
+   so the authenticated admin/back-office theme is left completely
+   untouched. Rule the eye learns: brass = action, ionian = link.
+   ─────────────────────────────────────────────────────────────────── */
+@layer base {
+    .site {
+        @apply bg-bone text-ink antialiased;
+        font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
+
+    /* Light editorial serif for every public-site heading (never bold).
+       Color is intentionally NOT forced here — it inherits `.site`'s ink
+       default but lets pages set text-bone/text-white on dark sections. */
+    .site h1,
+    .site h2,
+    .site h3,
+    .site h4 {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-weight: 500;
+        letter-spacing: 0;
+    }
+
+    /* Links read as the sea (ionian); actions read as brass (handled per-button). */
+    .site a {
+        @apply text-ionian transition-colors duration-200;
+    }
+    .site a:hover {
+        @apply text-ionian-dark;
+    }
+
+    .site ::selection {
+        @apply bg-ionian/15 text-ink;
+    }
+}
+
+@layer components {
+    /* Wide-tracked uppercase label that sits above a section title — the
+       single most recognisable "upscale hotel" typographic tell. */
+    .eyebrow {
+        @apply inline-block text-eyebrow uppercase text-driftwood;
+    }
+    .eyebrow-brass { @apply eyebrow text-brass; }
+
+    /* A measure cap so body copy never runs to uncomfortable line lengths. */
+    .measure { max-width: 66ch; }
+
+    /* Thin gold rule used under eyebrows / as a quiet section marker. */
+    .hairline-gold { @apply h-px w-12 bg-brass/60; }
+
+    /* Primary booking action on LIGHT backgrounds — ink fill, brass on hover. */
+    .btn-reserve {
+        @apply inline-flex items-center justify-center gap-2 rounded-none
+               bg-ink px-7 py-3 text-sm font-medium tracking-wide text-bone
+               transition-colors duration-200 hover:bg-brass no-underline
+               disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    /* Primary action on DARK backgrounds (ink bands/footer) — brass fill. */
+    .btn-reserve-light {
+        @apply inline-flex items-center justify-center gap-2 rounded-none
+               bg-brass px-7 py-3 text-sm font-medium tracking-wide text-bone
+               transition-colors duration-200 hover:bg-brass-dark no-underline
+               disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+}
+
+/* Very slow hero "Ken Burns" drift — settles, never springs. */
+@keyframes heroKenBurns {
+    from { transform: scale(1); }
+    to   { transform: scale(1.06); }
+}
+.site .hero-kenburns {
+    animation: heroKenBurns 20s ease-out forwards;
+    transform-origin: 50% 55%;
+}
+@media (prefers-reduced-motion: reduce) {
+    .site .hero-kenburns { animation: none; }
 }

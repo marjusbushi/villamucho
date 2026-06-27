@@ -1,44 +1,76 @@
 <script setup>
+import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
+import { Waves, UtensilsCrossed, Wifi, SquareParking, ArrowRight } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
+import RoomGallery from '@/Components/Website/RoomGallery.vue';
+import { amenityIcon } from '@/Components/Website/amenities';
 
-defineProps({
+const props = defineProps({
     roomTypes: Array,
     hotel: Object,
 });
 
-const features = [
-    { icon: '🌊', title: 'Afer Detit', desc: 'Vetem 2 minuta ne kembe nga plazhi i Ksamilit' },
-    { icon: '🍽️', title: 'Restorant', desc: 'Kuzhine mesdhetare me produkte lokale te fresketa' },
-    { icon: '📶', title: 'WiFi Falas', desc: 'Internet i shpejte ne te gjitha ambientet' },
-    { icon: '🅿️', title: 'Parking', desc: 'Parking privat falas per te gjithe mysafiret' },
-];
+// Present the rooms as a graded collection, not identical tiles: the "Suite"
+// (or, failing that, the priciest type) gets a wider featured treatment.
+const featured = computed(() => {
+    const list = props.roomTypes || [];
+    return list.find(r => /suite/i.test(r.name))
+        || [...list].sort((a, b) => Number(b.base_price) - Number(a.base_price))[0]
+        || null;
+});
+const standardRooms = computed(() => (props.roomTypes || []).filter(r => r.id !== featured.value?.id));
 
-const amenityIcons = {
-    'WiFi': '📶', 'TV': '📺', 'Aire kondicionuar': '❄️', 'Banjo private': '🚿',
-    'Ballkon': '🌅', 'Minibar': '🍹', 'Pamje nga deti': '🌊', 'Makineri kafeje': '☕',
+const specRow = (room) => {
+    const parts = [`Max ${room.max_occupancy} persona`, ...(room.amenities || []).slice(0, 2)];
+    return parts.join(' · ');
 };
+
+// Hero photo is driven by Settings (hotel.hero_image); falls back to a bundled
+// licensed Ionian-coast placeholder so the site reads premium on day one.
+// (Replace the fallback by uploading a real Villa Mucho photo in Settings.)
+const HERO_FALLBACK_LG = '/images/hero-ionian-1920.jpg';
+const HERO_FALLBACK_SM = '/images/hero-ionian-960.jpg';
+const heroFromSettings = computed(() => props.hotel?.hero_image);
+const heroSrc = computed(() => heroFromSettings.value ? `/storage/${heroFromSettings.value}` : HERO_FALLBACK_LG);
+const heroSrcset = computed(() => heroFromSettings.value ? null : `${HERO_FALLBACK_SM} 960w, ${HERO_FALLBACK_LG} 1920w`);
+
+const features = [
+    { icon: Waves, title: 'Afer Detit', desc: 'Vetem 2 minuta ne kembe nga plazhi i Ksamilit' },
+    { icon: UtensilsCrossed, title: 'Restorant', desc: 'Kuzhine mesdhetare me produkte lokale te fresketa' },
+    { icon: Wifi, title: 'WiFi Falas', desc: 'Internet i shpejte ne te gjitha ambientet' },
+    { icon: SquareParking, title: 'Parking', desc: 'Parking privat falas per te gjithe mysafiret' },
+];
 </script>
 
 <template>
     <Head title="Home — Villa Mucho" />
-    <WebsiteLayout>
+    <WebsiteLayout :transparent-header="true">
         <!-- Hero -->
-        <section class="relative h-[85vh] min-h-[600px] flex items-center justify-center bg-primary-950 overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-b from-primary-950/70 via-primary-950/50 to-primary-950/80 z-10" />
-            <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1920&q=80')] bg-cover bg-center" />
-            <div class="relative z-20 text-center px-4 max-w-3xl">
-                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight">
-                    Miresevini ne<br><span class="text-accent-400">Villa Mucho</span>
-                </h1>
-                <p class="text-lg sm:text-xl text-neutral-300 mt-4 max-w-xl mx-auto">
-                    Eksperience unike ne brigjet e Ksamilit — relaksim, natyra dhe mikpritje shqiptare.
+        <section class="relative h-[90vh] min-h-[560px] w-full overflow-hidden">
+            <img
+                :src="heroSrc"
+                :srcset="heroSrcset"
+                sizes="100vw"
+                alt="Villa Mucho — Ksamil, bregu i Jonit"
+                fetchpriority="high"
+                class="absolute inset-0 h-full w-full object-cover hero-kenburns"
+            />
+            <!-- Subtle bottom-up scrim (never a flat black wash) -->
+            <div class="absolute inset-0 pointer-events-none"
+                 style="background: linear-gradient(to top, rgba(31,29,26,0.72) 0%, rgba(31,29,26,0.30) 42%, rgba(31,29,26,0.05) 72%, transparent 100%);" />
+
+            <!-- Content sits low, inside the scrim, for legibility -->
+            <div class="relative z-10 flex h-full flex-col items-center justify-end text-center px-4 pb-24 sm:pb-28 [text-shadow:0_2px_28px_rgba(31,29,26,0.5)]">
+                <span class="eyebrow text-bone/90">Ksamil · Bregu Jon</span>
+                <span class="mt-4 h-px w-12 bg-brass" />
+                <h1 class="text-hero text-bone mt-6 max-w-4xl">Nje shtepi e madhe mbi detin Jon</h1>
+                <p class="text-lead text-bone/85 mt-5 max-w-xl">
+                    Qetesi, gur i bardhe dhe mikpritje e vertete ne brigjet e Ksamilit.
                 </p>
-                <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-                    <Link href="/book" class="px-8 py-3.5 rounded-lg bg-accent-600 text-white text-body font-medium hover:bg-accent-700 transition-all shadow-lg hover:shadow-xl no-underline">
-                        Rezervo Tani
-                    </Link>
-                    <Link href="/rooms" class="px-8 py-3.5 rounded-lg border border-white/30 text-white text-body font-medium hover:bg-white/10 transition-all no-underline">
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-9">
+                    <Link href="/book" class="btn-reserve">Rezervo Tani</Link>
+                    <Link href="/rooms" class="inline-flex items-center justify-center px-7 py-3 border border-bone/40 text-bone text-sm font-medium tracking-wide hover:bg-bone/10 transition-colors no-underline">
                         Shiko Dhomat
                     </Link>
                 </div>
@@ -46,57 +78,65 @@ const amenityIcons = {
         </section>
 
         <!-- Features -->
-        <section class="py-20 bg-neutral-50">
+        <section class="py-24 bg-limestone/40">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="text-center mb-12">
-                    <h2 class="text-h2 text-primary-900">Pse Villa Mucho?</h2>
-                    <p class="text-body text-neutral-500 mt-2 max-w-lg mx-auto">Cdo detaj eshte menduar per komoditetin tuaj</p>
+                <div class="text-center mb-14">
+                    <span class="eyebrow-brass">Pervoja</span>
+                    <h2 class="text-display text-ink mt-3">Pse Villa Mucho?</h2>
+                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">Cdo detaj eshte menduar per komoditetin tuaj</p>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div v-for="f in features" :key="f.title" class="bg-white rounded-xl p-6 text-center border border-neutral-100 hover:shadow-md transition-shadow">
-                        <span class="text-4xl block mb-3">{{ f.icon }}</span>
-                        <h3 class="text-h4 text-primary-900 mb-1">{{ f.title }}</h3>
-                        <p class="text-body-sm text-neutral-500">{{ f.desc }}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-driftwood/15 border border-driftwood/15">
+                    <div v-for="f in features" :key="f.title" class="bg-bone p-8 text-center">
+                        <component :is="f.icon" class="h-7 w-7 mx-auto mb-4 text-ionian" :stroke-width="1.25" />
+                        <h3 class="text-xl text-ink mb-1.5">{{ f.title }}</h3>
+                        <p class="text-body-sm text-ink/55 leading-relaxed">{{ f.desc }}</p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Room Types Preview -->
-        <section class="py-20">
+        <!-- Room Types -->
+        <section class="py-24">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="text-center mb-12">
-                    <h2 class="text-h2 text-primary-900">Dhomat Tona</h2>
-                    <p class="text-body text-neutral-500 mt-2">Zgjidhni pervojen qe ju pershtatet</p>
+                <div class="text-center mb-14">
+                    <span class="eyebrow-brass">Akomodimi</span>
+                    <h2 class="text-display text-ink mt-3">Dhomat &amp; Suitat</h2>
+                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">Nje koleksion i vogel suitash, secila me pamjen e vet nga Joni.</p>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div v-for="room in roomTypes" :key="room.id" class="group bg-white rounded-xl border border-neutral-100 overflow-hidden hover:shadow-lg transition-all duration-200">
-                        <!-- Featured image -->
-                        <div class="h-48 bg-gradient-to-br from-accent-100 to-neutral-100 flex items-center justify-center overflow-hidden">
-                            <img v-if="room.images?.length" :src="`/storage/${room.images[0].path}`" :alt="room.name" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                            <span v-else class="text-5xl">🏨</span>
+
+                <!-- Featured suite -->
+                <div v-if="featured" class="grid grid-cols-1 lg:grid-cols-2 border border-driftwood/20 mb-8">
+                    <RoomGallery :images="featured.images" :alt="featured.name" aspect="aspect-[4/3] lg:aspect-auto lg:h-full lg:min-h-[420px]" />
+                    <div class="p-8 lg:p-12 flex flex-col justify-center">
+                        <span class="eyebrow-brass">Suite</span>
+                        <h3 class="text-display-sm text-ink mt-3">{{ featured.name }}</h3>
+                        <p class="text-body text-ink/60 mt-4 leading-relaxed">{{ featured.description }}</p>
+                        <div class="flex flex-wrap gap-x-5 gap-y-2 mt-6">
+                            <span v-for="a in (featured.amenities || []).slice(0, 5)" :key="a" class="inline-flex items-center gap-1.5 text-body-sm text-ink/65">
+                                <component :is="amenityIcon(a)" class="h-4 w-4 text-ionian" :stroke-width="1.5" /> {{ a }}
+                            </span>
                         </div>
-                        <div class="p-5">
-                            <div class="flex items-start justify-between">
-                                <h3 class="text-h4 text-primary-900">{{ room.name }}</h3>
-                                <div class="text-right">
-                                    <p class="text-h4 text-accent-600">€{{ room.base_price }}</p>
-                                    <p class="text-tiny text-neutral-400">/nate</p>
-                                </div>
+                        <div class="flex items-center justify-between mt-8 pt-6 border-t border-driftwood/15">
+                            <p class="text-body-sm text-ink/55">Nga <span class="text-brass text-lg">€{{ featured.base_price }}</span> / nate</p>
+                            <Link :href="`/book?room_type=${featured.id}`" class="btn-reserve">Rezervo</Link>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Standard rooms -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="room in standardRooms" :key="room.id" class="group border border-driftwood/20 bg-bone">
+                        <RoomGallery :images="room.images" :alt="room.name" />
+                        <div class="p-6">
+                            <div class="flex items-baseline justify-between gap-3">
+                                <h3 class="text-2xl text-ink">{{ room.name }}</h3>
+                                <p class="text-body-sm text-ink/55 whitespace-nowrap">Nga <span class="text-brass">€{{ room.base_price }}</span></p>
                             </div>
-                            <p class="text-body-sm text-neutral-500 mt-2 line-clamp-2">{{ room.description }}</p>
-                            <!-- Amenities -->
-                            <div class="flex flex-wrap gap-1.5 mt-3">
-                                <span v-for="a in (room.amenities || []).slice(0, 4)" :key="a" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 text-tiny text-neutral-600">
-                                    {{ amenityIcons[a] || '✓' }} {{ a }}
-                                </span>
-                            </div>
-                            <div class="flex items-center justify-between mt-4 pt-4 border-t border-neutral-100">
-                                <span class="text-small text-neutral-400">Max {{ room.max_occupancy }} persona</span>
-                                <Link :href="`/book?room_type=${room.id}`" class="text-body-sm text-accent-600 font-medium hover:text-accent-700 no-underline">
-                                    Rezervo →
-                                </Link>
-                            </div>
+                            <p class="text-body-sm text-ink/55 mt-2 line-clamp-2">{{ room.description }}</p>
+                            <p class="eyebrow text-driftwood mt-4">{{ specRow(room) }}</p>
+                            <Link :href="`/book?room_type=${room.id}`" class="group/lnk mt-5 inline-flex items-center gap-1.5 text-body-sm text-ionian no-underline">
+                                Shiko Dhomen <ArrowRight class="h-4 w-4 transition-transform group-hover/lnk:translate-x-1" :stroke-width="1.5" />
+                            </Link>
                         </div>
                     </div>
                 </div>
@@ -104,11 +144,12 @@ const amenityIcons = {
         </section>
 
         <!-- CTA -->
-        <section class="py-20 bg-primary-950">
+        <section class="py-24 bg-ink">
             <div class="max-w-3xl mx-auto px-4 text-center">
-                <h2 class="text-3xl sm:text-4xl font-bold text-white">Gati per pushime?</h2>
-                <p class="text-body text-neutral-400 mt-3">Rezervoni direkt dhe perfitoni cmimin me te mire</p>
-                <Link href="/book" class="inline-block mt-6 px-8 py-3.5 rounded-lg bg-accent-600 text-white text-body font-medium hover:bg-accent-700 transition-all shadow-lg no-underline">
+                <span class="eyebrow text-brass-light">Rezervo Direkt</span>
+                <h2 class="text-display text-bone mt-3">Gati per pushime?</h2>
+                <p class="text-lead text-bone/60 mt-3">Cmimi me i mire i garantuar kur rezervon drejtperdrejt me ne.</p>
+                <Link href="/book" class="btn-reserve-light mt-8 px-8 py-3.5">
                     Rezervo Tani
                 </Link>
             </div>

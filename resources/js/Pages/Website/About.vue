@@ -1,5 +1,6 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
+import { Waves, UtensilsCrossed } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 
 defineProps({ hotel: Object });
@@ -28,29 +29,35 @@ defineProps({ hotel: Object });
                                 Me dhoma te rehatshme, restorant me kuzhine mesdhetare, dhe staf te perkushtuar, ne sigurojme qe cdo mysafir te ndihet si ne shtepi — por me mire.
                             </p>
                         </div>
-                        <div class="h-64 md:h-80 rounded-2xl bg-gradient-to-br from-accent-100 to-neutral-100 flex items-center justify-center">
-                            <span class="text-7xl">🏖️</span>
+                        <div class="relative h-64 md:h-80 overflow-hidden bg-limestone">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center gap-2.5 text-driftwood">
+                                <Waves class="h-9 w-9" :stroke-width="1.1" />
+                                <span class="eyebrow text-driftwood/80">Foto se shpejti</span>
+                            </div>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
-                        <div class="text-center p-6 bg-neutral-50 rounded-xl">
-                            <p class="text-h1 text-accent-600">15+</p>
+                        <div class="text-center p-8 bg-limestone/40 border border-driftwood/15">
+                            <p class="text-h1 text-brass">15+</p>
                             <p class="text-body-sm text-neutral-500 mt-1">Dhoma te rehatshme</p>
                         </div>
-                        <div class="text-center p-6 bg-neutral-50 rounded-xl">
-                            <p class="text-h1 text-accent-600">500+</p>
+                        <div class="text-center p-8 bg-limestone/40 border border-driftwood/15">
+                            <p class="text-h1 text-brass">500+</p>
                             <p class="text-body-sm text-neutral-500 mt-1">Mysafire te kenaqur</p>
                         </div>
-                        <div class="text-center p-6 bg-neutral-50 rounded-xl">
-                            <p class="text-h1 text-accent-600">4.8</p>
+                        <div class="text-center p-8 bg-limestone/40 border border-driftwood/15">
+                            <p class="text-h1 text-brass">4.8</p>
                             <p class="text-body-sm text-neutral-500 mt-1">Vleresim mesatar</p>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-                        <div class="h-64 md:h-80 rounded-2xl bg-gradient-to-br from-accent-50 to-neutral-100 flex items-center justify-center order-2 md:order-1">
-                            <span class="text-7xl">👨‍🍳</span>
+                        <div class="relative h-64 md:h-80 overflow-hidden bg-limestone order-2 md:order-1">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center gap-2.5 text-driftwood">
+                                <UtensilsCrossed class="h-9 w-9" :stroke-width="1.1" />
+                                <span class="eyebrow text-driftwood/80">Foto se shpejti</span>
+                            </div>
                         </div>
                         <div class="order-1 md:order-2">
                             <h2 class="text-h2 text-primary-900 mb-4">Stafi Yne</h2>

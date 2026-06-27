@@ -104,6 +104,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         // Settings
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/settings/hotel', [SettingsController::class, 'updateHotel'])->name('settings.hotel');
+        Route::post('/settings/website', [SettingsController::class, 'updateWebsite'])->name('settings.website');
         Route::put('/settings/financial', [SettingsController::class, 'updateFinancial'])->name('settings.financial');
         Route::put('/settings/housekeeping', [SettingsController::class, 'updateHousekeeping'])->name('settings.housekeeping');
 

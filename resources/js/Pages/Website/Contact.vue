@@ -1,9 +1,32 @@
 <script setup>
+import { computed } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { MapPin, Phone, Mail } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 
-defineProps({ hotel: Object });
+const props = defineProps({ hotel: Object });
+
+// The map accepts either a ready Google Maps "embed" URL or a plain
+// address / place name (e.g. "Villa Mucho, Ksamil") which we turn into a
+// keyless embed automatically. Empty → a Ksamil fallback.
+const mapSrc = computed(() => {
+    const v = (props.hotel?.maps_url || '').trim();
+    if (!v) return 'https://www.google.com/maps?q=Ksamil,Sarande,Albania&output=embed';
+    if (/output=embed|\/maps\/embed/i.test(v)) return v;
+    return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
+});
+
+// Contact details → actionable links
+const addr = computed(() => props.hotel?.address || 'Ksamil, Sarande, Shqiperi');
+const phone = computed(() => props.hotel?.phone || '+355 69 000 0000');
+const email = computed(() => props.hotel?.email || 'info@villamucho.com');
+const telHref = computed(() => 'tel:' + phone.value.replace(/[^+\d]/g, ''));
+const mailHref = computed(() => 'mailto:' + email.value);
+const mapsDest = computed(() => {
+    const m = (props.hotel?.maps_url || '').trim();
+    return (m && !/^https?:|output=embed|\/maps\/embed/i.test(m)) ? m : addr.value;
+});
+const directionsHref = computed(() => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(mapsDest.value));
 
 const flash = usePage().props.flash;
 
@@ -75,35 +98,36 @@ function submit() {
                                     <MapPin class="h-5 w-5 mt-0.5 text-ionian shrink-0" :stroke-width="1.5" />
                                     <div>
                                         <p class="text-label text-ink/80">Adresa</p>
-                                        <p class="text-body-sm text-ink/55">{{ hotel?.address || 'Ksamil, Sarande, Shqiperi' }}</p>
+                                        <a :href="directionsHref" target="_blank" rel="noopener" class="text-body-sm text-ionian hover:text-ionian-dark no-underline">{{ addr }}</a>
                                     </div>
                                 </div>
                                 <div class="flex items-start gap-3.5">
                                     <Phone class="h-5 w-5 mt-0.5 text-ionian shrink-0" :stroke-width="1.5" />
                                     <div>
                                         <p class="text-label text-ink/80">Telefon</p>
-                                        <p class="text-body-sm text-ink/55">{{ hotel?.phone || '+355 69 000 0000' }}</p>
+                                        <a :href="telHref" class="text-body-sm text-ionian hover:text-ionian-dark no-underline">{{ phone }}</a>
                                     </div>
                                 </div>
                                 <div class="flex items-start gap-3.5">
                                     <Mail class="h-5 w-5 mt-0.5 text-ionian shrink-0" :stroke-width="1.5" />
                                     <div>
                                         <p class="text-label text-ink/80">Email</p>
-                                        <p class="text-body-sm text-ink/55">{{ hotel?.email || 'info@villamucho.com' }}</p>
+                                        <a :href="mailHref" class="text-body-sm text-ionian hover:text-ionian-dark no-underline">{{ email }}</a>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Map -->
-                        <div class="rounded-2xl overflow-hidden h-64 bg-neutral-200">
+                        <div class="overflow-hidden h-64 bg-limestone border border-driftwood/20">
                             <iframe
-                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d12345.67890!2d20.0!3d39.77!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMznCsDQ2JzEyLjAiTiAyMMKwMDAnMDAuMCJF!5e0!3m2!1sen!2s!4v1234567890"
+                                :src="mapSrc"
                                 width="100%"
                                 height="100%"
                                 style="border:0;"
                                 allowfullscreen
                                 loading="lazy"
+                                referrerpolicy="no-referrer-when-downgrade"
                             />
                         </div>
                     </div>

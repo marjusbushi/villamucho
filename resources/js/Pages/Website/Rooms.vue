@@ -1,65 +1,61 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { Users, BedDouble } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
+import RoomGallery from '@/Components/Website/RoomGallery.vue';
+import { amenityIcon } from '@/Components/Website/amenities';
 
 defineProps({ roomTypes: Array });
-
-const amenityIcons = {
-    'WiFi': '📶', 'TV': '📺', 'TV 55"': '📺', 'Aire kondicionuar': '❄️', 'Banjo private': '🚿',
-    'Banjo luksoze': '🛁', 'Ballkon': '🌅', 'Minibar': '🍹', 'Pamje nga deti': '🌊',
-    'Makineri kafeje': '☕', 'Shtrat shtese': '🛏️',
-};
 </script>
 
 <template>
     <Head title="Dhomat — Villa Mucho" />
     <WebsiteLayout>
-        <section class="py-16">
+        <section class="py-20">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="text-center mb-12">
-                    <h1 class="text-h1 text-primary-900">Dhomat Tona</h1>
-                    <p class="text-body text-neutral-500 mt-2 max-w-lg mx-auto">Cdo dhome eshte projektuar per komoditetin dhe relaksimin tuaj</p>
+                <div class="text-center mb-14">
+                    <span class="eyebrow-brass">Akomodimi</span>
+                    <h1 class="text-display text-ink mt-3">Dhomat &amp; Suitat</h1>
+                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">Cdo dhome eshte projektuar per qetesine dhe pamjen nga deti.</p>
                 </div>
 
-                <div class="space-y-12">
-                    <div v-for="room in roomTypes" :key="room.id" class="bg-white rounded-2xl border border-neutral-100 overflow-hidden hover:shadow-lg transition-shadow">
+                <div class="space-y-10">
+                    <div v-for="room in roomTypes" :key="room.id" class="border border-driftwood/20 bg-bone overflow-hidden">
                         <div class="grid grid-cols-1 lg:grid-cols-2">
-                            <!-- Image gallery -->
-                            <div class="relative h-64 lg:h-auto bg-gradient-to-br from-accent-50 to-neutral-100 overflow-hidden">
-                                <img v-if="room.images?.length" :src="`/storage/${room.images[0].path}`" :alt="room.name" class="w-full h-full object-cover" />
-                                <span v-else class="absolute inset-0 flex items-center justify-center text-7xl">🏨</span>
-                                <!-- Image count badge -->
-                                <div v-if="room.images?.length > 1" class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-primary-950/70 text-white text-tiny font-medium backdrop-blur-sm">
-                                    📷 {{ room.images.length }} foto
-                                </div>
-                            </div>
+                            <!-- Gallery -->
+                            <RoomGallery
+                                :images="room.images"
+                                :alt="room.name"
+                                aspect="aspect-[4/3] lg:aspect-auto lg:h-full lg:min-h-[360px]"
+                            />
+
                             <!-- Info -->
-                            <div class="p-6 lg:p-8 flex flex-col justify-between">
+                            <div class="p-8 lg:p-10 flex flex-col justify-between">
                                 <div>
-                                    <div class="flex items-start justify-between mb-3">
-                                        <h2 class="text-h2 text-primary-900">{{ room.name }}</h2>
-                                        <div class="text-right">
-                                            <p class="text-h3 text-accent-600">€{{ room.base_price }}</p>
-                                            <p class="text-small text-neutral-400">per nate</p>
+                                    <div class="flex items-start justify-between gap-4">
+                                        <h2 class="text-display-sm text-ink">{{ room.name }}</h2>
+                                        <div class="text-right shrink-0">
+                                            <p class="text-2xl text-brass leading-none">€{{ room.base_price }}</p>
+                                            <p class="text-tiny text-ink/40 uppercase tracking-wider mt-1">/ nate</p>
                                         </div>
                                     </div>
-                                    <p class="text-body text-neutral-600 mb-4">{{ room.description }}</p>
+                                    <p class="text-body text-ink/60 mt-4 leading-relaxed">{{ room.description }}</p>
 
-                                    <div class="flex items-center gap-4 mb-4 text-body-sm text-neutral-500">
-                                        <span>👥 Max {{ room.max_occupancy }} persona</span>
-                                        <span>🏠 {{ room.rooms_count }} dhoma</span>
-                                        <span class="text-accent-600 font-medium">{{ room.available_count }} te lira</span>
+                                    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-5 text-body-sm text-ink/55">
+                                        <span class="inline-flex items-center gap-1.5"><Users class="h-4 w-4 text-ionian" :stroke-width="1.5" /> Max {{ room.max_occupancy }} persona</span>
+                                        <span class="inline-flex items-center gap-1.5"><BedDouble class="h-4 w-4 text-ionian" :stroke-width="1.5" /> {{ room.rooms_count }} dhoma</span>
+                                        <span class="text-ionian font-medium">{{ room.available_count }} te lira</span>
                                     </div>
 
-                                    <!-- Amenities -->
-                                    <div class="flex flex-wrap gap-2">
-                                        <span v-for="a in room.amenities || []" :key="a" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-50 border border-neutral-100 text-body-sm text-neutral-700">
-                                            {{ amenityIcons[a] || '✓' }} {{ a }}
+                                    <!-- Amenity ledger -->
+                                    <div class="flex flex-wrap gap-2 mt-5">
+                                        <span v-for="a in room.amenities || []" :key="a" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-driftwood/20 text-body-sm text-ink/70">
+                                            <component :is="amenityIcon(a)" class="h-4 w-4 text-ionian" :stroke-width="1.5" /> {{ a }}
                                         </span>
                                     </div>
                                 </div>
 
-                                <Link :href="`/book?room_type=${room.id}`" class="mt-6 block w-full px-6 py-3 rounded-lg bg-accent-600 text-white text-body-sm font-medium text-center hover:bg-accent-700 transition-colors no-underline">
+                                <Link :href="`/book?room_type=${room.id}`" class="btn-reserve mt-8 w-full">
                                     Rezervo {{ room.name }}
                                 </Link>
                             </div>

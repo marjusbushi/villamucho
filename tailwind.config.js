@@ -104,12 +104,41 @@ export default {
                     900: '#0c3965',
                     950: '#082443',
                 },
+
+                // ── "Ionian Calm" — PUBLIC WEBSITE palette (do NOT use on admin) ──
+                // bone = page bg · limestone = bands/cards/fields · driftwood = captions/eyebrows/hairlines
+                // ink = headings/body/footer/solid button · ionian (sea) = links/active/focus · brass = CTA + price ONLY
+                bone: '#FAF7F1',
+                limestone: '#EFE9DE',
+                driftwood: '#8A8276',
+                ink: {
+                    DEFAULT: '#1F1D1A',
+                    soft: '#3A3631',
+                },
+                ionian: {
+                    DEFAULT: '#2E6E72',
+                    dark: '#244F52',
+                    light: '#3E8589',
+                },
+                brass: {
+                    DEFAULT: '#9A7B4F',
+                    dark: '#836841',
+                    light: '#B08F5E',
+                },
             },
             fontFamily: {
                 sans: ['Inter', ...defaultTheme.fontFamily.sans],
                 mono: ['JetBrains Mono', ...defaultTheme.fontFamily.mono],
+                // Public-website display serif (Ionian Calm). Used light, never bold.
+                serif: ['"Cormorant Garamond"', 'Georgia', ...defaultTheme.fontFamily.serif],
             },
             fontSize: {
+                // ── Hotel-grade fluid display scale (public website) ──
+                'hero': ['clamp(2.75rem, 7vw, 5.5rem)', { lineHeight: '1.04', fontWeight: '500', letterSpacing: '0.005em' }],
+                'display': ['clamp(2rem, 4vw, 3.25rem)', { lineHeight: '1.12', fontWeight: '500', letterSpacing: '0.005em' }],
+                'display-sm': ['clamp(1.5rem, 2.5vw, 2.125rem)', { lineHeight: '1.2', fontWeight: '500' }],
+                'eyebrow': ['0.72rem', { lineHeight: '1', letterSpacing: '0.2em', fontWeight: '600' }],
+                'lead': ['1.0625rem', { lineHeight: '1.7', fontWeight: '400' }],
                 'h1': ['2rem', { lineHeight: '2.5rem', fontWeight: '600', letterSpacing: '-0.025em' }],
                 'h2': ['1.5rem', { lineHeight: '2rem', fontWeight: '600', letterSpacing: '-0.02em' }],
                 'h3': ['1.25rem', { lineHeight: '1.75rem', fontWeight: '600', letterSpacing: '-0.015em' }],

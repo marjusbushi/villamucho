@@ -53,6 +53,14 @@ class HandleInertiaRequests extends Middleware
                 'tax_rate' => Setting::get('financial.tax_rate', 20),
                 'check_in_time' => Setting::get('hotel.check_in_time', '14:00'),
                 'check_out_time' => Setting::get('hotel.check_out_time', '11:00'),
+                // Public-website branding & contact (managed in Settings → "Faqja Web")
+                'logo' => Setting::get('hotel.logo'),
+                'address' => Setting::get('hotel.address'),
+                'phone' => Setting::get('hotel.phone'),
+                'email' => Setting::get('hotel.email'),
+                'instagram' => Setting::get('hotel.instagram'),
+                'facebook' => Setting::get('hotel.facebook'),
+                'maps_url' => Setting::get('hotel.maps_url'),
             ]),
             'flash' => [
                 'success' => fn() => $request->session()->get('success'),

@@ -24,3 +24,11 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 .mhq/
+
+# Local agent + verification artifacts (not for VCS)
+/.claude
+/.playwright-mcp
+/.codex
+.env.docker.bak
+/testing
+/*.png

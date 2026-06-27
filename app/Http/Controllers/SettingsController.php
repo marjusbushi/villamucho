@@ -38,6 +38,7 @@ class SettingsController extends Controller
             'currency' => ['required', 'string', 'in:EUR,ALL,USD,GBP'],
             'check_in_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}$/'],
             'check_out_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}$/'],
+            'logo' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:3072'],
         ]);
 
         foreach (['name', 'address', 'phone', 'email', 'timezone', 'currency', 'check_in_time', 'check_out_time'] as $key) {
@@ -50,6 +51,42 @@ class SettingsController extends Controller
         }
 
         return back()->with('success', 'Informacionet e hotelit u ruajten.');
+    }
+
+    // --- Website (public site media + links) ---
+    public function updateWebsite(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'instagram' => ['nullable', 'string', 'max:255'],
+            'facebook' => ['nullable', 'string', 'max:255'],
+            'maps_url' => ['nullable', 'string', 'max:2000'],
+            'logo' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:3072'],
+            'hero_image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:6144'],
+        ]);
+
+        foreach (['instagram', 'facebook', 'maps_url'] as $key) {
+            Setting::set("hotel.{$key}", $request->input($key));
+        }
+
+        if ($request->hasFile('logo')) {
+            $oldLogo = Setting::get('hotel.logo');
+            $path = $request->file('logo')->store('branding', 'public');
+            Setting::set('hotel.logo', $path, 'image');
+            if ($oldLogo) {
+                Storage::disk('public')->delete($oldLogo);
+            }
+        }
+
+        if ($request->hasFile('hero_image')) {
+            $oldHero = Setting::get('hotel.hero_image');
+            $path = $request->file('hero_image')->store('branding', 'public');
+            Setting::set('hotel.hero_image', $path, 'image');
+            if ($oldHero) {
+                Storage::disk('public')->delete($oldHero);
+            }
+        }
+
+        return back()->with('success', 'Faqja web u perditesua.');
     }
 
     // --- Financial ---

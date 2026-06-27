@@ -1,224 +1,76 @@
-# Mission HQ — Chanel Manager
+# Mission HQ — planId: 1
 
-MHQ is an AI project management system that tracks plans, tasks, modules, and sessions through MCP tools.
-This project uses **Plan #72**. Structure: Plan → Versions (releases) → Modules (features) → Tasks (work items).
+Session start → call `mhq_get_handoff(planId=1)`. Session end → call `mhq_log_session(planId=1)`.
 
-## Core Concept
+## THE ONE RULE — no code without a task
+NEVER write or edit code unless an in-progress task exists for it. If the user asks for something and no task covers it: STOP → `mhq_create_task` → `mhq_get_task_detail` → THEN build. **No task = no code.**
+ONE task per edit: finish the current task and `mhq_update_task(status=completed)` BEFORE you open the next task's files. Never batch-implement several tasks and mark them all at the end — if the session dies, untracked work is invisible to the next agent.
 
-```
-Plan (project)
-  → Version (release phase: MVP, V2, etc.)
-    → Module (feature/component)
-      → Task (unit of work — has phase, type, acceptance criteria)
-```
+## WORK THE WHOLE WORKSTREAM (don't leave tasks silently undone)
+When you're handed a batch of related tasks (a WORKSTREAM), LIST every task up front, then work through ALL of them in order, one at a time. Do NOT stop at a "clean unit" and leave the rest. At the END of your reply, show the full workstream as a checklist with every task marked **✅**. If you genuinely had to leave anything undone, **DECLARE it explicitly** (which tasks, and why) — never stop silently. A workstream is not done until every task is ✅ or openly accounted for.
 
-Everything connects: tasks belong to modules, modules belong to versions, versions belong to plans. Never create orphans.
+## HOW YOU TALK TO THE USER (plain language — they own the vision, not the jargon)
+Explain everything as a concrete STORY — before → after, "what you'll now see" — not abstract tech. DEFINE every technical term the first time you use it, right there in the sentence (the user owns the vision but may not be deep-technical, and forgets things built weeks ago). Address them by name. A correct answer they can't follow is a FAILED answer — when you ship something, say plainly what changed for THEM, where to see it, and what to do next.
 
----
+## How MHQ works
+`Plan → Version (release phase) → Module (feature) → Task (unit of work)`. A Phase = a Version. A task's `phase` field is its work DISCIPLINE (database/backend/frontend/…), NOT a project phase. Tasks carry taskType + acceptanceCriteria. Knowledge survives in MEMORIES (auto-loaded), things you can't decide now become PROPOSALS, and SKILLS give you the right professional lens.
 
-## BEFORE Any Work
+## Session start — obey the handoff MODE
+`mhq_get_handoff(planId=1)` returns ONE mode. Obey it — do not assume:
+- **CONFIG** — your local setup is broken → fix config first (run setup), nothing else.
+- **PROJECT_SETUP** — brand-new project → create structure (version → modules → tasks); do NOT jump into research/code.
+- **IMPORT** — an existing codebase to onboard → map it into modules/tasks (brownfield); do NOT ask "what do you want to build?".
+- **normal** — work the guide; `guide.currentStep` tells you where you are.
 
-Call `mhq_get_handoff` with planId=72 FIRST — even if the user gives a direct task. Without this you risk duplicating work or missing context from the last session.
+### The guide (project lifecycle)
+The guide walks a project from discovery → research → planning → design → implementation → review/launch, one step at a time. The handoff names your CURRENT step and its job — **follow it; don't skip ahead or assume**. Honor every BLOCK the tools return, and the module-approval **GATE** (needs a recorded BOARD-VERDICT memory).
 
-## BEFORE Writing Code
+### First contact — brand-new empty project
+No modules/tasks yet → handoff sends you to PROJECT_SETUP or an early guide step. Follow it: establish the vision, then create version → modules → tasks (load `mhq_get_skills(planId=1, trigger="planning")`). Structure first — never improvise code before a task exists.
 
-Ensure a task exists for what you're about to build. No task? Create one with `mhq_create_task` first.
-Tasks are the project's memory — without them, future sessions won't know what was built.
+## Implementation flow (every task)
+1. `mhq_get_tasks(moduleId)` — see what's pending.
+2. `mhq_get_task_detail(taskId)` — **MANDATORY before coding.** It is the ONLY point that auto-loads the module's architecture + convention memories, the phase skill, and the acceptance criteria. Skip it and you code blind — wrong patterns, missed requirements, re-solving fixed bugs.
+3. Implement following that context. Touch ONLY what the task requires — no drive-by refactoring or cleaning up code you didn't change. Touching shared code → `mhq_get_impact` first.
+4. `mhq_update_task(status=completed)` — immediately. Completion is BLOCKED until the module has an architecture memory + a convention memory; if blocked, create them, then mark complete.
 
----
+## Memories — knowledge that survives sessions
+Without memories every session restarts from zero. They auto-load ONLY via `mhq_get_task_detail`. Create with `mhq_add_memory(relatedModules=[…])`:
+- **architecture** — after building/changing a module: files, flow, connections.
+- **convention** — after establishing patterns: stack, naming, imports.
+- **lesson / mistake** — when something broke or surprised you: Problem → Solution → WHY. The next agent WILL hit it.
 
-## IMPORTANT: Complex Situations — NDAL dhe harto PARA se te veprosh
+After a module, record its data contracts: `mhq_update_module(moduleId, dataContracts={outputs:[…], consumes:[…]})` — board review verifies cross-module connections.
 
-Kur dicka prek ME SHUME se 1 file ose 1 module — NDAL. Mos fillo pune menjehere. Harto fillimisht:
-1. Listo CDO pjese/komponent/file/tool/database/API qe preket
-2. Trego SI LIDHEN — kush ushqen ke, kush lexon nga kush, kush varet nga kush
-3. Identifiko PIKAT E THYESHME — cilat lidhje, nese prishen, sjellin efekt domino
-4. TREGOJA USERIN mapen
-5. PYET userin para se te vazhdosh — useri mund te dije lidhje qe ti nuk i sheh
-6. VETEM pastaj fillo punen
+## Skills — load the lens before working
+`mhq_get_skills(planId=1, trigger=X)`: pm · planning · backend · frontend · database · testing · devops · design · research · integration · analysis. (`get_task_detail` auto-loads the phase skill; `get_proposals` auto-loads pm.)
 
----
+### Board + Jury — the quality ritual
+A dynamic panel of task-relevant experts critiques, then a jury VOTES — never ship the first idea. Run it: choosing an approach / weighing options · the user says "board" or is unhappy · after a substantive implementation (review to max) · stuck debugging. Skip trivial 1-file reversible changes. To run: `mhq_get_skills(planId=1, trigger="on_demand")` loads **#92** (and **#93** for high-stakes/irreversible), READ it fully, THEN run — or invoke `/board-mhq <directive>`. MHQ auto-surfaces a REVIEW reminder when you complete a substantive task, a DECIDE-testing reminder when you create test tasks, and the module-approval GATE. The USER is the final authority.
 
-## Session Lifecycle (MANDATORY)
+## Proposals — deferred work & decisions
+Decide now → just do it (save a convention memory if it matters). Can't decide now (trade-offs, "maybe later", features beyond the MVP) → ASK the user, then `mhq_create_proposal`. Every feature the user names beyond the MVP becomes a proposal or it's forgotten. Never create one silently. When the handoff says "X open proposals", review with `mhq_get_proposals(status="open")` (load trigger=pm first).
 
-### Starting a session
-1. Check `.mhq/config.json` in project root for `planId` (this project: **72**)
-2. If missing: call `mhq_list_plans` → show user → ask which plan → save to `.mhq/config.json`
-3. Call `mhq_get_handoff` with planId=72 — returns last session state, next steps, warnings, active rules
-4. Follow the next steps from handoff
+## Testing
+Every module needs testing tasks — module approval is GATE-blocked without them (and a DECIDE-testing board reminder fires when you create them). Tests verify the acceptance criteria; failing tests block approval.
 
-### Ending a session (CRITICAL — without this, next session starts from zero)
-Call `mhq_log_session` with planId=72:
-- `summary`: what you did (min 20 chars)
-- `currentState`: where we are now
-- `nextSteps`: array of what to do next (max 5)
-- `warnings`: array of things to watch out for
-- `filesModified`: array of changed files
-- Optional: `tasksCompleted`, `agentTool`, `agentModel`
+## Complex / cross-cutting changes
+When a change touches MORE than 1 file or module — STOP. List what's affected, show who depends on whom, name the fragile points, tell the user the map, ASK before proceeding.
 
-## Quick Commands (Claude Code & Cursor)
-- `/mhq-start-session` — load project state, show where we left off
-- `/mhq-next-task` — get next task with full context and acceptance criteria
-- `/mhq-save-session` — save session before ending
-- `/mhq-search` — search tasks, decisions, memories
-- `/mhq-review-module` — check if module is ready for approval
+## ALWAYS REPORT FRICTION (real-time retrospective — every session)
+At session end (and as you go), tell the user the PROBLEMS you hit along the way — anything that ate time, confused you, a gate that mis-fired, a doc/memory gap, a trap you had to re-derive — even when the work went fine. Route each one: a real technical lesson/bug → `mhq_add_memory(category=lesson|mistake, phase, relatedModules)`; an MHQ-system rough edge (a mis-firing gate, a confusing tool, a missing hint) → `mhq_create_proposal(source=agent_finding)`; a workflow/communication rule → flag it for this CLAUDE.md. WHY: every session's friction is the system's NEXT improvement, and repeated friction becomes an automatic fix. Never skip this — silent friction is lost improvement.
 
----
+## Always
+- Read MHQ tool output — BLOCKs (can't proceed), memory hints, flow reminders, quality warnings are guidance, not noise.
+- Before `git push`, scan for leaked secrets (`sk-ant-*`, `ghp_*`, `github_pat_*`, private keys, passwords in connection strings) and remove them.
 
-## Tools Reference
-
-### Session & Context
-| Tool | When to use |
-|------|-------------|
-| `mhq_get_handoff` | **FIRST call of every session** — returns state + rules + next steps |
-| `mhq_log_session` | **LAST call of every session** — saves state for next agent |
-| `mhq_get_plan_context` | Need full rehydration: handoff + last session + active tasks + decisions |
-| `mhq_get_plan_overview` | Need the big picture: versions, modules, stats, guide step. Also supports keyword search |
-| `mhq_list_plans` | First time setup — show all plans so user picks one |
-
-### Tasks (your primary work loop)
-| Tool | When to use |
-|------|-------------|
-| `mhq_get_next_task` | Get highest-priority pending task from active run |
-| `mhq_get_task_detail` | Read full task: description, acceptance criteria, dependencies, files |
-| `mhq_get_tasks` | List tasks — default=pending. Filter by moduleId, versionId, status |
-| `mhq_create_task` | **Before coding something without a task** — REQUIRED fields: planId, title, moduleId, versionId, taskType, phase, description |
-| `mhq_update_task` | Change status (pending→in_progress→completed), add notes, reassign |
-| `mhq_delete_task` | Remove a task (rare — usually update status instead) |
-
-#### Task fields explained
-- **phase**: design, database, backend, frontend, integration, testing, devops — WHERE in the stack
-- **taskType**: implementation (code), configuration (env/keys), testing (QA), documentation (docs)
-- **acceptanceCriteria**: array of binary pass/fail checks. E.g. "POST /api/auth returns 409 for duplicate"
-- **scopeBoundary**: array of "do NOT" items — prevents gold-plating
-- **filesToModify**: files the agent should change
-- **filesToRead**: files for context (read-only)
-- **affectsModules**: other module IDs impacted — [] if only own module
-
-### Modules (features/components)
-| Tool | When to use |
-|------|-------------|
-| `mhq_create_module` | Breaking system into components (needs planId, name, description) |
-| `mhq_update_module` | Change description, assign to version, set acceptance criteria, update verification status |
-| `mhq_verify_module` | **Before requesting Board review** — checks task counts, criteria, blockers |
-| `mhq_delete_module` | Remove a module (rare) |
-
-#### Module verification pipeline
-`not_started` → `in_progress` → `implemented` → `testing` → `verified` → `approved`
-Only set `approved` after Board review via `mhq_verify_module`.
-
-### Versions (releases/phases)
-| Tool | When to use |
-|------|-------------|
-| `mhq_create_version` | Define a release phase (MVP, Phase 2, etc.) |
-| `mhq_update_version` | Change status: planning→active→released→archived |
-| `mhq_delete_version` | Remove a version |
-
-### Rules (project guardrails)
-| Tool | When to use |
-|------|-------------|
-| `mhq_get_rules` | Load rules for specific context. Handoff auto-sends `trigger=always` rules. Call this for context-specific rules: `trigger=testing` before tests, `trigger=deploy` before deploying, `trigger=frontend` before UI work, etc. |
-| `mhq_create_rule` | Add a new guardrail. REQUIRED: trigger + whenToUse. Use `trigger=always` sparingly! |
-| `mhq_update_rule` | Modify a rule — content, trigger, activate/deactivate |
-| `mhq_delete_rule` | Remove a rule |
-
-#### Trigger types
-`always` (every session), `testing`, `deploy`, `analysis`, `planning`, `import`, `on_demand`, `design`, `database`, `backend`, `frontend`, `integration`, `devops`
-
-### Research & Notes
-| Tool | When to use |
-|------|-------------|
-| `mhq_create_note` | Document findings, decisions, meeting notes, user flows |
-| `mhq_update_note` | Edit note, mark as done, link to module/version |
-| `mhq_delete_note` | Remove a note |
-| `mhq_get_research` | Read research notes — filter by category: research, decision, meeting, general, flow |
-
-### Decisions (architectural record)
-| Tool | When to use |
-|------|-------------|
-| `mhq_log_decision` | **Whenever you make an architecture, technology, or design choice** — log it with reasoning + alternatives rejected |
-| `mhq_get_decisions` | Review past decisions — filter by category, search by keyword |
-
-### Memories (cross-session learning)
-| Tool | When to use |
-|------|-------------|
-| `mhq_add_memory` | Save a mistake, pattern, lesson, convention, or infra detail worth remembering |
-| `mhq_get_memories` | Recall past lessons — search by keyword or filter by category |
-| `mhq_update_memory` | Update a memory |
-| `mhq_delete_memory` | Remove outdated memory |
-
-#### Memory categories
-`mistake` (don't repeat), `pattern` (reuse this), `lesson` (learned the hard way), `convention` (team standard), `infra` (infrastructure detail)
-
-### Tests
-| Tool | When to use |
-|------|-------------|
-| `mhq_create_test` | Define a test case — link to module and/or task. Types: technical, usage, integration |
-| `mhq_update_test` | Mark test passed/failed with actualResult and evidence |
-| `mhq_get_tests` | List tests — filter by module, task, status, type |
-
-### Utility
-| Tool | When to use |
-|------|-------------|
-| `mhq_bulk_create` | Create multiple modules/tasks/notes/tests in one call — much faster than one by one |
-| `mhq_search` | Search across everything: sessions, decisions, tasks, notes |
-| `mhq_get_impact` | **Before changing shared code** — shows blast radius: affected modules, tasks, files |
-| `mhq_import_project` | Onboard existing project into MHQ (instead of starting from scratch) |
-| `mhq_get_setup` | Get MCP config for any AI tool: claude-code, cursor, codex, copilot, windsurf, cline |
+## Tools (index)
+- **Navigation:** `mhq_get_handoff` · `mhq_get_plan_overview` · `mhq_search`
+- **Work:** `mhq_get_tasks` · `mhq_get_task_detail` · `mhq_update_task`
+- **Knowledge:** `mhq_add_memory` · `mhq_get_memories` · `mhq_create_proposal` · `mhq_get_proposals`
+- **Structure:** `mhq_create_module` · `mhq_create_version` · `mhq_create_task` · `mhq_verify_module` · `mhq_update_module` · `mhq_get_impact`
 
 ---
+*Example (illustrative — NOT your project): a module "Orders" outputs `["orders table","/api/orders endpoint"]` and consumes `["users table"]`. A module that holds several independent integrations → split each into its own sub-module via `parentModuleId`, so each gets its own architecture memory, tests, and board review.*
 
-## Workflow Rules
-
-### Before coding
-1. You MUST have a task. No task = no code. Create one with `mhq_create_task` if missing.
-2. Set task to `in_progress` with `mhq_update_task`
-3. Load phase-specific rules: `mhq_get_rules` with trigger matching your phase
-
-### While coding
-- Important decision? → `mhq_log_decision` with reasoning + alternatives
-- Touching shared code? → `mhq_get_impact` first to check blast radius
-- Discovered a mistake/pattern? → `mhq_add_memory`
-
-### After coding
-1. Verify acceptance criteria from the task are met
-2. Set task to `completed` — **only if code actually exists and works**
-3. NEVER mark a task completed without real implementation
-
-### Creating tasks (checklist)
-Every task MUST have:
-- `planId` + `moduleId` + `versionId` (no orphans)
-- `taskType`: implementation | configuration | testing | documentation
-- `phase`: database | backend | frontend | integration | testing | devops
-- `description`: business context + technical spec (the implementing agent reads ONLY this)
-- `acceptanceCriteria`: binary pass/fail checks
-
-### Structure rules
-- 1 module = 1 feature (if module has 10+ tasks from different areas, split it)
-- Every module needs ALL task types: implementation + configuration + testing + documentation
-- Tasks are split by phase, not bundled (not "implement email" but: database→schema, backend→API, frontend→UI)
-
----
-
-## Agent Behavior
-- **Decisions:** log with `mhq_log_decision(planId, decision, reasoning, category, moduleId)`
-- **Scenario Analysis:** 2+ options → call `mhq_get_rules(trigger=analysis)`
-- **Proactive:** add error handling, loading/empty states, edge cases, validation AUTOMATICALLY — user doesn't know to ask
-- **Specificity:** real names, paths, values — not abstractions
-- **Everything in MHQ:** decisions, research, deploy info, meeting notes — nothing stays only in chat
-- **Read output:** always read MHQ tool warnings, suggestions, nextActions
-- **Vision:** update with `mhq_update_plan(vision)` when you learn something new
-- **Manual triggers from chat:** analysis (module audit), research (explore ideas), import (existing codebase), decision (big choices), board (code review)
-
-## Context-Aware Rules
-- `mhq_get_rules(trigger=analysis)` — scenario analysis + module audit
-- `mhq_get_rules(trigger=research)` — research methodology
-- `mhq_get_rules(trigger=import)` — codebase import
-- `mhq_get_rules(trigger=decision)` — decision board
-- `mhq_get_rules(trigger=board)` — code review board
-
-## Board Review
-Module done → `mhq_verify_module` → if ready → board rules auto-load, pick experts the module needs, run checklists
-
-## Decision Board
-Big decision with 2+ options → `mhq_get_rules(trigger=decision)`, pick relevant experts, discuss + recommend
+<!-- mhq-manual: v3 — managed by MHQ; refresh via Check Config → Repair, do not hand-edit -->

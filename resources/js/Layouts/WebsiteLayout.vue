@@ -1,9 +1,45 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import { MapPin, Phone, Mail, Instagram, Facebook } from 'lucide-vue-next';
+
+const props = defineProps({
+    // When true the header floats transparent over a full-bleed hero and
+    // solidifies on scroll. Pages without a hero (default) get a solid header.
+    transparentHeader: { type: Boolean, default: false },
+});
 
 const mobileMenu = ref(false);
-const hotelName = usePage().props.settings?.hotel_name || 'Villa Mucho';
+const scrolled = ref(false);
+const page = usePage();
+const settings = computed(() => page.props.settings || {});
+const hotelName = settings.value.hotel_name || 'Villa Mucho';
+const logo = computed(() => settings.value.logo ? `/storage/${settings.value.logo}` : null);
+
+// Contact details → actionable links
+const addr = computed(() => settings.value.address || 'Ksamil, Sarande, Shqiperi');
+const phone = computed(() => settings.value.phone || '+355 69 000 0000');
+const email = computed(() => settings.value.email || 'info@villamucho.com');
+const telHref = computed(() => 'tel:' + phone.value.replace(/[^+\d]/g, ''));
+const mailHref = computed(() => 'mailto:' + email.value);
+const mapsDest = computed(() => {
+    const m = (settings.value.maps_url || '').trim();
+    return (m && !/^https?:|output=embed|\/maps\/embed/i.test(m)) ? m : addr.value;
+});
+const directionsHref = computed(() => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(mapsDest.value));
+
+// Header is "solid" unless we're floating over a hero AND at the top AND the
+// mobile menu is closed.
+const solid = computed(() => !props.transparentHeader || scrolled.value || mobileMenu.value);
+
+function onScroll() {
+    scrolled.value = window.scrollY > 24;
+}
+onMounted(() => {
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+});
+onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
 const navLinks = [
     { label: 'Home', href: '/' },
@@ -13,7 +49,6 @@ const navLinks = [
     { label: 'Kontakt', href: '/contact' },
 ];
 
-const page = usePage();
 function isActive(href) {
     if (href === '/') return page.url === '/';
     return page.url.startsWith(href);
@@ -21,108 +56,138 @@ function isActive(href) {
 </script>
 
 <template>
-    <div class="min-h-screen bg-white">
+    <div class="site min-h-screen">
         <!-- Header -->
-        <header class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-neutral-100">
+        <header
+            :class="[
+                'fixed top-0 left-0 right-0 z-50 transition-colors duration-300',
+                solid ? 'bg-bone/90 backdrop-blur-md border-b border-driftwood/15' : 'border-b border-transparent',
+            ]"
+        >
+            <!-- Faint top scrim so light text stays legible over a bright hero -->
+            <div v-if="!solid" class="absolute inset-0 -z-10 bg-gradient-to-b from-ink/35 to-transparent pointer-events-none" />
+
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between h-16">
                     <!-- Logo -->
-                    <Link href="/" class="flex items-center gap-2.5 no-underline">
-                        <div class="h-9 w-9 rounded-lg bg-accent-600 flex items-center justify-center">
-                            <span class="text-white font-bold text-label">{{ hotelName.charAt(0) }}</span>
-                        </div>
-                        <span class="text-h4 text-primary-900 hidden sm:block">{{ hotelName }}</span>
+                    <Link href="/" class="flex items-center gap-3 no-underline">
+                        <template v-if="logo">
+                            <img :src="logo" :alt="hotelName" class="h-10 w-auto max-w-[180px] object-contain" />
+                        </template>
+                        <template v-else>
+                            <div class="h-9 w-9 rounded-none bg-ink flex items-center justify-center shrink-0">
+                                <span class="text-bone font-serif text-lg leading-none">{{ hotelName.charAt(0) }}</span>
+                            </div>
+                            <span :class="['font-serif text-xl tracking-wide hidden sm:block transition-colors duration-300', solid ? 'text-ink' : 'text-bone']">{{ hotelName }}</span>
+                        </template>
                     </Link>
 
                     <!-- Desktop nav -->
-                    <nav class="hidden md:flex items-center gap-1">
+                    <nav class="hidden md:flex items-center gap-2">
                         <Link
                             v-for="link in navLinks"
                             :key="link.href"
                             :href="link.href"
                             :class="[
-                                'px-3 py-2 rounded-md text-body-sm font-medium transition-colors duration-150 no-underline',
-                                isActive(link.href)
-                                    ? 'text-accent-700 bg-accent-50'
-                                    : 'text-neutral-600 hover:text-primary-900 hover:bg-neutral-50',
+                                'px-3 py-2 text-body-sm font-medium tracking-wide transition-colors duration-200 no-underline',
+                                solid
+                                    ? (isActive(link.href) ? 'text-ionian' : 'text-ink/70 hover:text-ink')
+                                    : (isActive(link.href) ? 'text-bone' : 'text-bone/80 hover:text-bone'),
                             ]"
                         >
                             {{ link.label }}
                         </Link>
-                        <Link href="/book" class="ml-3 px-5 py-2 rounded-lg bg-accent-600 text-white text-body-sm font-medium hover:bg-accent-700 transition-colors no-underline">
+                        <Link href="/book" class="ml-3 px-5 py-2 rounded-none bg-ink text-bone text-body-sm font-medium tracking-wide hover:bg-brass transition-colors duration-200 no-underline">
                             Rezervo Tani
                         </Link>
                     </nav>
 
                     <!-- Mobile hamburger -->
-                    <button class="md:hidden p-2 text-neutral-600" @click="mobileMenu = !mobileMenu">
+                    <button :class="['md:hidden p-2 transition-colors', solid ? 'text-ink' : 'text-bone']" @click="mobileMenu = !mobileMenu" aria-label="Menu">
                         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path v-if="!mobileMenu" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            <path v-if="!mobileMenu" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16" />
+                            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
 
                 <!-- Mobile menu -->
-                <div v-if="mobileMenu" class="md:hidden pb-4 border-t border-neutral-100 mt-2 pt-3">
+                <div v-if="mobileMenu" class="md:hidden pb-4 border-t border-driftwood/15 mt-2 pt-3">
                     <Link
                         v-for="link in navLinks"
                         :key="link.href"
                         :href="link.href"
-                        class="block px-3 py-2 rounded-md text-body-sm text-neutral-700 hover:bg-neutral-50 no-underline"
+                        :class="[
+                            'block px-3 py-2.5 text-body-sm tracking-wide no-underline',
+                            isActive(link.href) ? 'text-ionian' : 'text-ink/80 hover:text-ink',
+                        ]"
                         @click="mobileMenu = false"
                     >
                         {{ link.label }}
                     </Link>
-                    <Link href="/book" class="block mt-2 mx-3 px-4 py-2.5 rounded-lg bg-accent-600 text-white text-body-sm font-medium text-center no-underline" @click="mobileMenu = false">
+                    <Link href="/book" class="block mt-3 mx-3 px-4 py-3 rounded-none bg-ink text-bone text-body-sm font-medium tracking-wide text-center hover:bg-brass transition-colors no-underline" @click="mobileMenu = false">
                         Rezervo Tani
                     </Link>
                 </div>
             </div>
         </header>
 
-        <!-- Content (offset for fixed header) -->
-        <main class="pt-16">
+        <!-- Content (offset for fixed header only when it's NOT floating over a hero) -->
+        <main :class="transparentHeader ? '' : 'pt-16'">
             <slot />
         </main>
 
         <!-- Footer -->
-        <footer class="bg-primary-950 text-neutral-400 mt-20">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <footer class="bg-ink text-bone/55 border-t border-bone/10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
                     <!-- Brand -->
                     <div>
-                        <div class="flex items-center gap-2.5 mb-4">
-                            <div class="h-8 w-8 rounded-md bg-accent-600 flex items-center justify-center">
-                                <span class="text-white font-bold text-small">{{ hotelName.charAt(0) }}</span>
+                        <div class="flex items-center gap-3 mb-5">
+                            <div class="h-8 w-8 rounded-none bg-brass flex items-center justify-center">
+                                <span class="text-bone font-serif text-base leading-none">{{ hotelName.charAt(0) }}</span>
                             </div>
-                            <span class="text-label text-neutral-200">{{ hotelName }}</span>
+                            <span class="font-serif text-lg tracking-wide text-bone">{{ hotelName }}</span>
                         </div>
-                        <p class="text-body-sm text-neutral-500 max-w-xs">
-                            Eksperience unike ne zemren e Shqiperise. Relaksim, natyra, dhe mikpritje e vertete.
+                        <p class="text-body-sm leading-relaxed text-bone/55 max-w-xs">
+                            Nje shtepi e madhe mbi detin Jon. Qetesi, gur i bardhe dhe mikpritje e vertete ne Ksamil.
                         </p>
                     </div>
                     <!-- Links -->
                     <div>
-                        <h4 class="text-label text-neutral-200 mb-3">Navigim</h4>
-                        <div class="space-y-2">
-                            <Link v-for="link in navLinks" :key="link.href" :href="link.href" class="block text-body-sm text-neutral-500 hover:text-accent-400 no-underline">
+                        <span class="eyebrow text-bone/40 mb-4">Navigim</span>
+                        <div class="mt-4 space-y-2.5">
+                            <Link v-for="link in navLinks" :key="link.href" :href="link.href" class="block text-body-sm text-bone/60 hover:text-brass no-underline transition-colors">
                                 {{ link.label }}
                             </Link>
                         </div>
                     </div>
                     <!-- Contact -->
                     <div>
-                        <h4 class="text-label text-neutral-200 mb-3">Kontakt</h4>
-                        <div class="space-y-2 text-body-sm text-neutral-500">
-                            <p>{{ usePage().props.settings?.hotel_name || 'Villa Mucho' }}</p>
-                            <p>📍 Ksamil, Sarande, Shqiperi</p>
-                            <p>📞 +355 69 000 0000</p>
-                            <p>✉️ info@villamucho.com</p>
+                        <span class="eyebrow text-bone/40 mb-4">Kontakt</span>
+                        <div class="mt-4 space-y-2.5 text-body-sm text-bone/60">
+                            <p class="text-bone/80">{{ hotelName }}</p>
+                            <a :href="directionsHref" target="_blank" rel="noopener" class="flex items-center gap-2.5 text-bone/60 hover:text-brass transition-colors no-underline">
+                                <MapPin class="h-4 w-4 text-brass shrink-0" :stroke-width="1.5" /> {{ addr }}
+                            </a>
+                            <a :href="telHref" class="flex items-center gap-2.5 text-bone/60 hover:text-brass transition-colors no-underline">
+                                <Phone class="h-4 w-4 text-brass shrink-0" :stroke-width="1.5" /> {{ phone }}
+                            </a>
+                            <a :href="mailHref" class="flex items-center gap-2.5 text-bone/60 hover:text-brass transition-colors no-underline">
+                                <Mail class="h-4 w-4 text-brass shrink-0" :stroke-width="1.5" /> {{ email }}
+                            </a>
+                        </div>
+                        <div v-if="settings.instagram || settings.facebook" class="mt-5 flex items-center gap-3">
+                            <a v-if="settings.instagram" :href="settings.instagram" target="_blank" rel="noopener" aria-label="Instagram" class="text-bone/60 hover:text-brass transition-colors">
+                                <Instagram class="h-5 w-5" :stroke-width="1.5" />
+                            </a>
+                            <a v-if="settings.facebook" :href="settings.facebook" target="_blank" rel="noopener" aria-label="Facebook" class="text-bone/60 hover:text-brass transition-colors">
+                                <Facebook class="h-5 w-5" :stroke-width="1.5" />
+                            </a>
                         </div>
                     </div>
                 </div>
-                <div class="border-t border-primary-800/50 mt-8 pt-8 text-center text-small text-neutral-600">
+                <div class="border-t border-bone/10 mt-12 pt-8 text-center text-small text-bone/40">
                     © {{ new Date().getFullYear() }} {{ hotelName }}. Te gjitha te drejtat e rezervuara.
                 </div>
             </div>
