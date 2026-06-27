@@ -78,7 +78,23 @@ class ReservationController extends Controller
             ->whereNotIn('status', ['cancelled'])
             ->where('check_in_date', '<=', $endDate)
             ->where('check_out_date', '>=', $startDate)
-            ->get();
+            ->get()
+            // Send plain local Y-m-d (not ISO UTC datetimes) so the calendar's
+            // string date comparisons line up — fixes the off-by-one / out-of-sync bars.
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'room_id' => $r->room_id,
+                'guest_id' => $r->guest_id,
+                'check_in_date' => $r->check_in_date->toDateString(),
+                'check_out_date' => $r->check_out_date->toDateString(),
+                'status' => $r->status,
+                'total_amount' => $r->total_amount,
+                'guest' => $r->guest ? [
+                    'id' => $r->guest->id,
+                    'first_name' => $r->guest->first_name,
+                    'last_name' => $r->guest->last_name,
+                ] : null,
+            ]);
 
         $guests = Guest::select('id', 'first_name', 'last_name', 'email', 'phone')
             ->orderBy('last_name')
