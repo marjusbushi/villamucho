@@ -42,24 +42,26 @@ const statusOptions = [
 ];
 const floorOptions = [1, 2, 3, 4, 5].map((f) => ({ value: f, label: `Kati ${f}` }));
 
+// Hotel-standard room-rack colour code: green=vacant clean, yellow=vacant dirty,
+// red=occupied, grey=out of order. (Cloudbeds / Oracle Opera convention.)
 const statusBadge = {
     available: { variant: 'success', label: 'E lire' },
-    occupied: { variant: 'info', label: 'E zene' },
+    occupied: { variant: 'error', label: 'E zene' },
     cleaning: { variant: 'warning', label: 'Pastrim' },
-    maintenance: { variant: 'error', label: 'Mirembajtje' },
+    maintenance: { variant: 'neutral', label: 'Mirembajtje' },
 };
 // Only the dot is coloured — everything else stays calm/neutral.
 const dotColor = {
     available: 'bg-success-500',
-    occupied: 'bg-info-500',
+    occupied: 'bg-error-500',
     cleaning: 'bg-warning-500',
-    maintenance: 'bg-error-500',
+    maintenance: 'bg-neutral-400',
 };
 const labelColor = {
     available: 'text-success-700',
-    occupied: 'text-info-700',
+    occupied: 'text-error-700',
     cleaning: 'text-warning-700',
-    maintenance: 'text-error-700',
+    maintenance: 'text-neutral-600',
 };
 
 const roomsByFloor = computed(() => {
