@@ -122,6 +122,11 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::put('/settings/housekeeping', [SettingsController::class, 'updateHousekeeping'])->name('settings.housekeeping');
 
         // Settings: Room Types
+        // Settings: Floors (Katet)
+        Route::post('/settings/floors', [SettingsController::class, 'storeFloor'])->name('settings.floors.store');
+        Route::put('/settings/floors/{floor}', [SettingsController::class, 'updateFloor'])->name('settings.floors.update');
+        Route::delete('/settings/floors/{floor}', [SettingsController::class, 'destroyFloor'])->name('settings.floors.destroy');
+
         Route::post('/settings/room-types', [SettingsController::class, 'storeRoomType'])->name('settings.room-types.store');
         Route::put('/settings/room-types/{roomType}', [SettingsController::class, 'updateRoomType'])->name('settings.room-types.update');
         Route::delete('/settings/room-types/{roomType}', [SettingsController::class, 'destroyRoomType'])->name('settings.room-types.destroy');

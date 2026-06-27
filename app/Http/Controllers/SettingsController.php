@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Floor;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
+use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\RoomTypeImage;
 use App\Models\Setting;
@@ -23,7 +25,45 @@ class SettingsController extends Controller
             'menuCategories' => MenuCategory::with(['items' => fn($q) => $q->orderBy('name')])
                 ->orderBy('sort_order')
                 ->get(),
+            'floors' => Floor::orderBy('number')->get(),
         ]);
+    }
+
+    // --- Floors (Katet) ---
+    public function storeFloor(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'number' => ['required', 'integer', 'min:0', 'max:255', 'unique:floors,number'],
+            'name' => ['required', 'string', 'max:100'],
+        ]);
+
+        Floor::create($request->only('number', 'name'));
+
+        return back()->with('success', 'Kati u shtua.');
+    }
+
+    public function updateFloor(Request $request, Floor $floor): RedirectResponse
+    {
+        $request->validate([
+            'number' => ['required', 'integer', 'min:0', 'max:255', 'unique:floors,number,' . $floor->id],
+            'name' => ['required', 'string', 'max:100'],
+        ]);
+
+        $floor->update($request->only('number', 'name'));
+
+        return back()->with('success', 'Kati u perditesua.');
+    }
+
+    public function destroyFloor(Floor $floor): RedirectResponse
+    {
+        $roomsOnFloor = Room::where('floor', $floor->number)->count();
+        if ($roomsOnFloor > 0) {
+            return back()->with('error', "Nuk mund te fshihet — ka {$roomsOnFloor} dhoma ne katin {$floor->number}. Ndrysho katin e atyre dhomave se pari.");
+        }
+
+        $floor->delete();
+
+        return back()->with('success', 'Kati u fshi.');
     }
 
     // --- Hotel Info ---
