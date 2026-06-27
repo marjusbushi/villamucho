@@ -93,28 +93,31 @@ class PosController extends Controller
     {
         $request->validate([
             'payment_method' => ['required', 'in:cash,card,room_charge'],
+            'reservation_id' => ['nullable', 'exists:reservations,id', 'required_if:payment_method,room_charge'],
         ]);
 
         if ($posOrder->status !== 'open') {
             return back()->with('error', 'Kjo porosi nuk eshte e hapur.');
         }
 
-        // A room charge MUST land on a reservation folio — never silently swallow it.
-        if ($request->payment_method === 'room_charge' && !$posOrder->reservation_id) {
-            return back()->with('error', 'Kjo porosi nuk eshte e lidhur me nje rezervim — nuk mund te ngarkohet ne dhome.');
-        }
-
         DB::transaction(function () use ($posOrder, $request) {
+            // Room charge can target a reservation chosen at payment time;
+            // otherwise keep the one set when the order was created.
+            $reservationId = $request->payment_method === 'room_charge'
+                ? $request->reservation_id
+                : $posOrder->reservation_id;
+
             $posOrder->update([
                 'status' => 'completed',
                 'payment_method' => $request->payment_method,
+                'reservation_id' => $reservationId,
             ]);
 
             // Room charge → add a traceable line to the reservation folio
             if ($request->payment_method === 'room_charge') {
                 $posOrder->loadMissing('items.menuItem.category');
                 FolioItem::create([
-                    'reservation_id' => $posOrder->reservation_id,
+                    'reservation_id' => $reservationId,
                     'pos_order_id' => $posOrder->id,
                     'description' => "POS Porosi #{$posOrder->id}" . ($posOrder->table_number ? " (Tavolina {$posOrder->table_number})" : ''),
                     'amount' => $posOrder->total_amount,

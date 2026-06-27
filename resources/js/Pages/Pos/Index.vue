@@ -42,6 +42,7 @@ const paymentOptions = [
     { value: 'room_charge', label: 'Room Charge' },
 ];
 const paymentMethod = ref('');
+const selectedPayReservation = ref('');
 
 const cartTotal = computed(() =>
     cart.value.reduce((sum, item) => sum + item.price * item.qty, 0)
@@ -136,11 +137,15 @@ function submitOrder() {
 function openPay(order) {
     selectedOrder.value = order;
     paymentMethod.value = '';
+    selectedPayReservation.value = order.reservation_id || '';
     showPayModal.value = true;
 }
 
 function submitPay() {
-    router.post(route('pos.complete', selectedOrder.value.id), { payment_method: paymentMethod.value }, {
+    router.post(route('pos.complete', selectedOrder.value.id), {
+        payment_method: paymentMethod.value,
+        reservation_id: paymentMethod.value === 'room_charge' ? selectedPayReservation.value : null,
+    }, {
         preserveScroll: true,
         onSuccess: () => {
             showPayModal.value = false;
@@ -363,7 +368,6 @@ function formatTime(d) {
                             paymentMethod === opt.value
                                 ? 'border-accent-500 bg-accent-50 text-accent-700'
                                 : 'border-neutral-200 hover:border-neutral-300 text-neutral-600',
-                            opt.value === 'room_charge' && !selectedOrder?.reservation_id && 'opacity-40 pointer-events-none',
                         ]"
                         @click="paymentMethod = opt.value"
                     >
@@ -371,10 +375,17 @@ function formatTime(d) {
                         <span class="text-body-sm font-medium">{{ opt.label }}</span>
                     </button>
                 </div>
+
+                <!-- Room picker (when charging to a room) -->
+                <div v-if="paymentMethod === 'room_charge'">
+                    <label class="block text-label text-neutral-600 mb-1.5">Ngarko ne dhomen</label>
+                    <Select v-model="selectedPayReservation" :options="reservationOptions" placeholder="Zgjidh dhomen / mysafirin..." />
+                    <p v-if="!reservationOptions.length" class="text-small text-error-500 mt-1">Asnje mysafir brenda (check-in) per te ngarkuar.</p>
+                </div>
             </div>
             <template #footer>
                 <Button variant="outline" @click="showPayModal = false">Anulo</Button>
-                <Button variant="primary" :disabled="!paymentMethod" @click="submitPay">Paguaj €{{ selectedOrder?.total_amount }}</Button>
+                <Button variant="primary" :disabled="!paymentMethod || (paymentMethod === 'room_charge' && !selectedPayReservation)" @click="submitPay">Paguaj €{{ selectedOrder?.total_amount }}</Button>
             </template>
         </Modal>
 
