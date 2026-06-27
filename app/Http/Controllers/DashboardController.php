@@ -41,6 +41,7 @@ class DashboardController extends Controller
                 'occupancy' => $totalRooms ? (int) round($occupied / $totalRooms * 100) : 0,
                 'occupied' => $occupied,
                 'total_rooms' => $totalRooms,
+                'in_house' => Reservation::where('status', 'checked_in')->count(),
                 'arrivals' => $arrivals->count(),
                 'departures' => $departures->count(),
                 'to_clean' => Room::where('status', 'cleaning')->count(),

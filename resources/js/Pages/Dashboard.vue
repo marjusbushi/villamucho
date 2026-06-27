@@ -1,9 +1,12 @@
 <script setup>
+import { ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
 import Badge from '@/Components/UI/Badge.vue';
-import { Head, usePage, Link } from '@inertiajs/vue3';
+import Button from '@/Components/UI/Button.vue';
+import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import { Head, usePage, Link, router } from '@inertiajs/vue3';
 
 const props = defineProps({
     stats: Object,
@@ -13,6 +16,9 @@ const props = defineProps({
 });
 
 const user = usePage().props.auth.user;
+const toasts = ref(null);
+const perms = usePage().props.auth.user?.permissions || [];
+const canUpdate = perms.includes('update_reservations');
 
 const statusBadge = {
     pending: { variant: 'warning', label: 'Ne pritje' },
@@ -23,13 +29,29 @@ const statusBadge = {
 };
 
 const cards = [
-    { key: 'occupancy', label: 'Zenia sot', value: () => `${props.stats.occupancy}%`, sub: () => `${props.stats.occupied}/${props.stats.total_rooms} dhoma` },
-    { key: 'arrivals', label: 'Hyrje sot', value: () => props.stats.arrivals },
-    { key: 'departures', label: 'Dalje sot', value: () => props.stats.departures },
-    { key: 'to_clean', label: 'Per pastrim', value: () => props.stats.to_clean },
-    { key: 'open_pos', label: 'POS te hapura', value: () => props.stats.open_pos },
-    { key: 'revenue', label: 'Te ardhura POS sot', value: () => `${props.currency}${Number(props.stats.pos_revenue_today).toFixed(2)}`, accent: true },
+    { key: 'occupancy', label: 'Zenia sot', value: () => `${props.stats.occupancy}%`, sub: () => `${props.stats.occupied}/${props.stats.total_rooms} dhoma`, cls: 'text-primary-900' },
+    { key: 'arrivals', label: 'Hyrje sot', value: () => props.stats.arrivals, cls: 'text-info-600' },
+    { key: 'in_house', label: 'Ne hotel', value: () => props.stats.in_house, cls: 'text-success-600' },
+    { key: 'departures', label: 'Dalje sot', value: () => props.stats.departures, cls: 'text-primary-900' },
+    { key: 'to_clean', label: 'Per pastrim', value: () => props.stats.to_clean, cls: 'text-warning-600' },
+    { key: 'open_pos', label: 'POS te hapura', value: () => props.stats.open_pos, cls: 'text-primary-900' },
+    { key: 'revenue', label: 'Te ardhura POS sot', value: () => `${props.currency}${Number(props.stats.pos_revenue_today).toFixed(2)}`, cls: 'text-accent-600' },
 ];
+
+function doCheckIn(r) {
+    router.post(route('reservations.check-in', r.id), {}, {
+        preserveScroll: true,
+        onSuccess: () => toasts.value?.success(`Check-in: ${r.guest}`),
+        onError: () => toasts.value?.error('Check-in deshtoi.'),
+    });
+}
+function doCheckOut(r) {
+    router.post(route('reservations.check-out', r.id), {}, {
+        preserveScroll: true,
+        onSuccess: () => toasts.value?.success(`Check-out: ${r.guest}`),
+        onError: () => toasts.value?.error('Check-out deshtoi.'),
+    });
+}
 </script>
 
 <template>
@@ -57,10 +79,10 @@ const cards = [
         </div>
 
         <!-- Stat cards -->
-        <div class="mt-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div class="mt-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             <Card v-for="c in cards" :key="c.key">
                 <div class="text-center">
-                    <p :class="['text-h3', c.accent ? 'text-accent-600' : 'text-primary-900']">{{ c.value() }}</p>
+                    <p :class="['text-h3', c.cls]">{{ c.value() }}</p>
                     <p class="text-tiny text-neutral-500 uppercase tracking-wider mt-1">{{ c.label }}</p>
                     <p v-if="c.sub" class="text-tiny text-neutral-400 mt-0.5">{{ c.sub() }}</p>
                 </div>
@@ -74,13 +96,14 @@ const cards = [
                     <h3 class="text-label text-neutral-600 uppercase tracking-wider">Hyrjet e sotme</h3>
                 </div>
                 <ul class="divide-y divide-neutral-100">
-                    <li v-for="r in arrivals" :key="r.id" class="px-5 py-3 flex items-center justify-between hover:bg-neutral-50">
-                        <Link :href="route('reservations.show', r.id)" class="text-body-sm text-primary-900 font-medium hover:underline">
+                    <li v-for="r in arrivals" :key="r.id" class="px-5 py-3 flex items-center justify-between gap-3 hover:bg-neutral-50">
+                        <Link :href="route('reservations.show', r.id)" class="text-body-sm text-primary-900 font-medium hover:underline truncate">
                             {{ r.guest || 'Mysafir' }}
                         </Link>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 shrink-0">
                             <span class="text-body-sm text-neutral-500">Dhoma {{ r.room }}</span>
-                            <Badge :variant="statusBadge[r.status]?.variant" dot>{{ statusBadge[r.status]?.label }}</Badge>
+                            <Button v-if="canUpdate && r.status === 'confirmed'" size="sm" variant="primary" @click="doCheckIn(r)">Check-in</Button>
+                            <Badge v-else :variant="statusBadge[r.status]?.variant" dot>{{ statusBadge[r.status]?.label }}</Badge>
                         </div>
                     </li>
                 </ul>
@@ -92,18 +115,21 @@ const cards = [
                     <h3 class="text-label text-neutral-600 uppercase tracking-wider">Daljet e sotme</h3>
                 </div>
                 <ul class="divide-y divide-neutral-100">
-                    <li v-for="r in departures" :key="r.id" class="px-5 py-3 flex items-center justify-between hover:bg-neutral-50">
-                        <Link :href="route('reservations.show', r.id)" class="text-body-sm text-primary-900 font-medium hover:underline">
+                    <li v-for="r in departures" :key="r.id" class="px-5 py-3 flex items-center justify-between gap-3 hover:bg-neutral-50">
+                        <Link :href="route('reservations.show', r.id)" class="text-body-sm text-primary-900 font-medium hover:underline truncate">
                             {{ r.guest || 'Mysafir' }}
                         </Link>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 shrink-0">
                             <span class="text-body-sm text-neutral-500">Dhoma {{ r.room }}</span>
-                            <Badge :variant="statusBadge[r.status]?.variant" dot>{{ statusBadge[r.status]?.label }}</Badge>
+                            <Button v-if="canUpdate && r.status === 'checked_in'" size="sm" variant="secondary" @click="doCheckOut(r)">Check-out</Button>
+                            <Badge v-else :variant="statusBadge[r.status]?.variant" dot>{{ statusBadge[r.status]?.label }}</Badge>
                         </div>
                     </li>
                 </ul>
                 <div v-if="!departures.length" class="px-6 py-10 text-center text-body-sm text-neutral-500">Asnje dalje sot.</div>
             </Card>
         </div>
+
+        <ToastContainer ref="toasts" />
     </AppLayout>
 </template>
