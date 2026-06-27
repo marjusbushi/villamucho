@@ -18,6 +18,25 @@ function lastSeen() {
     return Number.isFinite(v) ? v : 0;
 }
 
+// Per-browser set of reservation ids the user has acknowledged (clicked).
+// Once acknowledged, a reservation leaves the bell and stops counting toward
+// the badge — so a notification no longer stays "always active" after a click.
+const LS_SEEN = 'notif_seen_reservation_ids';
+const seen = new Set();
+
+function loadSeen() {
+    try {
+        const arr = JSON.parse(localStorage.getItem(LS_SEEN) || '[]');
+        if (Array.isArray(arr)) arr.forEach((id) => seen.add(Number(id)));
+    } catch (e) { /* corrupt value — ignore */ }
+}
+function saveSeen() {
+    try { localStorage.setItem(LS_SEEN, JSON.stringify([...seen])); } catch (e) { /* ignore */ }
+}
+function markSeen(id) {
+    if (!seen.has(id)) { seen.add(id); saveSeen(); }
+}
+
 function ding() {
     try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -51,10 +70,21 @@ async function poll() {
         const r = await fetch('/pms/notifications/reservations', { headers: { Accept: 'application/json' } });
         if (!r.ok) return;
         const data = await r.json();
-        count.value = data.count || 0;
-        items.value = data.reservations || [];
+        const all = data.reservations || [];
 
-        const maxId = items.value.length ? Math.max(...items.value.map((x) => x.id)) : 0;
+        // Prune the seen-set to ids the server still returns, so it can't grow
+        // unbounded and a confirmed/deleted reservation drops off on its own.
+        const liveIds = new Set(all.map((x) => x.id));
+        let pruned = false;
+        seen.forEach((id) => { if (!liveIds.has(id)) { seen.delete(id); pruned = true; } });
+        if (pruned) saveSeen();
+
+        // The bell only shows what the user hasn't acknowledged yet.
+        const unseen = all.filter((x) => !seen.has(x.id));
+        items.value = unseen;
+        count.value = unseen.length;
+
+        const maxId = all.length ? Math.max(...all.map((x) => x.id)) : 0;
         if (first) {
             // baseline — don't alert for reservations that already existed
             if (maxId > lastSeen()) localStorage.setItem(LS_KEY, String(maxId));
@@ -62,20 +92,28 @@ async function poll() {
             return;
         }
         if (maxId > lastSeen()) {
-            const fresh = items.value.find((x) => x.id === maxId);
+            const fresh = all.find((x) => x.id === maxId);
             localStorage.setItem(LS_KEY, String(maxId));
             ding();
-            if (fresh) showToast(fresh);
+            if (fresh && !seen.has(fresh.id)) showToast(fresh);
         }
     } catch (e) { /* offline / ignore */ }
 }
 
 function goTo(id) {
+    // Acknowledge it, then drop it from the bell immediately (optimistic) so it
+    // doesn't linger as "new" while we navigate to the reservation.
+    markSeen(id);
+    items.value = items.value.filter((x) => x.id !== id);
+    count.value = items.value.length;
     open.value = false;
+    toast.value = null;
+    clearTimeout(toastTimer);
     router.visit(`/pms/reservations/${id}`);
 }
 
 onMounted(() => {
+    loadSeen();
     poll();
     timer = setInterval(poll, 20000);
 });
