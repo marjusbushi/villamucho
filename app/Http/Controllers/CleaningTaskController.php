@@ -20,8 +20,8 @@ class CleaningTaskController extends Controller
             'notes', 'issue_reported', 'completed_at', 'created_at'
         )
             ->with(['room:id,room_number,floor', 'room.roomType:id,name', 'assignedUser:id,name'])
-            ->orderByRaw("FIELD(status, 'in_progress', 'pending', 'completed', 'inspected')")
-            ->orderByRaw("FIELD(priority, 'urgent', 'normal')");
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 WHEN 'inspected' THEN 3 ELSE 4 END")
+            ->orderByRaw("CASE priority WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END");
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
