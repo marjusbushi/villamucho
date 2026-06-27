@@ -23,7 +23,7 @@ const featured = computed(() => {
 const standardRooms = computed(() => (props.roomTypes || []).filter(r => r.id !== featured.value?.id));
 
 const specRow = (room) => {
-    const parts = [`Max ${room.max_occupancy} persona`, ...(room.amenities || []).slice(0, 2)];
+    const parts = [t('home.rooms.maxOccupancy', { count: room.max_occupancy }), ...(room.amenities || []).slice(0, 2)];
     return parts.join(' · ');
 };
 
@@ -38,7 +38,7 @@ const heroSrcset = computed(() => heroFromSettings.value ? null : `${HERO_FALLBA
 
 // Hero TEXT is owner-editable per language in Settings → Faqja Web. Fallback chain:
 // chosen language → Albanian value → built-in default for the language → Albanian default.
-const { locale } = useI18n();
+const { t, locale } = useI18n();
 const HERO_DEFAULTS = {
     eyebrow: { sq: 'Ksamil · Bregu Jon', en: 'Ksamil · Ionian Shore' },
     title: { sq: 'Nje shtepi e madhe mbi detin Jon', en: 'A grand house above the Ionian Sea' },
@@ -56,16 +56,16 @@ const heroEyebrow = computed(() => heroText('eyebrow'));
 const heroTitle = computed(() => heroText('title'));
 const heroSubtitle = computed(() => heroText('subtitle'));
 
-const features = [
-    { icon: Waves, title: 'Afer Detit', desc: 'Vetem 2 minuta ne kembe nga plazhi i Ksamilit' },
-    { icon: UtensilsCrossed, title: 'Restorant', desc: 'Kuzhine mesdhetare me produkte lokale te fresketa' },
-    { icon: Wifi, title: 'WiFi Falas', desc: 'Internet i shpejte ne te gjitha ambientet' },
-    { icon: SquareParking, title: 'Parking', desc: 'Parking privat falas per te gjithe mysafiret' },
-];
+const features = computed(() => [
+    { icon: Waves, title: t('home.features.sea.title'), desc: t('home.features.sea.desc') },
+    { icon: UtensilsCrossed, title: t('home.features.restaurant.title'), desc: t('home.features.restaurant.desc') },
+    { icon: Wifi, title: t('home.features.wifi.title'), desc: t('home.features.wifi.desc') },
+    { icon: SquareParking, title: t('home.features.parking.title'), desc: t('home.features.parking.desc') },
+]);
 </script>
 
 <template>
-    <Head title="Home — Villa Mucho" />
+    <Head :title="$t('home.meta.title')" />
     <WebsiteLayout :transparent-header="true">
         <!-- Hero -->
         <section class="relative h-[90vh] min-h-[560px] w-full overflow-hidden">
@@ -73,7 +73,7 @@ const features = [
                 :src="heroSrc"
                 :srcset="heroSrcset"
                 sizes="100vw"
-                alt="Villa Mucho — Ksamil, bregu i Jonit"
+                :alt="$t('home.hero.imageAlt')"
                 fetchpriority="high"
                 class="absolute inset-0 h-full w-full object-cover hero-kenburns"
             />
@@ -90,9 +90,9 @@ const features = [
                     {{ heroSubtitle }}
                 </p>
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-9">
-                    <Link href="/book" class="btn-reserve">Rezervo Tani</Link>
+                    <Link href="/book" class="btn-reserve">{{ $t('home.hero.bookNow') }}</Link>
                     <Link href="/rooms" class="inline-flex items-center justify-center px-7 py-3 border border-bone/40 text-bone text-sm font-medium tracking-wide hover:bg-bone/10 transition-colors no-underline">
-                        Shiko Dhomat
+                        {{ $t('home.hero.viewRooms') }}
                     </Link>
                 </div>
             </div>
@@ -102,9 +102,9 @@ const features = [
         <section class="py-24 bg-limestone/40">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center mb-14">
-                    <span class="eyebrow-brass">Pervoja</span>
-                    <h2 class="text-display text-ink mt-3">Pse Villa Mucho?</h2>
-                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">Cdo detaj eshte menduar per komoditetin tuaj</p>
+                    <span class="eyebrow-brass">{{ $t('home.features.eyebrow') }}</span>
+                    <h2 class="text-display text-ink mt-3">{{ $t('home.features.heading') }}</h2>
+                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">{{ $t('home.features.subheading') }}</p>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-driftwood/15 border border-driftwood/15">
                     <div v-for="f in features" :key="f.title" class="bg-bone p-8 text-center">
@@ -120,16 +120,16 @@ const features = [
         <section class="py-24">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center mb-14">
-                    <span class="eyebrow-brass">Akomodimi</span>
-                    <h2 class="text-display text-ink mt-3">Dhomat &amp; Suitat</h2>
-                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">Nje koleksion i vogel suitash, secila me pamjen e vet nga Joni.</p>
+                    <span class="eyebrow-brass">{{ $t('home.rooms.eyebrow') }}</span>
+                    <h2 class="text-display text-ink mt-3">{{ $t('home.rooms.heading') }}</h2>
+                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">{{ $t('home.rooms.subheading') }}</p>
                 </div>
 
                 <!-- Featured suite -->
                 <div v-if="featured" class="grid grid-cols-1 lg:grid-cols-2 border border-driftwood/20 mb-8">
                     <RoomGallery :images="featured.images" :alt="featured.name" aspect="aspect-[4/3] lg:aspect-auto lg:h-full lg:min-h-[420px]" />
                     <div class="p-8 lg:p-12 flex flex-col justify-center">
-                        <span class="eyebrow-brass">Suite</span>
+                        <span class="eyebrow-brass">{{ $t('home.rooms.suiteLabel') }}</span>
                         <h3 class="text-display-sm text-ink mt-3">{{ featured.name }}</h3>
                         <p class="text-body text-ink/60 mt-4 leading-relaxed">{{ featured.description }}</p>
                         <div class="flex flex-wrap gap-x-5 gap-y-2 mt-6">
@@ -137,12 +137,12 @@ const features = [
                                 <component :is="amenityIcon(a)" class="h-4 w-4 text-ionian" :stroke-width="1.5" /> {{ a }}
                             </span>
                         </div>
-                        <div v-if="featured.breakfast_included" class="mt-5 inline-flex items-center gap-2 self-start px-3 py-1.5 bg-ionian/10 text-ionian text-body-sm">
-                            <Coffee class="h-4 w-4" :stroke-width="1.5" /> Mengjesi i perfshire
+                        <div v-if="featured.breakfast_included" class="mt-6 inline-flex items-center gap-2.5 self-start px-4 py-2 bg-ionian text-bone text-body-sm font-medium tracking-wide shadow-sm">
+                            <Coffee class="h-5 w-5" :stroke-width="1.75" /> {{ $t('home.rooms.breakfastIncluded') }}
                         </div>
                         <div class="flex items-center justify-between mt-8 pt-6 border-t border-driftwood/15">
-                            <p class="text-body-sm text-ink/55">Nga <span class="text-brass text-lg">€{{ featured.base_price }}</span> / nate</p>
-                            <Link :href="`/book?room_type=${featured.id}`" class="btn-reserve">Rezervo</Link>
+                            <p class="text-body-sm text-ink/55">{{ $t('home.rooms.priceFrom') }} <span class="text-brass text-lg">€{{ featured.base_price }}</span> {{ $t('home.rooms.perNight') }}</p>
+                            <Link :href="`/book?room_type=${featured.id}`" class="btn-reserve">{{ $t('home.rooms.reserve') }}</Link>
                         </div>
                     </div>
                 </div>
@@ -154,16 +154,18 @@ const features = [
                         <div class="p-6">
                             <div class="flex items-baseline justify-between gap-3">
                                 <h3 class="text-2xl text-ink">{{ room.name }}</h3>
-                                <p class="text-body-sm text-ink/55 whitespace-nowrap">Nga <span class="text-brass">€{{ room.base_price }}</span></p>
+                                <p class="text-body-sm text-ink/55 whitespace-nowrap">{{ $t('home.rooms.priceFrom') }} <span class="text-brass">€{{ room.base_price }}</span></p>
                             </div>
                             <p class="text-body-sm text-ink/55 mt-2 line-clamp-2">{{ room.description }}</p>
                             <p class="eyebrow text-driftwood mt-4">{{ specRow(room) }}</p>
-                            <p v-if="room.breakfast_included" class="mt-3 inline-flex items-center gap-1.5 text-tiny text-ionian">
-                                <Coffee class="h-3.5 w-3.5" :stroke-width="1.5" /> Mengjesi i perfshire
-                            </p>
-                            <Link :href="`/book?room_type=${room.id}`" class="group/lnk mt-5 inline-flex items-center gap-1.5 text-body-sm text-ionian no-underline">
-                                Shiko Dhomen <ArrowRight class="h-4 w-4 transition-transform group-hover/lnk:translate-x-1" :stroke-width="1.5" />
-                            </Link>
+                            <div v-if="room.breakfast_included" class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-ionian text-bone text-body-sm font-medium tracking-wide">
+                                <Coffee class="h-4 w-4" :stroke-width="1.75" /> {{ $t('home.rooms.breakfastIncluded') }}
+                            </div>
+                            <div class="mt-5 pt-5 border-t border-driftwood/15">
+                                <Link :href="`/book?room_type=${room.id}`" class="btn-reserve w-full">
+                                    {{ $t('home.rooms.reserve') }}
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -173,11 +175,11 @@ const features = [
         <!-- CTA -->
         <section class="py-24 bg-ink">
             <div class="max-w-3xl mx-auto px-4 text-center">
-                <span class="eyebrow text-brass-light">Rezervo Direkt</span>
-                <h2 class="text-display text-bone mt-3">Gati per pushime?</h2>
-                <p class="text-lead text-bone/60 mt-3">Cmimi me i mire i garantuar kur rezervon drejtperdrejt me ne.</p>
+                <span class="eyebrow text-brass-light">{{ $t('home.cta.eyebrow') }}</span>
+                <h2 class="text-display text-bone mt-3">{{ $t('home.cta.heading') }}</h2>
+                <p class="text-lead text-bone/60 mt-3">{{ $t('home.cta.subheading') }}</p>
                 <Link href="/book" class="btn-reserve-light mt-8 px-8 py-3.5">
-                    Rezervo Tani
+                    {{ $t('home.cta.bookNow') }}
                 </Link>
             </div>
         </section>

@@ -1,22 +1,25 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { Users, BedDouble, Coffee } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 import RoomGallery from '@/Components/Website/RoomGallery.vue';
 import { amenityIcon } from '@/Components/Website/amenities';
 
+const { t } = useI18n();
+
 defineProps({ roomTypes: Array });
 </script>
 
 <template>
-    <Head title="Dhomat — Villa Mucho" />
+    <Head :title="$t('rooms.meta.title')" />
     <WebsiteLayout>
         <section class="py-20">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center mb-14">
-                    <span class="eyebrow-brass">Akomodimi</span>
-                    <h1 class="text-display text-ink mt-3">Dhomat &amp; Suitat</h1>
-                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">Cdo dhome eshte projektuar per qetesine dhe pamjen nga deti.</p>
+                    <span class="eyebrow-brass">{{ $t('rooms.hero.eyebrow') }}</span>
+                    <h1 class="text-display text-ink mt-3">{{ $t('rooms.hero.title') }}</h1>
+                    <p class="text-lead text-ink/60 mt-3 measure mx-auto">{{ $t('rooms.hero.subtitle') }}</p>
                 </div>
 
                 <div class="space-y-10">
@@ -36,19 +39,19 @@ defineProps({ roomTypes: Array });
                                         <h2 class="text-display-sm text-ink">{{ room.name }}</h2>
                                         <div class="text-right shrink-0">
                                             <p class="text-2xl text-brass leading-none">€{{ room.base_price }}</p>
-                                            <p class="text-tiny text-ink/40 uppercase tracking-wider mt-1">/ nate</p>
+                                            <p class="text-tiny text-ink/40 uppercase tracking-wider mt-1">{{ $t('rooms.card.perNight') }}</p>
                                         </div>
                                     </div>
                                     <p class="text-body text-ink/60 mt-4 leading-relaxed">{{ room.description }}</p>
 
                                     <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-5 text-body-sm text-ink/55">
-                                        <span class="inline-flex items-center gap-1.5"><Users class="h-4 w-4 text-ionian" :stroke-width="1.5" /> Max {{ room.max_occupancy }} persona</span>
-                                        <span class="inline-flex items-center gap-1.5"><BedDouble class="h-4 w-4 text-ionian" :stroke-width="1.5" /> {{ room.rooms_count }} dhoma</span>
-                                        <span class="text-ionian font-medium">{{ room.available_count }} te lira</span>
+                                        <span class="inline-flex items-center gap-1.5"><Users class="h-4 w-4 text-ionian" :stroke-width="1.5" /> {{ $t('rooms.card.maxOccupancy', { count: room.max_occupancy }) }}</span>
+                                        <span class="inline-flex items-center gap-1.5"><BedDouble class="h-4 w-4 text-ionian" :stroke-width="1.5" /> {{ $t('rooms.card.roomsCount', { count: room.rooms_count }) }}</span>
+                                        <span class="text-ionian font-medium">{{ $t('rooms.card.available', { count: room.available_count }) }}</span>
                                     </div>
 
-                                    <div v-if="room.breakfast_included" class="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-ionian/10 text-ionian text-body-sm">
-                                        <Coffee class="h-4 w-4" :stroke-width="1.5" /> Mengjesi i perfshire
+                                    <div v-if="room.breakfast_included" class="mt-4 inline-flex items-center gap-2.5 px-4 py-2 bg-ionian text-bone text-body-sm font-medium tracking-wide shadow-sm">
+                                        <Coffee class="h-5 w-5" :stroke-width="1.75" /> {{ $t('rooms.card.breakfastIncluded') }}
                                     </div>
 
                                     <!-- Amenity ledger -->
@@ -60,7 +63,7 @@ defineProps({ roomTypes: Array });
                                 </div>
 
                                 <Link :href="`/book?room_type=${room.id}`" class="btn-reserve mt-8 w-full">
-                                    Rezervo {{ room.name }}
+                                    {{ $t('rooms.card.reserve', { name: room.name }) }}
                                 </Link>
                             </div>
                         </div>

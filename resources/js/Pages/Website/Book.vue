@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { CalendarX2 } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
+
+const { t } = useI18n();
 
 const props = defineProps({
     roomTypes: Array,
@@ -38,7 +41,7 @@ const guestForm = useForm({
 const nights = ref(0);
 const flashError = computed(() => usePage().props.flash?.error);
 
-const typeOptions = props.roomTypes.map(t => ({ value: t.id, label: `${t.name} (€${t.base_price}/nate)` }));
+const typeOptions = computed(() => props.roomTypes.map(rt => ({ value: rt.id, label: `${rt.name} (€${rt.base_price}/${t('book.search.perNight')})` })));
 
 async function checkAvailability() {
     loading.value = true;
@@ -52,7 +55,7 @@ async function checkAvailability() {
         nights.value = response.data.nights;
         step.value = 2;
     } catch (e) {
-        alert(e.response?.data?.message || 'Gabim gjate kontrollit');
+        alert(e.response?.data?.message || t('book.search.checkError'));
     }
     loading.value = false;
 }
@@ -78,20 +81,20 @@ function goBack(toStep) {
 </script>
 
 <template>
-    <Head title="Rezervo — Villa Mucho" />
+    <Head :title="$t('book.head.title')" />
     <WebsiteLayout>
         <section class="py-16">
             <div class="max-w-3xl mx-auto px-4 sm:px-6">
                 <div class="text-center mb-10">
-                    <h1 class="text-h1 text-primary-900">Rezervo Dhomen</h1>
-                    <p class="text-body text-neutral-500 mt-2">Zgjidhni datat dhe dhomen qe deshironi</p>
+                    <h1 class="text-h1 text-primary-900">{{ $t('book.header.title') }}</h1>
+                    <p class="text-body text-neutral-500 mt-2">{{ $t('book.header.subtitle') }}</p>
                 </div>
 
                 <!-- Steps indicator -->
                 <div class="flex items-center justify-center gap-2 mb-10">
                     <div v-for="s in 3" :key="s" :class="['flex items-center gap-2', s < 3 && 'flex-1']">
                         <div :class="['h-8 w-8 rounded-full flex items-center justify-center text-small font-medium shrink-0', step >= s ? 'bg-ink text-bone' : 'bg-limestone text-driftwood']">{{ s }}</div>
-                        <span :class="['text-body-sm hidden sm:block', step >= s ? 'text-ink font-medium' : 'text-driftwood']">{{ s === 1 ? 'Datat' : s === 2 ? 'Dhoma' : 'Te dhenat' }}</span>
+                        <span :class="['text-body-sm hidden sm:block', step >= s ? 'text-ink font-medium' : 'text-driftwood']">{{ s === 1 ? $t('book.steps.dates') : s === 2 ? $t('book.steps.room') : $t('book.steps.details') }}</span>
                         <div v-if="s < 3" :class="['flex-1 h-0.5 mx-2', step > s ? 'bg-ink/30' : 'bg-driftwood/20']" />
                     </div>
                 </div>
@@ -103,25 +106,25 @@ function goBack(toStep) {
 
                 <!-- Step 1: Dates -->
                 <div v-if="step === 1" class="bg-white rounded-2xl border border-neutral-100 p-6 sm:p-8">
-                    <h2 class="text-h3 text-primary-900 mb-6">Zgjidhni datat</h2>
+                    <h2 class="text-h3 text-primary-900 mb-6">{{ $t('book.search.heading') }}</h2>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-label text-neutral-700 mb-1.5">Check-in *</label>
+                            <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.search.checkIn') }}</label>
                             <input type="date" v-model="searchForm.check_in" :min="new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                         <div>
-                            <label class="block text-label text-neutral-700 mb-1.5">Check-out *</label>
+                            <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.search.checkOut') }}</label>
                             <input type="date" v-model="searchForm.check_out" :min="searchForm.check_in || new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                         <div>
-                            <label class="block text-label text-neutral-700 mb-1.5">Tipi i dhomes</label>
+                            <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.search.roomType') }}</label>
                             <select v-model="searchForm.room_type_id" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30">
-                                <option value="">Te gjitha tipet</option>
+                                <option value="">{{ $t('book.search.allTypes') }}</option>
                                 <option v-for="t in roomTypes" :key="t.id" :value="t.id">{{ t.name }} (€{{ t.base_price }})</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-label text-neutral-700 mb-1.5">Mysafire</label>
+                            <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.search.guests') }}</label>
                             <input type="number" v-model="searchForm.adults" min="1" max="10" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                     </div>
@@ -130,17 +133,17 @@ function goBack(toStep) {
                         class="btn-reserve w-full mt-6"
                         @click="checkAvailability"
                     >
-                        {{ loading ? 'Duke kontrolluar...' : 'Kontrollo Disponueshmerine' }}
+                        {{ loading ? $t('book.search.checking') : $t('book.search.checkButton') }}
                     </button>
                 </div>
 
                 <!-- Step 2: Select Room -->
                 <div v-if="step === 2">
                     <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-h3 text-primary-900">Dhomat e lira</h2>
-                        <button class="text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(1)">← Ndrysho datat</button>
+                        <h2 class="text-h3 text-primary-900">{{ $t('book.rooms.heading') }}</h2>
+                        <button class="text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(1)">{{ $t('book.rooms.changeDates') }}</button>
                     </div>
-                    <p class="text-body-sm text-neutral-500 mb-6">{{ searchForm.check_in }} → {{ searchForm.check_out }} · {{ nights }} net</p>
+                    <p class="text-body-sm text-neutral-500 mb-6">{{ searchForm.check_in }} → {{ searchForm.check_out }} · {{ nights }} {{ $t('book.rooms.nights') }}</p>
 
                     <div v-if="availableRooms.length" class="space-y-3">
                         <button
@@ -151,12 +154,12 @@ function goBack(toStep) {
                         >
                             <div class="flex items-start justify-between">
                                 <div>
-                                    <h3 class="text-h4 text-primary-900">Dhoma {{ room.room_number }}</h3>
-                                    <p class="text-body-sm text-neutral-500">{{ room.room_type }} · Kati {{ room.floor }} · Max {{ room.max_occupancy }} persona</p>
+                                    <h3 class="text-h4 text-primary-900">{{ $t('book.rooms.room') }} {{ room.room_number }}</h3>
+                                    <p class="text-body-sm text-neutral-500">{{ room.room_type }} · {{ $t('book.rooms.floor') }} {{ room.floor }} · {{ $t('book.rooms.max') }} {{ room.max_occupancy }} {{ $t('book.rooms.persons') }}</p>
                                 </div>
                                 <div class="text-right">
                                     <p class="text-h4 text-brass">€{{ room.total_price }}</p>
-                                    <p class="text-tiny text-neutral-400">{{ nights }} net × €{{ room.price_per_night }}</p>
+                                    <p class="text-tiny text-neutral-400">{{ nights }} {{ $t('book.rooms.nights') }} × €{{ room.price_per_night }}</p>
                                 </div>
                             </div>
                         </button>
@@ -164,24 +167,24 @@ function goBack(toStep) {
 
                     <div v-else class="bg-bone border border-driftwood/20 p-10 text-center">
                         <CalendarX2 class="h-10 w-10 mx-auto mb-3 text-driftwood" :stroke-width="1.1" />
-                        <p class="text-body text-ink/70">Nuk ka dhoma te lira per keto data.</p>
-                        <button class="mt-3 text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(1)">Provoni data te tjera</button>
+                        <p class="text-body text-ink/70">{{ $t('book.rooms.emptyTitle') }}</p>
+                        <button class="mt-3 text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(1)">{{ $t('book.rooms.tryOtherDates') }}</button>
                     </div>
                 </div>
 
                 <!-- Step 3: Guest Info -->
                 <div v-if="step === 3" class="bg-white rounded-2xl border border-neutral-100 p-6 sm:p-8">
                     <div class="flex items-center justify-between mb-6">
-                        <h2 class="text-h3 text-primary-900">Te dhenat tuaja</h2>
-                        <button class="text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(2)">← Ndrysho dhomen</button>
+                        <h2 class="text-h3 text-primary-900">{{ $t('book.guest.heading') }}</h2>
+                        <button class="text-body-sm text-ionian hover:text-ionian-dark" @click="goBack(2)">{{ $t('book.guest.changeRoom') }}</button>
                     </div>
 
                     <!-- Summary -->
                     <div class="bg-neutral-50 rounded-lg p-4 mb-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-label text-primary-900">Dhoma {{ selectedRoom?.room_number }} — {{ selectedRoom?.room_type }}</p>
-                                <p class="text-body-sm text-neutral-500">{{ searchForm.check_in }} → {{ searchForm.check_out }} · {{ nights }} net</p>
+                                <p class="text-label text-primary-900">{{ $t('book.rooms.room') }} {{ selectedRoom?.room_number }} — {{ selectedRoom?.room_type }}</p>
+                                <p class="text-body-sm text-neutral-500">{{ searchForm.check_in }} → {{ searchForm.check_out }} · {{ nights }} {{ $t('book.rooms.nights') }}</p>
                             </div>
                             <p class="text-h3 text-brass">€{{ selectedRoom?.total_price }}</p>
                         </div>
@@ -192,36 +195,36 @@ function goBack(toStep) {
                         <input v-model="guestForm.website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-label text-neutral-700 mb-1.5">Emri *</label>
-                                <input v-model="guestForm.first_name" type="text" placeholder="Emri" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
+                                <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.guest.firstName') }}</label>
+                                <input v-model="guestForm.first_name" type="text" :placeholder="$t('book.guest.firstNamePlaceholder')" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.first_name" class="text-small text-error-600 mt-1">{{ guestForm.errors.first_name }}</p>
                             </div>
                             <div>
-                                <label class="block text-label text-neutral-700 mb-1.5">Mbiemri *</label>
-                                <input v-model="guestForm.last_name" type="text" placeholder="Mbiemri" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
+                                <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.guest.lastName') }}</label>
+                                <input v-model="guestForm.last_name" type="text" :placeholder="$t('book.guest.lastNamePlaceholder')" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.last_name" class="text-small text-error-600 mt-1">{{ guestForm.errors.last_name }}</p>
                             </div>
                             <div>
-                                <label class="block text-label text-neutral-700 mb-1.5">Email *</label>
-                                <input v-model="guestForm.email" type="email" placeholder="email@example.com" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
+                                <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.guest.email') }}</label>
+                                <input v-model="guestForm.email" type="email" :placeholder="$t('book.guest.emailPlaceholder')" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.email" class="text-small text-error-600 mt-1">{{ guestForm.errors.email }}</p>
                             </div>
                             <div>
-                                <label class="block text-label text-neutral-700 mb-1.5">Telefon *</label>
-                                <input v-model="guestForm.phone" type="tel" placeholder="+355 69..." class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
+                                <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.guest.phone') }}</label>
+                                <input v-model="guestForm.phone" type="tel" :placeholder="$t('book.guest.phonePlaceholder')" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                                 <p v-if="guestForm.errors.phone" class="text-small text-error-600 mt-1">{{ guestForm.errors.phone }}</p>
                             </div>
                         </div>
                         <div>
-                            <label class="block text-label text-neutral-700 mb-1.5">Kerkesa speciale</label>
-                            <textarea v-model="guestForm.notes" rows="3" placeholder="Shenime shtese..." class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
+                            <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.guest.specialRequests') }}</label>
+                            <textarea v-model="guestForm.notes" rows="3" :placeholder="$t('book.guest.notesPlaceholder')" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
                         </div>
                         <button
                             type="submit"
                             :disabled="guestForm.processing"
                             class="btn-reserve w-full"
                         >
-                            {{ guestForm.processing ? 'Duke derguar...' : `Konfirmo Rezervimin — €${selectedRoom?.total_price}` }}
+                            {{ guestForm.processing ? $t('book.guest.submitting') : `${$t('book.guest.confirm')} — €${selectedRoom?.total_price}` }}
                         </button>
                     </form>
                 </div>
