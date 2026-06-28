@@ -143,6 +143,63 @@ class SettingsController extends Controller
         return back()->with('success', 'Faqja web u perditesua.');
     }
 
+    /**
+     * Manage the public /about page content — texts (bilingual SQ/EN) + photos
+     * per section. Stored in the 'about' settings group; rendered by
+     * WebsiteController::about() with i18n fallbacks so an unconfigured page
+     * still looks complete.
+     */
+    public function updateAbout(Request $request): RedirectResponse
+    {
+        // Bilingual headings/paragraphs + short stat values. Paragraphs allow more text.
+        $textKeys = [
+            'hero_title_sq', 'hero_title_en',
+            'story_title_sq', 'story_title_en',
+            'story_p1_sq', 'story_p1_en',
+            'story_p2_sq', 'story_p2_en',
+            'stat1_value', 'stat1_label_sq', 'stat1_label_en',
+            'stat2_value', 'stat2_label_sq', 'stat2_label_en',
+            'stat3_value', 'stat3_label_sq', 'stat3_label_en',
+            'staff_title_sq', 'staff_title_en',
+            'staff_p1_sq', 'staff_p1_en',
+            'staff_p2_sq', 'staff_p2_en',
+        ];
+
+        $rules = [
+            'hero_image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:6144'],
+            'story_image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:6144'],
+            'staff_image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:6144'],
+        ];
+        foreach ($textKeys as $key) {
+            if (str_contains($key, '_value')) {
+                $rules[$key] = ['nullable', 'string', 'max:30'];          // "15+", "4.8"
+            } elseif (str_contains($key, '_p1') || str_contains($key, '_p2')) {
+                $rules[$key] = ['nullable', 'string', 'max:1500'];        // paragraphs
+            } else {
+                $rules[$key] = ['nullable', 'string', 'max:200'];         // titles + labels
+            }
+        }
+
+        $request->validate($rules);
+
+        foreach ($textKeys as $key) {
+            Setting::set("about.{$key}", $request->input($key));
+        }
+
+        foreach (['hero_image', 'story_image', 'staff_image'] as $imgKey) {
+            if ($request->hasFile($imgKey)) {
+                $old = Setting::get("about.{$imgKey}");
+                $path = $request->file($imgKey)->store('about', 'public');
+                Setting::set("about.{$imgKey}", $path, 'image');
+                if ($old) {
+                    Storage::disk('public')->delete($old);
+                }
+            }
+        }
+
+        return back()->with('success', 'Faqja "Rreth Nesh" u perditesua.');
+    }
+
     // --- Financial ---
     public function updateFinancial(Request $request): RedirectResponse
     {

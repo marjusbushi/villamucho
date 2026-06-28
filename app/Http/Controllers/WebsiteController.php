@@ -207,6 +207,7 @@ class WebsiteController extends Controller
     {
         return Inertia::render('Website/About', [
             'hotel' => Setting::getGroup('hotel'),
+            'about' => Setting::getGroup('about'),
         ]);
     }
 

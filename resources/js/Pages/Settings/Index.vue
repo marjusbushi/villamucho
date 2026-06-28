@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import HotelTab from './Tabs/HotelTab.vue';
 import WebsiteTab from './Tabs/WebsiteTab.vue';
+import AboutTab from './Tabs/AboutTab.vue';
 import RoomTypesTab from './Tabs/RoomTypesTab.vue';
 import FloorsTab from './Tabs/FloorsTab.vue';
 import AmenitiesTab from './Tabs/AmenitiesTab.vue';
@@ -26,6 +27,7 @@ const activeTab = ref('hotel');
 const tabs = [
     { id: 'hotel', label: 'Hotel Info' },
     { id: 'website', label: 'Faqja Web' },
+    { id: 'about', label: 'Faqja: Rreth Nesh' },
     { id: 'room-types', label: 'Tipet e dhomave' },
     { id: 'amenities', label: 'Pajisjet' },
     { id: 'floors', label: 'Katet' },
@@ -66,6 +68,7 @@ const tabs = [
             <div class="flex-1 min-w-0">
                 <HotelTab v-if="activeTab === 'hotel'" :settings="settings.hotel || {}" :toasts="toasts" />
                 <WebsiteTab v-else-if="activeTab === 'website'" :settings="settings.hotel || {}" :toasts="toasts" />
+                <AboutTab v-else-if="activeTab === 'about'" :settings="settings.about || {}" :toasts="toasts" />
                 <RoomTypesTab v-else-if="activeTab === 'room-types'" :room-types="roomTypes" :amenities="amenities" :toasts="toasts" />
                 <AmenitiesTab v-else-if="activeTab === 'amenities'" :amenities="amenities" :toasts="toasts" />
                 <FloorsTab v-else-if="activeTab === 'floors'" :floors="floors" :toasts="toasts" />
