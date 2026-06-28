@@ -1,4 +1,5 @@
 // Auto-generated ISO 3166-1 alpha-2 country list (English names via Intl.DisplayNames).
+// XK (Kosovo) is user-assigned (not official ISO) and added explicitly.
 // value = alpha-2 code (fits guests.nationality max:3); label = country name.
 export const COUNTRIES = [
     { code: "AF", name: "Afghanistan" },
@@ -115,6 +116,7 @@ export const COUNTRIES = [
     { code: "KZ", name: "Kazakhstan" },
     { code: "KE", name: "Kenya" },
     { code: "KI", name: "Kiribati" },
+    { code: "XK", name: "Kosovo" },
     { code: "KW", name: "Kuwait" },
     { code: "KG", name: "Kyrgyzstan" },
     { code: "LA", name: "Laos" },
