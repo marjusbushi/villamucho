@@ -26,6 +26,9 @@ class Reservation extends Model
         'adults',
         'children',
         'notes',
+        'channel',
+        'channel_ref',
+        'commission_amount',
     ];
 
     /**

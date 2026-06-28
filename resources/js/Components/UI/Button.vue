@@ -3,7 +3,7 @@ const props = defineProps({
     variant: {
         type: String,
         default: 'primary',
-        validator: (v) => ['primary', 'secondary', 'outline', 'danger', 'ghost'].includes(v),
+        validator: (v) => ['primary', 'secondary', 'outline', 'danger', 'success', 'ghost'].includes(v),
     },
     size: {
         type: String,
@@ -39,6 +39,8 @@ const variantClasses = {
         'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 hover:border-neutral-300 active:bg-neutral-100 focus:ring-accent-500/40',
     danger:
         'bg-error-600 text-white hover:bg-error-700 active:bg-error-800 focus:ring-error-500/40 shadow-sm',
+    success:
+        'bg-success-600 text-white hover:bg-success-700 active:bg-success-800 focus:ring-success-500/40 shadow-sm',
     ghost:
         'bg-transparent text-neutral-600 hover:bg-neutral-100 active:bg-neutral-200 focus:ring-accent-500/40',
 };

@@ -144,7 +144,7 @@ function settleAndCheckout(method) {
                     {{ statusBadge[reservation.status]?.label }}
                 </Badge>
                 <Button v-if="canUpdate" variant="outline" @click="showLineModal = true">+ Rresht</Button>
-                <Button v-if="canUpdate" variant="outline" @click="showPayModal = true">Regjistro pagese</Button>
+                <Button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" variant="success" @click="showPayModal = true">Paguaj</Button>
                 <Button variant="outline" @click="openInvoice">Fature</Button>
                 <Button
                     v-if="canUpdate && reservation.status === 'checked_in'"
@@ -275,9 +275,13 @@ function settleAndCheckout(method) {
                         <span>Paguar</span>
                         <span>− {{ money(folio.paid) }}</span>
                     </div>
-                    <div class="flex justify-between border-t border-neutral-200 pt-2">
+                    <div v-if="reservation.status !== 'cancelled'" class="flex justify-between border-t border-neutral-200 pt-2">
                         <span class="text-label text-neutral-700">Mbetur per t'u paguar</span>
                         <span class="text-h4" :class="unsettled ? 'text-error-600' : 'text-success-600'">{{ money(folio.outstanding) }}</span>
+                    </div>
+                    <div v-else class="flex justify-between border-t border-neutral-200 pt-2">
+                        <span class="text-label text-neutral-700">Rezervimi</span>
+                        <span class="text-h4 text-neutral-400">Anulluar</span>
                     </div>
                 </div>
             </Card>
