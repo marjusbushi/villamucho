@@ -15,20 +15,20 @@ const groups = [
         reports: [
             { name: 'Pasqyra Ekzekutive', desc: 'Të ardhura dhoma+bar, mbushja, ADR, RevPAR, TVSH, komisioni — gjithçka në një faqe.', to: 'reports.executive' },
             { name: 'ADR / RevPAR / Mbushja', desc: 'Tre treguesit mbretër me krahasim periudhe, sipas tipit të dhomës.', to: null },
-            { name: 'Tempo & Pickup', desc: 'Sa netë/të ardhura janë rezervuar për ditët në vijim (7/14/30/60/90).', to: null },
+            { name: 'Tempo & Pickup', desc: 'Sa netë/të ardhura janë rezervuar për ditët në vijim (7/14/30/60/90).', to: 'reports.pace' },
         ],
     },
     {
         name: 'Kanalet',
         reports: [
             { name: 'Prodhimi sipas Kanaleve', desc: 'Nga vijnë rezervimet dhe sa kushton secili kanal në komision.', to: 'reports.channels' },
-            { name: 'Anulime & No-Show', desc: 'Rrjedhja e rezervimeve: % anulimesh dhe no-show të mundshëm.', to: null },
+            { name: 'Anulime & No-Show', desc: 'Rrjedhja e rezervimeve: % anulimesh dhe no-show të mundshëm.', to: 'reports.cancellations' },
         ],
     },
     {
         name: 'Klientët',
         reports: [
-            { name: 'Direktoria e Mysafirëve', desc: 'Lista kryesore e çdo mysafiri me statistika gjatë jetës (CRM).', to: null },
+            { name: 'Direktoria e Mysafirëve', desc: 'Lista kryesore e çdo mysafiri me statistika gjatë jetës (CRM).', to: 'reports.guests' },
             { name: 'Kthyes & Top sipas Vlerës', desc: 'Mysafirë që kanë qëndruar 2+ herë dhe top sipas shpenzimit.', to: null },
             { name: 'Përbërja sipas Kombësisë', desc: 'Nga vijnë mysafirët — numra, netë, të ardhura sipas vendit.', to: null },
             { name: 'Sjellja e Rezervimit', desc: 'Sa para rezervojnë dhe sa gjatë qëndrojnë, sipas kanalit.', to: null },
@@ -37,7 +37,7 @@ const groups = [
     {
         name: 'Bar & Restorant',
         reports: [
-            { name: 'Shitjet POS sipas Kategorisë & Artikullit', desc: 'Të ardhura Bar vs Restorant dhe sipas artikullit, me numër porosish.', to: null },
+            { name: 'Shitjet POS sipas Kategorisë & Artikullit', desc: 'Të ardhura Bar vs Restorant dhe sipas artikullit, me numër porosish.', to: 'reports.posSales' },
             { name: 'Shitjet sipas Orës & Ditës', desc: 'Oraret dhe ditët më të ngarkuara për F&B.', to: null },
             { name: 'Mix i Pagesave POS', desc: 'Si u paguan shitjet — kesh, kartë, folio.', to: null },
             { name: 'Anulime & Voids POS', desc: 'Porosi të anulluara me vlerë — kontroll humbjesh.', to: null },
@@ -46,8 +46,8 @@ const groups = [
     {
         name: 'Operacione',
         reports: [
-            { name: 'Manifesti i Mbërritjeve', desc: 'Fletë pune e çdo mysafiri që mbërrin në një periudhë.', to: null },
-            { name: 'Manifesti i Nisjeve', desc: 'Çdo nisje me balancë të papaguar dhe porosi POS të hapura.', to: null },
+            { name: 'Manifesti i Mbërritjeve', desc: 'Fletë pune e çdo mysafiri që mbërrin në një periudhë.', to: 'reports.arrivalsManifest' },
+            { name: 'Manifesti i Nisjeve', desc: 'Çdo nisje me balancë të papaguar dhe porosi POS të hapura.', to: 'reports.departuresManifest' },
             { name: 'Statusi i Dhomave', desc: 'Foto e çastit e çdo dhome dhe statusit të saj.', to: null },
             { name: 'Raporti i Pastrimit', desc: 'Ngarkesa dhe përfundimi i pastrimit sipas stafit/dhomës.', to: null },
             { name: 'Mysafirë në Shtëpi', desc: 'Lista e çdo mysafiri aktualisht brenda.', to: null },
@@ -58,8 +58,8 @@ const groups = [
         reports: [
             { name: 'Bilance të Papaguara', desc: 'Çdo qëndrim që ende ka borxh (folio − pagesa) — debitorët.', to: 'reports.outstanding' },
             { name: 'Z-Report / Mbyllje Turni', desc: 'Pajtimi i arkës për çdo turn: kesh/kartë/folio, pritur vs numëruar.', to: 'reports.shifts' },
-            { name: 'Arkëtime & Cash', desc: 'Paratë e mbledhura (jo të faturuara) sipas metodës/ditës/stafit.', to: null },
-            { name: 'Raport TVSH', desc: 'Ndarja periodike e TVSH-së për deklarim tatimor.', to: null },
+            { name: 'Arkëtime & Cash', desc: 'Paratë e mbledhura (jo të faturuara) sipas metodës/ditës/stafit.', to: 'reports.payments' },
+            { name: 'Raport TVSH', desc: 'Ndarja periodike e TVSH-së për deklarim tatimor.', to: 'reports.vat' },
             { name: 'Zbritje të Dhëna', desc: 'Çdo zbritje/falje e dhënë — sa të ardhura janë lëshuar.', to: null },
         ],
     },

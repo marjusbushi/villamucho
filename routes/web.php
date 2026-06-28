@@ -113,6 +113,14 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::get('/reports/channels', [ReportsController::class, 'channels'])->name('reports.channels');
         Route::get('/reports/outstanding', [ReportsController::class, 'outstanding'])->name('reports.outstanding');
         Route::get('/reports/shifts', [ReportsController::class, 'shifts'])->name('reports.shifts');
+        Route::get('/reports/guests', [ReportsController::class, 'guests'])->name('reports.guests');
+        Route::get('/reports/pos-sales', [ReportsController::class, 'posSales'])->name('reports.posSales');
+        Route::get('/reports/arrivals', [ReportsController::class, 'arrivalsManifest'])->name('reports.arrivalsManifest');
+        Route::get('/reports/departures', [ReportsController::class, 'departuresManifest'])->name('reports.departuresManifest');
+        Route::get('/reports/pace', [ReportsController::class, 'pace'])->name('reports.pace');
+        Route::get('/reports/cancellations', [ReportsController::class, 'cancellations'])->name('reports.cancellations');
+        Route::get('/reports/payments', [ReportsController::class, 'payments'])->name('reports.payments');
+        Route::get('/reports/vat', [ReportsController::class, 'vat'])->name('reports.vat');
     });
 
     // Admin-only: User Management + Settings
