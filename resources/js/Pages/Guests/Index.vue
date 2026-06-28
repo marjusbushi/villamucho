@@ -12,6 +12,7 @@ import Select from '@/Components/UI/Select.vue';
 import Textarea from '@/Components/UI/Textarea.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import { countryOptions, countryName } from '@/countries';
 
 const props = defineProps({
     guests: Object,
@@ -147,7 +148,7 @@ function submitDelete() {
                                 <td class="px-5 py-3 text-body-sm text-neutral-600">{{ guest.email || '—' }}</td>
                                 <td class="px-5 py-3 text-body-sm text-neutral-600">{{ guest.phone || '—' }}</td>
                                 <td class="px-5 py-3">
-                                    <Badge v-if="guest.nationality" variant="neutral" size="sm">{{ guest.nationality }}</Badge>
+                                    <Badge v-if="guest.nationality" variant="neutral" size="sm">{{ countryName(guest.nationality) }}</Badge>
                                     <span v-else class="text-neutral-400">—</span>
                                 </td>
                                 <td class="px-5 py-3 text-body-sm text-neutral-600">
@@ -215,8 +216,8 @@ function submitDelete() {
                     <FormGroup label="Nr. dokumentit" :error="createForm.errors.document_number">
                         <TextInput v-model="createForm.document_number" placeholder="I12345678" :error="createForm.errors.document_number" />
                     </FormGroup>
-                    <FormGroup label="Kombesia (ISO)" :error="createForm.errors.nationality">
-                        <TextInput v-model="createForm.nationality" placeholder="ALB" maxlength="3" :error="createForm.errors.nationality" />
+                    <FormGroup label="Kombesia" :error="createForm.errors.nationality">
+                        <Select v-model="createForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin..." :error="createForm.errors.nationality" />
                     </FormGroup>
                     <FormGroup label="Data e lindjes" :error="createForm.errors.date_of_birth">
                         <TextInput type="date" v-model="createForm.date_of_birth" :error="createForm.errors.date_of_birth" />
@@ -254,8 +255,8 @@ function submitDelete() {
                     <FormGroup label="Nr. dokumentit" :error="editForm.errors.document_number">
                         <TextInput v-model="editForm.document_number" :error="editForm.errors.document_number" />
                     </FormGroup>
-                    <FormGroup label="Kombesia (ISO)" :error="editForm.errors.nationality">
-                        <TextInput v-model="editForm.nationality" maxlength="3" :error="editForm.errors.nationality" />
+                    <FormGroup label="Kombesia" :error="editForm.errors.nationality">
+                        <Select v-model="editForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin..." :error="editForm.errors.nationality" />
                     </FormGroup>
                     <FormGroup label="Data e lindjes" :error="editForm.errors.date_of_birth">
                         <TextInput type="date" v-model="editForm.date_of_birth" :error="editForm.errors.date_of_birth" />
