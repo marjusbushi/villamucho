@@ -95,6 +95,26 @@ class ReservationChannelTest extends TestCase
         $this->assertEquals('direct', Reservation::latest('id')->first()->channel);
     }
 
+    public function test_show_exposes_channel_and_ref_to_the_detail_page(): void
+    {
+        [$admin, $room, $guest] = $this->setupHotel();
+        $res = Reservation::create([
+            'room_id' => $room->id, 'guest_id' => $guest->id, 'created_by' => $admin->id,
+            'check_in_date' => now()->addDays(3)->toDateString(),
+            'check_out_date' => now()->addDays(5)->toDateString(),
+            'status' => 'confirmed', 'total_amount' => 160, 'adults' => 2,
+            'channel' => 'booking.com', 'channel_ref' => '6006959033',
+        ]);
+
+        $this->actingAs($admin)->get(route('reservations.show', $res->id))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Reservations/Show')
+                ->where('reservation.channel', 'booking.com')
+                ->where('reservation.channel_ref', '6006959033')
+            );
+    }
+
     public function test_index_exposes_channel_to_the_page(): void
     {
         [$admin, $room, $guest] = $this->setupHotel();

@@ -13,8 +13,8 @@ import Textarea from '@/Components/UI/Textarea.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ActionMenu from '@/Components/UI/ActionMenu.vue';
-import { channelOptions, channelMeta } from '@/channels';
-import { Eye, LogIn, LogOut, Pencil, Ban } from 'lucide-vue-next';
+import { channelOptions } from '@/channels';
+import { Eye, Pencil, Ban } from 'lucide-vue-next';
 
 const menuItemClass = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-body-sm text-neutral-700 transition-colors hover:bg-neutral-50 no-underline';
 
@@ -200,7 +200,6 @@ function formatDate(d) {
                                 <th class="px-5 py-3 text-left text-label text-neutral-600">Check-in</th>
                                 <th class="px-5 py-3 text-left text-label text-neutral-600">Check-out</th>
                                 <th class="px-5 py-3 text-left text-label text-neutral-600">Statusi</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Burimi</th>
                                 <th class="px-5 py-3 text-right text-label text-neutral-600">Total</th>
                                 <th class="px-5 py-3 text-right text-label text-neutral-600">Veprime</th>
                             </tr>
@@ -223,24 +222,16 @@ function formatDate(d) {
                                         {{ statusBadge[res.status]?.label }}
                                     </Badge>
                                 </td>
-                                <td class="px-5 py-3">
-                                    <span class="inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-2 py-0.5 text-tiny font-medium uppercase tracking-wide text-neutral-700 ring-1 ring-neutral-200/60">
-                                        <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: channelMeta(res.channel).color }" />
-                                        {{ channelMeta(res.channel).label }}
-                                    </span>
-                                </td>
                                 <td class="px-5 py-3 text-right text-body-sm text-primary-900 font-medium">€{{ res.total_amount }}</td>
                                 <td class="px-5 py-3 text-right">
-                                    <div class="flex justify-end">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <Button v-if="canUpdate && res.status === 'confirmed'" size="sm" variant="primary" @click="doCheckIn(res)">Check-in</Button>
+                                        <Link v-if="canUpdate && res.status === 'checked_in'" :href="route('reservations.show', res.id)" class="no-underline">
+                                            <Button size="sm" variant="secondary">Check-out</Button>
+                                        </Link>
                                         <ActionMenu>
                                             <Link :href="route('reservations.show', res.id)" :class="menuItemClass">
                                                 <Eye class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> Detaje
-                                            </Link>
-                                            <button v-if="canUpdate && res.status === 'confirmed'" type="button" :class="menuItemClass" @click="doCheckIn(res)">
-                                                <LogIn class="h-4 w-4 text-success-500" :stroke-width="1.75" /> Check-in
-                                            </button>
-                                            <Link v-if="canUpdate && res.status === 'checked_in'" :href="route('reservations.show', res.id)" :class="menuItemClass">
-                                                <LogOut class="h-4 w-4 text-info-500" :stroke-width="1.75" /> Check-out
                                             </Link>
                                             <button v-if="canUpdate && !['checked_in','checked_out','cancelled'].includes(res.status)" type="button" :class="menuItemClass" @click="openEdit(res)">
                                                 <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> Edito

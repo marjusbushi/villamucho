@@ -11,6 +11,7 @@ import TextInput from '@/Components/UI/TextInput.vue';
 import Select from '@/Components/UI/Select.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import { channelMeta } from '@/channels';
 
 const props = defineProps({
     reservation: Object,
@@ -189,6 +190,16 @@ function settleAndCheckout(method) {
                     <div class="flex justify-between">
                         <dt class="text-body-sm text-neutral-500">Nete</dt>
                         <dd class="text-body-sm text-neutral-700 text-right">{{ reservation.nights }} ({{ reservation.adults }} te rritur<span v-if="reservation.children">, {{ reservation.children }} femije</span>)</dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-body-sm text-neutral-500">Burimi</dt>
+                        <dd class="text-body-sm text-right">
+                            <span class="inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-2 py-0.5 text-tiny font-medium uppercase tracking-wide text-neutral-700 ring-1 ring-neutral-200/60">
+                                <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: channelMeta(reservation.channel).color }" />
+                                {{ channelMeta(reservation.channel).label }}
+                            </span>
+                            <span v-if="reservation.channel_ref" class="ml-2 text-tiny text-neutral-400">#{{ reservation.channel_ref }}</span>
+                        </dd>
                     </div>
                     <div v-if="reservation.notes" class="border-t border-neutral-100 pt-3">
                         <dt class="text-body-sm text-neutral-500 mb-1">Shenime</dt>
