@@ -8,6 +8,7 @@ import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import TextInput from '@/Components/UI/TextInput.vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
 import Select from '@/Components/UI/Select.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
@@ -313,7 +314,7 @@ function settleAndCheckout(method) {
                     <TextInput v-model="lineForm.description" placeholder="P.sh. Minibar, transferim..." :error="lineForm.errors.description" />
                 </FormGroup>
                 <FormGroup label="Data (opsionale)" :error="lineForm.errors.charge_date">
-                    <TextInput type="date" v-model="lineForm.charge_date" :error="lineForm.errors.charge_date" />
+                    <DatePicker v-model="lineForm.charge_date" :error="lineForm.errors.charge_date" />
                 </FormGroup>
             </form>
             <template #footer>

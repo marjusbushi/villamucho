@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Button from '@/Components/UI/Button.vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
 import { Printer } from 'lucide-vue-next';
 
 // Shared shell for every report screen: breadcrumb back to the hub, an optional
@@ -41,11 +42,11 @@ function doPrint() {
         <div v-if="filters" class="mt-6 flex flex-wrap items-end gap-3 print:hidden">
             <div>
                 <label class="block text-label text-neutral-600 mb-1.5">Nga</label>
-                <input type="date" v-model="from" class="rounded-lg border border-neutral-200 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                <DatePicker v-model="from" />
             </div>
             <div>
                 <label class="block text-label text-neutral-600 mb-1.5">Deri</label>
-                <input type="date" v-model="to" class="rounded-lg border border-neutral-200 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-2 focus:ring-accent-500/40" />
+                <DatePicker v-model="to" />
             </div>
             <Button variant="primary" @click="apply">Apliko</Button>
             <slot name="filters" />

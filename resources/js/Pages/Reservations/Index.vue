@@ -8,6 +8,7 @@ import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import TextInput from '@/Components/UI/TextInput.vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
 import Select from '@/Components/UI/Select.vue';
 import Textarea from '@/Components/UI/Textarea.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
@@ -353,10 +354,10 @@ function formatDate(d) {
                         <Select v-model="createForm.room_id" :options="roomOptions" placeholder="Zgjidh dhomen..." :error="createForm.errors.room_id" />
                     </FormGroup>
                     <FormGroup label="Check-in" :error="createForm.errors.check_in_date" required>
-                        <TextInput type="date" v-model="createForm.check_in_date" :error="createForm.errors.check_in_date" />
+                        <DatePicker v-model="createForm.check_in_date" :error="createForm.errors.check_in_date" />
                     </FormGroup>
                     <FormGroup label="Check-out" :error="createForm.errors.check_out_date" required>
-                        <TextInput type="date" v-model="createForm.check_out_date" :error="createForm.errors.check_out_date" />
+                        <DatePicker v-model="createForm.check_out_date" :error="createForm.errors.check_out_date" />
                     </FormGroup>
                     <FormGroup label="Te rritur" :error="createForm.errors.adults">
                         <TextInput type="number" v-model="createForm.adults" min="1" max="10" />
@@ -423,10 +424,10 @@ function formatDate(d) {
                         <Select v-model="editForm.room_id" :options="roomOptions" :error="editForm.errors.room_id" />
                     </FormGroup>
                     <FormGroup label="Check-in" :error="editForm.errors.check_in_date" required>
-                        <TextInput type="date" v-model="editForm.check_in_date" :error="editForm.errors.check_in_date" />
+                        <DatePicker v-model="editForm.check_in_date" :error="editForm.errors.check_in_date" />
                     </FormGroup>
                     <FormGroup label="Check-out" :error="editForm.errors.check_out_date" required>
-                        <TextInput type="date" v-model="editForm.check_out_date" :error="editForm.errors.check_out_date" />
+                        <DatePicker v-model="editForm.check_out_date" :error="editForm.errors.check_out_date" />
                     </FormGroup>
                     <FormGroup label="Te rritur">
                         <TextInput type="number" v-model="editForm.adults" min="1" max="10" />

@@ -4,6 +4,7 @@ import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { CalendarX2 } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
 
 const { t } = useI18n();
 
@@ -110,11 +111,11 @@ function goBack(toStep) {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.search.checkIn') }}</label>
-                            <input type="date" v-model="searchForm.check_in" :min="new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
+                            <DatePicker v-model="searchForm.check_in" :min="new Date().toISOString().split('T')[0]" />
                         </div>
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.search.checkOut') }}</label>
-                            <input type="date" v-model="searchForm.check_out" :min="searchForm.check_in || new Date().toISOString().split('T')[0]" class="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-body-sm focus:border-ionian focus:ring-2 focus:ring-ionian/30" />
+                            <DatePicker v-model="searchForm.check_out" :min="searchForm.check_in || new Date().toISOString().split('T')[0]" />
                         </div>
                         <div>
                             <label class="block text-label text-neutral-700 mb-1.5">{{ $t('book.search.roomType') }}</label>

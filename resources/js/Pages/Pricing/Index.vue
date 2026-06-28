@@ -7,6 +7,7 @@ import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import TextInput from '@/Components/UI/TextInput.vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 
@@ -185,10 +186,10 @@ function fmtRange(s) {
                 </FormGroup>
                 <div class="grid grid-cols-2 gap-4">
                     <FormGroup label="Nga data" :error="sform.errors.start_date" required>
-                        <TextInput type="date" v-model="sform.start_date" :error="sform.errors.start_date" />
+                        <DatePicker v-model="sform.start_date" :error="sform.errors.start_date" />
                     </FormGroup>
                     <FormGroup label="Deri me" :error="sform.errors.end_date" required>
-                        <TextInput type="date" v-model="sform.end_date" :error="sform.errors.end_date" />
+                        <DatePicker v-model="sform.end_date" :error="sform.errors.end_date" />
                     </FormGroup>
                 </div>
                 <FormGroup label="Prioriteti" :error="sform.errors.priority" required>
