@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // Beds24 channel manager (OTA sync: Booking.com, Expedia, Airbnb). V1 JSON API.
+    'beds24' => [
+        'api_key' => env('BEDS24_API_KEY'),
+        'base_url' => env('BEDS24_BASE_URL', 'https://api.beds24.com/json'),
+        'prop_id' => env('BEDS24_PROP_ID', '337873'),
+    ],
+
 ];
