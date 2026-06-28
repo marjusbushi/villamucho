@@ -60,7 +60,7 @@ const groups = [
             { name: 'Z-Report / Mbyllje Turni', desc: 'Pajtimi i arkës për çdo turn: kesh/kartë/folio, pritur vs numëruar.', to: 'reports.shifts' },
             { name: 'Arkëtime & Cash', desc: 'Paratë e mbledhura (jo të faturuara) sipas metodës/ditës/stafit.', to: 'reports.payments' },
             { name: 'Raport TVSH', desc: 'Ndarja periodike e TVSH-së për deklarim tatimor.', to: 'reports.vat' },
-            { name: 'Zbritje të Dhëna', desc: 'Çdo zbritje/falje e dhënë — sa të ardhura janë lëshuar.', to: null },
+            { name: 'Zbritje të Dhëna', desc: 'Çdo zbritje/falje e dhënë — sa të ardhura janë lëshuar.', to: 'reports.discounts' },
         ],
     },
 ];

@@ -131,6 +131,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::get('/reports/room-status', [ReportsController::class, 'roomStatus'])->name('reports.roomStatus');
         Route::get('/reports/housekeeping', [ReportsController::class, 'housekeepingReport'])->name('reports.housekeepingReport');
         Route::get('/reports/in-house', [ReportsController::class, 'inHouse'])->name('reports.inHouse');
+        Route::get('/reports/discounts', [ReportsController::class, 'discounts'])->name('reports.discounts');
     });
 
     // Admin-only: User Management + Settings
