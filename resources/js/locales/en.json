@@ -125,7 +125,7 @@
       "lastName": "Last name *",
       "lastNamePlaceholder": "Last name",
       "email": "Email *",
-      "emailPlaceholder": "email@example.com",
+      "emailPlaceholder": "email{'@'}example.com",
       "phone": "Phone *",
       "phonePlaceholder": "+355 69...",
       "specialRequests": "Special requests",
@@ -149,7 +149,7 @@
       },
       "email": {
         "label": "Email *",
-        "placeholder": "email@example.com"
+        "placeholder": "email{'@'}example.com"
       },
       "message": {
         "label": "Message *",
