@@ -3,32 +3,27 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Payment extends Model
+class Expense extends Model
 {
     protected $fillable = [
-        'reservation_id',
+        'category',
+        'description',
         'amount',
-        'method',
+        'expense_date',
         'created_by',
-        'type',
-        'is_voided',
     ];
 
     protected function casts(): array
     {
         return [
             'amount' => 'decimal:2',
-            'is_voided' => 'boolean',
+            'expense_date' => 'date',
         ];
     }
 
-    public function reservation()
-    {
-        return $this->belongsTo(Reservation::class);
-    }
-
-    public function createdBy()
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }

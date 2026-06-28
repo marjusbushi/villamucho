@@ -40,6 +40,12 @@ class Reservation extends Model
         'channel',
         'channel_ref',
         'commission_amount',
+        'no_show_at',
+        'no_show_by',
+        'eta',
+        'etd',
+        'early_check_in',
+        'late_check_out',
     ];
 
     /**
@@ -61,6 +67,9 @@ class Reservation extends Model
             'check_in_date' => 'date',
             'check_out_date' => 'date',
             'total_amount' => 'decimal:2',
+            'no_show_at' => 'datetime',
+            'early_check_in' => 'boolean',
+            'late_check_out' => 'boolean',
         ];
     }
 

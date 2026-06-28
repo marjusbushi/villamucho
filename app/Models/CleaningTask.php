@@ -15,12 +15,14 @@ class CleaningTask extends Model
         'notes',
         'issue_reported',
         'completed_at',
+        'started_at',
     ];
 
     protected function casts(): array
     {
         return [
             'completed_at' => 'datetime',
+            'started_at' => 'datetime',
         ];
     }
 

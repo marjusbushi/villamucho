@@ -13,6 +13,7 @@ class FolioItem extends Model
         'amount',
         'type',
         'charge_date',
+        'vat_rate',
     ];
 
     protected function casts(): array
@@ -20,6 +21,7 @@ class FolioItem extends Model
         return [
             'amount' => 'decimal:2',
             'charge_date' => 'date',
+            'vat_rate' => 'decimal:2',
         ];
     }
 

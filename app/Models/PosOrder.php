@@ -14,12 +14,18 @@ class PosOrder extends Model
         'total_amount',
         'created_by',
         'pos_shift_id',
+        'paid_at',
+        'business_date',
+        'covers',
     ];
 
     protected function casts(): array
     {
         return [
             'total_amount' => 'decimal:2',
+            'paid_at' => 'datetime',
+            'business_date' => 'date',
+            'covers' => 'integer',
         ];
     }
 

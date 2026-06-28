@@ -21,6 +21,8 @@ class Guest extends Model
         'date_of_birth',
         'preferences',
         'notes',
+        'tags',
+        'marketing_consent',
     ];
 
     protected function casts(): array
@@ -28,6 +30,8 @@ class Guest extends Model
         return [
             'date_of_birth' => 'date',
             'preferences' => 'array',
+            'tags' => 'array',
+            'marketing_consent' => 'boolean',
         ];
     }
 
