@@ -8,6 +8,7 @@ import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import TextInput from '@/Components/UI/TextInput.vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
 import Select from '@/Components/UI/Select.vue';
 import Textarea from '@/Components/UI/Textarea.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
@@ -220,7 +221,7 @@ function submitDelete() {
                         <Select v-model="createForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin..." :error="createForm.errors.nationality" />
                     </FormGroup>
                     <FormGroup label="Data e lindjes" :error="createForm.errors.date_of_birth">
-                        <TextInput type="date" v-model="createForm.date_of_birth" :error="createForm.errors.date_of_birth" />
+                        <DatePicker v-model="createForm.date_of_birth" :error="createForm.errors.date_of_birth" />
                     </FormGroup>
                 </div>
                 <FormGroup label="Shenime" :error="createForm.errors.notes">
@@ -259,7 +260,7 @@ function submitDelete() {
                         <Select v-model="editForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin..." :error="editForm.errors.nationality" />
                     </FormGroup>
                     <FormGroup label="Data e lindjes" :error="editForm.errors.date_of_birth">
-                        <TextInput type="date" v-model="editForm.date_of_birth" :error="editForm.errors.date_of_birth" />
+                        <DatePicker v-model="editForm.date_of_birth" :error="editForm.errors.date_of_birth" />
                     </FormGroup>
                 </div>
                 <FormGroup label="Shenime" :error="editForm.errors.notes">
