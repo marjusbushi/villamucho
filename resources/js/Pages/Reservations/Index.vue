@@ -14,6 +14,7 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ActionMenu from '@/Components/UI/ActionMenu.vue';
 import { channelOptions } from '@/channels';
+import { countryOptions } from '@/countries';
 import { Eye, Pencil, Ban } from 'lucide-vue-next';
 
 const menuItemClass = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-body-sm text-neutral-700 transition-colors hover:bg-neutral-50 no-underline';
@@ -35,6 +36,7 @@ const selectedRes = ref(null);
 const perms = usePage().props.auth.user?.permissions || [];
 const canCreate = perms.includes('create_reservations');
 const canUpdate = perms.includes('update_reservations');
+const canCreateGuest = perms.includes('create_guests');
 
 const statusBadge = {
     pending: { variant: 'warning', label: 'Ne pritje' },
@@ -57,10 +59,10 @@ const roomOptions = props.rooms.map((r) => ({
     label: `${r.room_number} — ${r.room_type?.name} (€${r.room_type?.base_price})`,
 }));
 
-const guestOptions = props.guests.map((g) => ({
+const guestOptions = computed(() => props.guests.map((g) => ({
     value: g.id,
     label: `${g.first_name} ${g.last_name}${g.phone ? ' · ' + g.phone : ''}`,
-}));
+})));
 
 const filterStatus = ref(props.filters?.status || '');
 const searchQuery = ref(props.filters?.search || '');
@@ -163,6 +165,28 @@ function submitEdit() {
         onSuccess: () => {
             showEditModal.value = false;
             toasts.value?.success('Rezervimi u perditesua.');
+        },
+    });
+}
+
+// Inline "new guest" inside the create modal: create via guests.store (which
+// returns back()), keep the reservation modal open (preserveState), then
+// auto-select the freshly created guest in the reservation.
+const showNewGuest = ref(false);
+const guestForm = useForm({ first_name: '', last_name: '', email: '', phone: '', nationality: '' });
+
+function saveNewGuest() {
+    const existingIds = new Set(props.guests.map((g) => g.id));
+    guestForm.post(route('guests.store'), {
+        preserveScroll: true,
+        preserveState: true,
+        only: ['guests'],
+        onSuccess: () => {
+            const created = props.guests.find((g) => !existingIds.has(g.id));
+            if (created) createForm.guest_id = created.id;
+            guestForm.reset();
+            showNewGuest.value = false;
+            toasts.value?.success('Mysafiri u shtua.');
         },
     });
 }
@@ -321,6 +345,9 @@ function formatDate(d) {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormGroup label="Mysafiri" :error="createForm.errors.guest_id" required>
                         <Select v-model="createForm.guest_id" :options="guestOptions" placeholder="Zgjidh mysafirin..." :error="createForm.errors.guest_id" />
+                        <button v-if="canCreateGuest" type="button" class="mt-1.5 text-tiny text-accent-700 hover:text-accent-800" @click="showNewGuest = !showNewGuest">
+                            {{ showNewGuest ? '− Mbyll' : '+ Mysafir i ri' }}
+                        </button>
                     </FormGroup>
                     <FormGroup label="Dhoma" :error="createForm.errors.room_id" required>
                         <Select v-model="createForm.room_id" :options="roomOptions" placeholder="Zgjidh dhomen..." :error="createForm.errors.room_id" />
@@ -344,6 +371,33 @@ function formatDate(d) {
                         <TextInput type="number" v-model="createForm.total_amount" min="0" step="0.01" placeholder="0.00" :error="createForm.errors.total_amount" />
                     </FormGroup>
                 </div>
+
+                <!-- Inline new-guest panel (stays inside this modal) -->
+                <div v-if="showNewGuest" class="rounded-lg border border-accent-200 bg-accent-50/40 p-4 space-y-3">
+                    <p class="text-label text-neutral-700">Shto nje mysafir te ri</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormGroup label="Emri" :error="guestForm.errors.first_name" required>
+                            <TextInput v-model="guestForm.first_name" placeholder="Emri" :error="guestForm.errors.first_name" />
+                        </FormGroup>
+                        <FormGroup label="Mbiemri" :error="guestForm.errors.last_name" required>
+                            <TextInput v-model="guestForm.last_name" placeholder="Mbiemri" :error="guestForm.errors.last_name" />
+                        </FormGroup>
+                        <FormGroup label="Email" :error="guestForm.errors.email">
+                            <TextInput type="email" v-model="guestForm.email" placeholder="email (opsional)" :error="guestForm.errors.email" />
+                        </FormGroup>
+                        <FormGroup label="Telefon" :error="guestForm.errors.phone">
+                            <TextInput v-model="guestForm.phone" placeholder="+355..." :error="guestForm.errors.phone" />
+                        </FormGroup>
+                        <FormGroup label="Kombesia" :error="guestForm.errors.nationality">
+                            <Select v-model="guestForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin..." :error="guestForm.errors.nationality" />
+                        </FormGroup>
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <Button variant="outline" type="button" @click="showNewGuest = false">Anulo</Button>
+                        <Button variant="primary" type="button" :loading="guestForm.processing" @click="saveNewGuest">Ruaj mysafirin</Button>
+                    </div>
+                </div>
+
                 <div class="rounded-lg bg-neutral-50 border border-neutral-100 px-4 py-2.5 flex items-center gap-x-6 gap-y-1 flex-wrap text-body-sm">
                     <span class="text-neutral-500">Komisioni <span class="text-neutral-400">{{ feePct(createForm.channel) }}%</span>: <span class="text-neutral-900 font-medium">€{{ commissionOf(createForm).toFixed(2) }}</span></span>
                     <span class="text-neutral-500">Neto: <span class="text-accent-700 font-semibold">€{{ netOf(createForm).toFixed(2) }}</span></span>

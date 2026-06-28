@@ -5,6 +5,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
+import { countryName } from '@/countries';
 
 const props = defineProps({
     guest: Object,
@@ -79,7 +80,7 @@ function formatDate(d) {
                     </div>
                     <div class="flex justify-between">
                         <dt class="text-body-sm text-neutral-500">Kombesia</dt>
-                        <dd class="text-body-sm text-neutral-700 text-right">{{ guest.nationality || '—' }}</dd>
+                        <dd class="text-body-sm text-neutral-700 text-right">{{ guest.nationality ? countryName(guest.nationality) : '—' }}</dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="text-body-sm text-neutral-500">Dokument</dt>
