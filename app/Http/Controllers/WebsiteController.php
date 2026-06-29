@@ -205,9 +205,11 @@ class WebsiteController extends Controller
                     throw new \RuntimeException('room_unavailable');
                 }
 
-                // Match on normalized email; update name/phone on an existing guest
-                // instead of discarding them (and don't create case/whitespace duplicates).
-                $guest = Guest::updateOrCreate(
+                // Match an existing guest by normalized email and REUSE it WITHOUT
+                // overwriting their saved data: a public (unauthenticated) booking must
+                // not be able to tamper with an existing guest's name/phone/nationality.
+                // The fields below apply ONLY when creating a brand-new guest.
+                $guest = Guest::firstOrCreate(
                     ['email' => strtolower(trim($request->email))],
                     [
                         'first_name' => $request->first_name,
