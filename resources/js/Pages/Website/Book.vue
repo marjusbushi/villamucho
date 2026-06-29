@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { CalendarX2 } from 'lucide-vue-next';
@@ -111,6 +111,13 @@ function submitBooking() {
 function goBack(toStep) {
     step.value = toStep;
 }
+
+// When the wizard step changes, bring the new step into view — otherwise the
+// page stays scrolled where the previous step's button was and the user has to
+// scroll up to reach the new form.
+watch(step, () => {
+    nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+});
 </script>
 
 <template>
