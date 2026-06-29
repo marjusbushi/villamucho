@@ -140,7 +140,7 @@ class GuestController extends Controller
     {
         $data = $request->validate([
             'type' => ['required', 'in:passport,id_card,drivers_license,visa,other'],
-            'file' => ['required', 'file', 'max:8192', 'mimes:jpg,jpeg,png,webp,gif,pdf,doc,docx'],
+            'file' => ['required', 'file', 'max:25600', 'mimes:jpg,jpeg,png,webp,gif,pdf,doc,docx'],
         ]);
 
         $file = $request->file('file');

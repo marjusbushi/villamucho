@@ -232,7 +232,7 @@ function formatDate(d) {
                             <Select v-model="uploadForm.type" :options="docTypeOptions" />
                         </FormGroup>
                         <div>
-                            <label class="block text-label text-neutral-700 mb-1.5">Skedari (JPG/PNG/PDF/DOC, max 8MB)</label>
+                            <label class="block text-label text-neutral-700 mb-1.5">Skedari (JPG/PNG/PDF/DOC, max 25MB)</label>
                             <input ref="docInput" type="file" accept="image/*,.pdf,.doc,.docx" :class="fileInputClass" @change="onFile" />
                             <p v-if="uploadForm.errors.file" class="text-small text-error-600 mt-1">{{ uploadForm.errors.file }}</p>
                         </div>
