@@ -69,6 +69,11 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/guests', [GuestController::class, 'store'])->middleware('permission:create_guests')->name('guests.store');
         Route::put('/guests/{guest}', [GuestController::class, 'update'])->middleware('permission:update_guests')->name('guests.update');
         Route::delete('/guests/{guest}', [GuestController::class, 'destroy'])->middleware('permission:delete_guests')->name('guests.destroy');
+
+        // Identity documents (passport/ID/…) — private storage, served only here.
+        Route::post('/guests/{guest}/documents', [GuestController::class, 'storeDocument'])->middleware('permission:update_guests')->name('guests.documents.store');
+        Route::get('/guests/documents/{document}', [GuestController::class, 'downloadDocument'])->name('guests.documents.show');
+        Route::delete('/guests/documents/{document}', [GuestController::class, 'destroyDocument'])->middleware('permission:update_guests')->name('guests.documents.destroy');
     });
 
     // Reservations

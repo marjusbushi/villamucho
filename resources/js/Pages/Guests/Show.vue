@@ -1,10 +1,15 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { Link, useForm, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
+import Select from '@/Components/UI/Select.vue';
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import { FileText, Image as ImageIcon, Trash2, Eye, Upload } from 'lucide-vue-next';
 import { countryName } from '@/countries';
 
 const props = defineProps({
@@ -12,9 +17,55 @@ const props = defineProps({
     stays: Array,
     stats: Object,
     duplicates: Array,
+    documents: { type: Array, default: () => [] },
 });
 
-const docTypeLabel = { id_card: 'Karte identiteti', passport: 'Pasaporte', drivers_license: 'Patente' };
+const toasts = ref(null);
+const perms = usePage().props.auth.user?.permissions || [];
+const canUpdate = perms.includes('update_guests');
+
+const docTypeLabel = { id_card: 'Karte identiteti', passport: 'Pasaporte', drivers_license: 'Patente', visa: 'Vize', other: 'Tjeter' };
+const docTypeOptions = [
+    { value: 'passport', label: 'Pasaporte' },
+    { value: 'id_card', label: 'Karte identiteti' },
+    { value: 'drivers_license', label: 'Patente' },
+    { value: 'visa', label: 'Vize' },
+    { value: 'other', label: 'Tjeter' },
+];
+
+const fileInputClass = 'block w-full text-small text-neutral-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-accent-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-accent-700';
+const docInput = ref(null);
+const uploadForm = useForm({ type: 'passport', file: null });
+
+function fileSize(b) {
+    if (!b) return '';
+    const kb = b / 1024;
+    return kb < 1024 ? `${Math.round(kb)} KB` : `${(kb / 1024).toFixed(1)} MB`;
+}
+const isImage = (mime) => (mime || '').startsWith('image/');
+
+function onFile(e) {
+    uploadForm.file = e.target.files?.[0] || null;
+}
+function uploadDoc() {
+    if (!uploadForm.file) return;
+    uploadForm.post(route('guests.documents.store', props.guest.id), {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            uploadForm.reset('file');
+            if (docInput.value) docInput.value.value = '';
+            toasts.value?.success('Dokumenti u ngarkua.');
+        },
+    });
+}
+function deleteDoc(doc) {
+    if (!confirm(`Fshi dokumentin "${doc.original_name}"?`)) return;
+    router.delete(route('guests.documents.destroy', doc.id), {
+        preserveScroll: true,
+        onSuccess: () => toasts.value?.success('Dokumenti u fshi.'),
+    });
+}
 
 const statusBadge = {
     pending: { variant: 'warning', label: 'Ne pritje' },
@@ -150,5 +201,47 @@ function formatDate(d) {
                 </div>
             </Card>
         </div>
+
+        <!-- Documents (passport / ID / …) — stored privately -->
+        <div class="mt-6">
+            <Card :padding="false">
+                <div class="px-5 py-4 border-b border-neutral-200">
+                    <h3 class="text-label text-neutral-600 uppercase tracking-wider">Dokumente (pasaportë, ID…)</h3>
+                    <p class="text-tiny text-neutral-400 mt-0.5">Ruhen privatisht — shihen vetëm këtu nga stafi me leje.</p>
+                </div>
+
+                <ul v-if="documents.length" class="divide-y divide-neutral-100">
+                    <li v-for="d in documents" :key="d.id" class="px-5 py-3 flex items-center gap-3 hover:bg-neutral-50">
+                        <component :is="isImage(d.mime) ? ImageIcon : FileText" class="h-5 w-5 text-neutral-400 shrink-0" :stroke-width="1.75" />
+                        <div class="min-w-0 flex-1">
+                            <p class="text-body-sm text-primary-900 font-medium truncate">{{ docTypeLabel[d.type] || d.type }} <span class="text-neutral-400 font-normal">· {{ d.original_name }}</span></p>
+                            <p class="text-tiny text-neutral-400">{{ fileSize(d.size) }}<span v-if="d.uploaded_by"> · {{ d.uploaded_by }}</span><span v-if="d.created_at"> · {{ d.created_at }}</span></p>
+                        </div>
+                        <a :href="d.url" target="_blank" rel="noopener" class="no-underline shrink-0">
+                            <Button size="sm" variant="ghost"><Eye class="h-4 w-4 mr-1" :stroke-width="1.75" /> Shiko</Button>
+                        </a>
+                        <Button v-if="canUpdate" size="sm" variant="ghost" class="text-error-600 shrink-0" @click="deleteDoc(d)"><Trash2 class="h-4 w-4" :stroke-width="1.75" /></Button>
+                    </li>
+                </ul>
+                <div v-else class="px-6 py-8 text-center text-body-sm text-neutral-500">Asnjë dokument i bashkëngjitur.</div>
+
+                <!-- Upload -->
+                <div v-if="canUpdate" class="px-5 py-4 border-t border-neutral-200 bg-neutral-50/50">
+                    <div class="grid grid-cols-1 sm:grid-cols-[180px_1fr_auto] gap-3 sm:items-end">
+                        <FormGroup label="Lloji">
+                            <Select v-model="uploadForm.type" :options="docTypeOptions" />
+                        </FormGroup>
+                        <div>
+                            <label class="block text-label text-neutral-700 mb-1.5">Skedari (JPG/PNG/PDF/DOC, max 8MB)</label>
+                            <input ref="docInput" type="file" accept="image/*,.pdf,.doc,.docx" :class="fileInputClass" @change="onFile" />
+                            <p v-if="uploadForm.errors.file" class="text-small text-error-600 mt-1">{{ uploadForm.errors.file }}</p>
+                        </div>
+                        <Button variant="primary" :loading="uploadForm.processing" :disabled="!uploadForm.file" @click="uploadDoc"><Upload class="h-4 w-4 mr-1.5" :stroke-width="1.75" /> Ngarko</Button>
+                    </div>
+                </div>
+            </Card>
+        </div>
+
+        <ToastContainer ref="toasts" />
     </AppLayout>
 </template>

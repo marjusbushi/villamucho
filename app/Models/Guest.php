@@ -58,4 +58,9 @@ class Guest extends Model
     {
         return $this->hasMany(Reservation::class);
     }
+
+    public function documents()
+    {
+        return $this->hasMany(GuestDocument::class)->latest();
+    }
 }

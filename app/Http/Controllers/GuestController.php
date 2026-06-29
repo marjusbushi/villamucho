@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Http\Requests\GuestStoreRequest;
 use App\Http\Requests\GuestUpdateRequest;
 use App\Models\Guest;
+use App\Models\GuestDocument;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -93,6 +95,16 @@ class GuestController extends Controller
                 'total_nights' => (int) $stays->sum(fn($r) => $r->nights),
                 'lifetime_spend' => (float) $stays->whereNotIn('status', ['cancelled'])->sum('total_amount'),
             ],
+            'documents' => $guest->documents()->with('uploader:id,name')->get()->map(fn ($d) => [
+                'id' => $d->id,
+                'type' => $d->type,
+                'original_name' => $d->original_name,
+                'mime' => $d->mime,
+                'size' => (int) $d->size,
+                'uploaded_by' => $d->uploader?->name,
+                'created_at' => $d->created_at?->toDateString(),
+                'url' => route('guests.documents.show', $d->id),
+            ]),
             'duplicates' => $duplicates,
         ]);
     }
@@ -120,5 +132,49 @@ class GuestController extends Controller
         $guest->delete();
 
         return back()->with('success', 'Mysafiri u fshi.');
+    }
+
+    // ----- Identity documents (passport / ID / …) — stored on the PRIVATE disk -----
+
+    public function storeDocument(Request $request, Guest $guest): RedirectResponse
+    {
+        $data = $request->validate([
+            'type' => ['required', 'in:passport,id_card,drivers_license,visa,other'],
+            'file' => ['required', 'file', 'max:8192', 'mimes:jpg,jpeg,png,webp,gif,pdf,doc,docx'],
+        ]);
+
+        $file = $request->file('file');
+        // 'local' disk root = storage/app/private → NOT web-accessible (sensitive ID docs).
+        $path = $file->store("guest-documents/{$guest->id}", 'local');
+
+        $guest->documents()->create([
+            'type' => $data['type'],
+            'original_name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'mime' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+            'uploaded_by' => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Dokumenti u ngarkua.');
+    }
+
+    /** Stream a private document inline (auth + view_guests gated by the route). */
+    public function downloadDocument(GuestDocument $document)
+    {
+        abort_unless(Storage::disk('local')->exists($document->path), 404);
+
+        return response()->file(
+            Storage::disk('local')->path($document->path),
+            ['Content-Disposition' => 'inline; filename="' . addslashes($document->original_name) . '"']
+        );
+    }
+
+    public function destroyDocument(GuestDocument $document): RedirectResponse
+    {
+        Storage::disk('local')->delete($document->path);
+        $document->delete();
+
+        return back()->with('success', 'Dokumenti u fshi.');
     }
 }
