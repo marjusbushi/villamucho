@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, watch } from 'vue';
-import { useForm, router } from '@inertiajs/vue3';
+import { useForm, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
@@ -52,6 +52,21 @@ function saveRates() {
 // ---- Seasons CRUD ----
 const showSeason = ref(false);
 const editingSeason = ref(null);
+const syncing = ref(false);
+function syncChannex() {
+    syncing.value = true;
+    router.post(route('channex.sync'), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            const flash = usePage().props.flash || {};
+            if (flash.error) toasts.value?.error(flash.error);
+            else toasts.value?.success(flash.success || 'Sinkronizimi u nis.');
+        },
+        onError: () => toasts.value?.error('Sinkronizimi deshtoi.'),
+        onFinish: () => { syncing.value = false; },
+    });
+}
+
 const sform = useForm({ name: '', start_date: '', end_date: '', priority: 0 });
 
 function openCreateSeason() {
@@ -101,6 +116,19 @@ function fmtRange(s) {
         />
 
         <div class="mt-6 space-y-6">
+            <!-- Channel manager (Channex) -->
+            <Card>
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-h4 text-primary-900">Channel Manager (Channex)</h3>
+                        <p class="text-small text-neutral-500 mt-0.5">Cmimet dhe dhomat e lira shkojne vetvetiu te Channex (e me tej te OTA-te) sa here ndryshojne. Mund ta nisesh edhe manualisht.</p>
+                    </div>
+                    <Button variant="secondary" :disabled="syncing" @click="syncChannex">
+                        {{ syncing ? 'Po sinkronizohet…' : 'Sinkronizo tani' }}
+                    </Button>
+                </div>
+            </Card>
+
             <!-- Seasons -->
             <Card>
                 <template #header>

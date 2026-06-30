@@ -1,0 +1,162 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\ChannelMapping;
+use App\Models\Reservation;
+use App\Models\Room;
+use App\Models\RoomType;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use RuntimeException;
+
+/**
+ * Computes the PMS truth (free rooms per date + seasonal price per date) for a
+ * room type and pushes it to Channel manager (Channex) as availability + rates.
+ * Consecutive dates that share a value are merged into one range so a flat year
+ * is a couple of API rows, not 365. No-op when Channex is unconfigured or the
+ * room type has no channel mapping.
+ */
+class ChannelSync
+{
+    /** Default sync window: today .. today + this many days (inclusive). */
+    public const WINDOW_DAYS = 365;
+
+    public function __construct(protected ChannexClient $channex) {}
+
+    /**
+     * Push availability + rates for one room type to Channex over [from, to]
+     * (inclusive; defaults to today .. today+WINDOW_DAYS). Returns false and does
+     * nothing if Channex is not configured or this room type is not mapped.
+     */
+    public function pushRoomType(RoomType $roomType, ?CarbonInterface $from = null, ?CarbonInterface $to = null): bool
+    {
+        if (! $this->channex->configured()) {
+            return false;
+        }
+
+        $mapping = ChannelMapping::where('channel', 'channex')
+            ->where('room_type_id', $roomType->id)
+            ->first();
+        if (! $mapping || ! $mapping->channex_room_type_id) {
+            return false;
+        }
+
+        $from = $from ? CarbonImmutable::parse($from) : CarbonImmutable::today();
+        $to = $to ? CarbonImmutable::parse($to) : $from->addDays(self::WINDOW_DAYS);
+
+        $ok = $this->channex->pushAvailabilityRanges(
+            $mapping->channex_room_type_id,
+            $this->toRanges($this->availabilityByDate($roomType, $from, $to), 'availability'),
+        );
+
+        if ($mapping->channex_rate_plan_id) {
+            $ok = $this->channex->pushRateRanges(
+                $mapping->channex_rate_plan_id,
+                $this->toRanges($this->priceByDate($roomType, $from, $to), 'rate'),
+            ) && $ok;
+        }
+
+        // A rejected push (4xx / exhausted 5xx) must SURFACE so the queued job
+        // retries — stale availability on an OTA risks overbooking. The skip
+        // cases (not configured / unmapped) already returned false above without
+        // attempting any push, so reaching here means a push was actually made.
+        if (! $ok) {
+            throw new RuntimeException("Channex push failed for room type {$roomType->id}");
+        }
+
+        return true;
+    }
+
+    /**
+     * Free rooms per date = (rooms of this type, excluding maintenance) minus the
+     * active reservations whose stay covers that date. Floored at 0. A reservation
+     * occupies [check_in, check_out) — the check-out day is free (matches
+     * Reservation::isRoomAvailable).
+     *
+     * @return array<string,int>  'Y-m-d' => available
+     */
+    public function availabilityByDate(RoomType $roomType, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $roomIds = Room::where('room_type_id', $roomType->id)
+            ->where('status', '!=', 'maintenance')
+            ->pluck('id');
+        $sellable = $roomIds->count();
+
+        // whereDate (not raw <=) so the comparison is date-only: a date column can
+        // be stored with a time component (sqlite), and 'YYYY-MM-DD 00:00:00' sorts
+        // AFTER 'YYYY-MM-DD' as a string, which would silently drop a same-day
+        // check-in. The per-date filter below is the precise overlap check.
+        $reservations = $roomIds->isEmpty() ? collect() : Reservation::whereIn('room_id', $roomIds)
+            ->whereNotIn('status', ['cancelled', 'checked_out'])
+            ->whereDate('check_in_date', '<=', $to->toDateString())
+            ->whereDate('check_out_date', '>', $from->toDateString())
+            ->get(['check_in_date', 'check_out_date'])
+            ->map(fn ($r) => [
+                'in' => $r->check_in_date->toDateString(),
+                'out' => $r->check_out_date->toDateString(),
+            ]);
+
+        $out = [];
+        for ($d = CarbonImmutable::parse($from); $d->lte($to); $d = $d->addDay()) {
+            $date = $d->toDateString();
+            $occupied = $reservations->filter(fn ($r) => $date >= $r['in'] && $date < $r['out'])->count();
+            $out[$date] = max(0, $sellable - $occupied);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Nightly price per date from RoomPricing (seasons + base). quote() is
+     * half-open, so quote [from, to+1] to get a price for every inclusive day.
+     *
+     * @return array<string,float>  'Y-m-d' => price
+     */
+    public function priceByDate(RoomType $roomType, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $breakdown = RoomPricing::quote($roomType, $from->toDateString(), $to->addDay()->toDateString())['breakdown'];
+
+        $out = [];
+        foreach ($breakdown as $night) {
+            $out[$night['date']] = (float) $night['price'];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Collapse an ordered date=>value map into Channex inclusive date ranges,
+     * merging runs of consecutive days that share a value.
+     *
+     * @param  array<string,int|float>  $byDate
+     * @return array<int,array<string,string|int|float>>
+     */
+    protected function toRanges(array $byDate, string $field): array
+    {
+        $ranges = [];
+        $start = $prevDate = null;
+        $prevVal = null;
+
+        foreach ($byDate as $date => $val) {
+            if ($start === null) {
+                $start = $prevDate = $date;
+                $prevVal = $val;
+
+                continue;
+            }
+            $isNextDay = CarbonImmutable::parse($prevDate)->addDay()->toDateString() === $date;
+            if ($val !== $prevVal || ! $isNextDay) {
+                $ranges[] = ['date_from' => $start, 'date_to' => $prevDate, $field => $prevVal];
+                $start = $date;
+            }
+            $prevDate = $date;
+            $prevVal = $val;
+        }
+        if ($start !== null) {
+            $ranges[] = ['date_from' => $start, 'date_to' => $prevDate, $field => $prevVal];
+        }
+
+        return $ranges;
+    }
+}

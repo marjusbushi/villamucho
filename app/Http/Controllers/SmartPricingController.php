@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\PushRoomTypeAri;
 use App\Models\AuditLog;
 use App\Models\RateOverride;
 use App\Models\Setting;
@@ -44,6 +45,9 @@ class SmartPricingController extends Controller
 
         AuditLog::record('pricing.smart_apply', $override, $data);
 
+        // Price changed for this date -> re-push that room type to Channex.
+        PushRoomTypeAri::dispatch((int) $data['room_type_id']);
+
         return back()->with('success', 'Çmimi u aplikua për këtë datë.');
     }
 
@@ -58,6 +62,9 @@ class SmartPricingController extends Controller
         RateOverride::whereDate('date', $data['date'])
             ->where('room_type_id', $data['room_type_id'])
             ->delete();
+
+        // Price reverted for this date -> re-push that room type to Channex.
+        PushRoomTypeAri::dispatch((int) $data['room_type_id']);
 
         return back()->with('success', 'Çmimi u rikthye te tarifa normale.');
     }

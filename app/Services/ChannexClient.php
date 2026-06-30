@@ -153,18 +153,35 @@ class ChannexClient
 
     // -- writes: ARI push (idempotent: retried) ---------------------------
 
-    /** Push availability (rooms free) for a room type over an inclusive range. */
+    /** Push availability (rooms free) for a room type over one inclusive range. */
     public function pushAvailability(string $roomTypeId, string $dateFrom, string $dateTo, int $available, ?string $propertyId = null): bool
     {
-        $payload = ['values' => [[
-            'property_id' => $propertyId ?: $this->propertyId,
+        return $this->pushAvailabilityRanges($roomTypeId, [
+            ['date_from' => $dateFrom, 'date_to' => $dateTo, 'availability' => $available],
+        ], $propertyId);
+    }
+
+    /**
+     * Push availability for a room type across MANY inclusive date ranges in one
+     * call. $ranges = [['date_from'=>'Y-m-d','date_to'=>'Y-m-d','availability'=>int], ...].
+     * An empty $ranges is a no-op success (nothing to send).
+     */
+    public function pushAvailabilityRanges(string $roomTypeId, array $ranges, ?string $propertyId = null): bool
+    {
+        if ($ranges === []) {
+            return true;
+        }
+        $pid = $propertyId ?: $this->propertyId;
+        $values = array_map(fn ($r) => [
+            'property_id' => $pid,
             'room_type_id' => $roomTypeId,
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-            'availability' => $available,
-        ]]];
-        $resp = $this->http(idempotent: true)->post("{$this->baseUrl}/availability", $payload);
-        $this->log('push', 'availability', $payload, $resp);
+            'date_from' => $r['date_from'],
+            'date_to' => $r['date_to'],
+            'availability' => (int) $r['availability'],
+        ], $ranges);
+
+        $resp = $this->http(idempotent: true)->post("{$this->baseUrl}/availability", ['values' => $values]);
+        $this->log('push', 'availability', ['values' => $values], $resp);
 
         return $resp->successful();
     }
@@ -175,15 +192,32 @@ class ChannexClient
      */
     public function pushRate(string $ratePlanId, string $dateFrom, string $dateTo, float $price, ?string $propertyId = null): bool
     {
-        $payload = ['values' => [[
-            'property_id' => $propertyId ?: $this->propertyId,
+        return $this->pushRateRanges($ratePlanId, [
+            ['date_from' => $dateFrom, 'date_to' => $dateTo, 'rate' => $price],
+        ], $propertyId);
+    }
+
+    /**
+     * Push rates for a rate plan across MANY inclusive date ranges in one call.
+     * Each range's 'rate' is in EUROS (major units) and converted to cents here.
+     * An empty $ranges is a no-op success.
+     */
+    public function pushRateRanges(string $ratePlanId, array $ranges, ?string $propertyId = null): bool
+    {
+        if ($ranges === []) {
+            return true;
+        }
+        $pid = $propertyId ?: $this->propertyId;
+        $values = array_map(fn ($r) => [
+            'property_id' => $pid,
             'rate_plan_id' => $ratePlanId,
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-            'rate' => self::toCents($price),
-        ]]];
-        $resp = $this->http(idempotent: true)->post("{$this->baseUrl}/restrictions", $payload);
-        $this->log('push', 'rate', $payload, $resp);
+            'date_from' => $r['date_from'],
+            'date_to' => $r['date_to'],
+            'rate' => self::toCents((float) $r['rate']),
+        ], $ranges);
+
+        $resp = $this->http(idempotent: true)->post("{$this->baseUrl}/restrictions", ['values' => $values]);
+        $this->log('push', 'rate', ['values' => $values], $resp);
 
         return $resp->successful();
     }

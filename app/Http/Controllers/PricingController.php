@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\PushRoomTypeAri;
 use App\Models\RoomType;
 use App\Models\Season;
 use App\Models\SeasonRate;
@@ -105,6 +106,9 @@ class PricingController extends Controller
                 }
             }
         });
+
+        // Prices changed -> re-push availability + rates to the channel manager.
+        PushRoomTypeAri::dispatchAllMapped();
 
         return back()->with('success', 'Cmimet u ruajten.');
     }

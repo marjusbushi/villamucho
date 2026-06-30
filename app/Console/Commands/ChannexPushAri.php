@@ -1,0 +1,62 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Jobs\PushRoomTypeAri;
+use App\Models\ChannelMapping;
+use App\Models\RoomType;
+use App\Services\ChannelSync;
+use Carbon\CarbonImmutable;
+use Illuminate\Console\Command;
+
+/**
+ * Full availability + rate sync for every Channex-mapped room type. Inline by
+ * default (initial/manual sync with per-type output); --queue dispatches the
+ * jobs instead.
+ *
+ *   php artisan channex:push-ari
+ *   php artisan channex:push-ari --days=180 --queue
+ */
+class ChannexPushAri extends Command
+{
+    protected $signature = 'channex:push-ari {--days=365 : Days ahead to sync} {--queue : Dispatch jobs instead of pushing inline}';
+
+    protected $description = 'Push availability + rates for all Channex-mapped room types';
+
+    public function handle(ChannelSync $sync): int
+    {
+        if (! config('services.channex.api_key')) {
+            $this->error('CHANNEX_API_KEY is not set (.env).');
+
+            return self::FAILURE;
+        }
+
+        $ids = ChannelMapping::where('channel', 'channex')->pluck('room_type_id');
+        if ($ids->isEmpty()) {
+            $this->warn('No Channex-mapped room types — run channex:link-rooms first.');
+
+            return self::SUCCESS;
+        }
+
+        if ($this->option('queue')) {
+            $count = PushRoomTypeAri::dispatchAllMapped();
+            $this->info("Queued {$count} room type push(es).");
+
+            return self::SUCCESS;
+        }
+
+        $from = CarbonImmutable::today();
+        $to = $from->addDays((int) $this->option('days'));
+        foreach (RoomType::whereIn('id', $ids)->orderBy('id')->get() as $roomType) {
+            try {
+                $ok = $sync->pushRoomType($roomType, $from, $to);
+                $this->line(($ok ? '  OK   ' : '  SKIP ').$roomType->name);
+            } catch (\Throwable $e) {
+                $this->line('  FAIL '.$roomType->name.' — '.$e->getMessage());
+            }
+        }
+        $this->info('Done.');
+
+        return self::SUCCESS;
+    }
+}
