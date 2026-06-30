@@ -73,9 +73,10 @@ class ReservationController extends Controller
             ->get();
 
         $reservations = Reservation::select(
-            'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status', 'total_amount'
+            'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status',
+            'total_amount', 'adults', 'children', 'channel', 'notes', 'booking_group_id'
         )
-            ->with('guest:id,first_name,last_name')
+            ->with('guest:id,first_name,last_name,phone,email')
             ->whereNotIn('status', ['cancelled'])
             ->where('check_in_date', '<=', $endDate)
             ->where('check_out_date', '>=', $startDate)
@@ -90,10 +91,17 @@ class ReservationController extends Controller
                 'check_out_date' => $r->check_out_date->toDateString(),
                 'status' => $r->status,
                 'total_amount' => $r->total_amount,
+                'adults' => $r->adults,
+                'children' => $r->children,
+                'channel' => $r->channel,
+                'notes' => $r->notes,
+                'booking_group_id' => $r->booking_group_id,
                 'guest' => $r->guest ? [
                     'id' => $r->guest->id,
                     'first_name' => $r->guest->first_name,
                     'last_name' => $r->guest->last_name,
+                    'phone' => $r->guest->phone,
+                    'email' => $r->guest->email,
                 ] : null,
             ]);
 

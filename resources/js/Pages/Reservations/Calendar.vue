@@ -7,6 +7,7 @@ import Badge from '@/Components/UI/Badge.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ReservationCreateModal from '@/Components/Reservations/ReservationCreateModal.vue';
+import { channelMeta } from '@/channels';
 import { Link } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -99,6 +100,30 @@ function goToToday() {
 function openDetail(reservation) {
     selectedReservation.value = reservation;
     showDetailModal.value = true;
+}
+
+// --- Detail popup helpers ---
+const statusLabel = {
+    pending: 'Ne pritje',
+    confirmed: 'Konfirmuar',
+    checked_in: 'Brenda',
+    checked_out: 'Larguar',
+    cancelled: 'Anulluar',
+};
+function statusVariant(s) {
+    return s === 'checked_in' ? 'success' : s === 'confirmed' ? 'info' : s === 'pending' ? 'warning' : 'neutral';
+}
+function roomOf(res) {
+    return props.rooms.find((r) => r.id === res?.room_id) || null;
+}
+function nightsOf(res) {
+    if (!res?.check_in_date || !res?.check_out_date) return 0;
+    return Math.max(0, Math.round((new Date(res.check_out_date) - new Date(res.check_in_date)) / 86400000));
+}
+// Other rooms in the same multi-room booking (linked by booking_group_id).
+function groupSiblings(res) {
+    if (!res?.booking_group_id) return [];
+    return props.reservations.filter((r) => r.booking_group_id === res.booking_group_id && r.id !== res.id);
 }
 
 // Create form — shared popup with the list view
@@ -287,15 +312,32 @@ function getRoomCalendarCells(room) {
 
         <!-- Reservation Detail Modal -->
         <Modal :show="showDetailModal" :title="`Rezervimi — ${selectedReservation?.guest?.first_name} ${selectedReservation?.guest?.last_name}`" max-width="md" @close="showDetailModal = false">
-            <div v-if="selectedReservation" class="space-y-3">
-                <div class="grid grid-cols-2 gap-3">
+            <div v-if="selectedReservation" class="space-y-4">
+                <!-- Status + source -->
+                <div class="flex items-center gap-3 flex-wrap">
+                    <Badge :variant="statusVariant(selectedReservation.status)" dot>
+                        {{ statusLabel[selectedReservation.status] || selectedReservation.status }}
+                    </Badge>
+                    <span class="inline-flex items-center gap-1.5 text-tiny text-neutral-500">
+                        <span class="h-2 w-2 rounded-full" :style="{ background: channelMeta(selectedReservation.channel).color }" />
+                        {{ channelMeta(selectedReservation.channel).label }}
+                    </span>
+                </div>
+
+                <!-- Key facts -->
+                <div class="grid grid-cols-2 gap-x-4 gap-y-3">
                     <div>
                         <p class="text-tiny text-neutral-400 uppercase">Dhoma</p>
-                        <p class="text-body-sm text-primary-900 font-medium">{{ rooms.find(r => r.id === selectedReservation.room_id)?.room_number }}</p>
+                        <p class="text-body-sm text-primary-900 font-medium">
+                            {{ roomOf(selectedReservation)?.room_number }}
+                            <span class="text-neutral-400 font-normal">{{ roomOf(selectedReservation)?.room_type?.name }}</span>
+                        </p>
                     </div>
                     <div>
-                        <p class="text-tiny text-neutral-400 uppercase">Total</p>
-                        <p class="text-body-sm text-accent-600 font-medium">€{{ selectedReservation.total_amount }}</p>
+                        <p class="text-tiny text-neutral-400 uppercase">Persona</p>
+                        <p class="text-body-sm text-primary-900">
+                            {{ selectedReservation.adults }} te rritur<span v-if="selectedReservation.children"> · {{ selectedReservation.children }} femije</span>
+                        </p>
                     </div>
                     <div>
                         <p class="text-tiny text-neutral-400 uppercase">Check-in</p>
@@ -303,20 +345,44 @@ function getRoomCalendarCells(room) {
                     </div>
                     <div>
                         <p class="text-tiny text-neutral-400 uppercase">Check-out</p>
-                        <p class="text-body-sm text-primary-900">{{ selectedReservation.check_out_date }}</p>
+                        <p class="text-body-sm text-primary-900">
+                            {{ selectedReservation.check_out_date }}
+                            <span class="text-neutral-400">· {{ nightsOf(selectedReservation) }} net</span>
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-tiny text-neutral-400 uppercase">Total</p>
+                        <p class="text-body-sm text-accent-600 font-medium">€{{ selectedReservation.total_amount }}</p>
+                    </div>
+                    <div v-if="selectedReservation.guest?.phone || selectedReservation.guest?.email">
+                        <p class="text-tiny text-neutral-400 uppercase">Kontakt</p>
+                        <p class="text-body-sm text-primary-900 break-words">
+                            <a v-if="selectedReservation.guest?.phone" :href="`tel:${selectedReservation.guest.phone}`" class="text-accent-700 no-underline hover:underline">{{ selectedReservation.guest.phone }}</a>
+                            <span v-if="selectedReservation.guest?.phone && selectedReservation.guest?.email" class="text-neutral-300"> · </span>
+                            <a v-if="selectedReservation.guest?.email" :href="`mailto:${selectedReservation.guest.email}`" class="text-accent-700 no-underline hover:underline">{{ selectedReservation.guest.email }}</a>
+                        </p>
                     </div>
                 </div>
-                <div>
-                    <Badge :variant="selectedReservation.status === 'checked_in' ? 'success' : selectedReservation.status === 'confirmed' ? 'info' : selectedReservation.status === 'pending' ? 'warning' : 'neutral'" dot>
-                        {{ selectedReservation.status }}
-                    </Badge>
+
+                <!-- Notes -->
+                <div v-if="selectedReservation.notes" class="rounded-lg bg-neutral-50 border border-neutral-100 px-3 py-2">
+                    <p class="text-tiny text-neutral-400 uppercase mb-0.5">Shenime</p>
+                    <p class="text-body-sm text-neutral-700 whitespace-pre-line">{{ selectedReservation.notes }}</p>
+                </div>
+
+                <!-- Multi-room booking -->
+                <div v-if="groupSiblings(selectedReservation).length" class="rounded-lg bg-info-50 border border-info-100 px-3 py-2">
+                    <p class="text-body-sm text-info-800">
+                        🔗 Pjese e nje booking-u me {{ groupSiblings(selectedReservation).length + 1 }} dhoma — bashke me dhomat:
+                        <span class="font-medium">{{ groupSiblings(selectedReservation).map((r) => roomOf(r)?.room_number).filter(Boolean).join(', ') }}</span>
+                    </p>
                 </div>
             </div>
             <template #footer>
                 <Button v-if="canUpdate && selectedReservation?.status === 'confirmed'" variant="primary" size="sm" @click="doCheckIn(selectedReservation)">Check-in</Button>
                 <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="secondary" size="sm" @click="doCheckOut(selectedReservation)">Check-out</Button>
-                <Link :href="route('reservations.index', { search: selectedReservation?.guest?.last_name })" class="no-underline">
-                    <Button variant="outline" size="sm">Shiko ne liste</Button>
+                <Link v-if="selectedReservation" :href="route('reservations.show', selectedReservation.id)" class="no-underline">
+                    <Button variant="outline" size="sm">Detaje</Button>
                 </Link>
                 <Button variant="ghost" @click="showDetailModal = false">Mbyll</Button>
             </template>
