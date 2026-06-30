@@ -4,7 +4,20 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        @php($brand = \Illuminate\Support\Facades\Cache::get('app.settings', []))
+        <title inertia>{{ $brand['hotel_name'] ?? 'Villa Mucho' }}</title>
+
+        {{-- Favicon: prefer the uploaded hotel logo (Settings → Website); else the Villa Mucho mark --}}
+        @if(!empty($brand['logo']))
+            <link rel="icon" href="/storage/{{ $brand['logo'] }}">
+            <link rel="apple-touch-icon" href="/storage/{{ $brand['logo'] }}">
+        @else
+            <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+            <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png?v=2">
+            <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+        @endif
+        <link rel="alternate icon" href="/favicon.ico?v=2">
+        <meta name="theme-color" content="#2d6a4f">
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
