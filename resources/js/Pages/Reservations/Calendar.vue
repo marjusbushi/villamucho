@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Button from '@/Components/UI/Button.vue';
@@ -129,18 +129,62 @@ function groupSiblings(res) {
 // Create form — shared popup with the list view
 const prefill = ref(null);
 
-function openCreate(roomId, date) {
+function openCreate(roomId, date, checkoutDate = null) {
     if (!canCreate) return;
     const start = date || new Date().toISOString().split('T')[0];
-    const checkout = new Date(start);
-    checkout.setDate(checkout.getDate() + 1);
+    let checkout = checkoutDate;
+    if (!checkout) {
+        const c = new Date(start);
+        c.setDate(c.getDate() + 1);
+        checkout = c.toISOString().split('T')[0];
+    }
     prefill.value = {
         room_id: roomId || '',
         check_in_date: start,
-        check_out_date: checkout.toISOString().split('T')[0],
+        check_out_date: checkout,
     };
     showCreateModal.value = true;
 }
+
+// --- Drag across empty cells to pick a date RANGE for one room ---
+const dragRoom = ref(null);
+const dragStart = ref(null);
+const dragEnd = ref(null);
+
+function startDrag(roomId, date) {
+    if (!canCreate) return;
+    dragRoom.value = roomId;
+    dragStart.value = date;
+    dragEnd.value = date;
+}
+function extendDrag(roomId, date) {
+    if (dragRoom.value === null || dragRoom.value !== roomId) return;
+    dragEnd.value = date;
+}
+function endDrag() {
+    if (dragRoom.value === null) return;
+    const room = dragRoom.value;
+    const a = dragStart.value;
+    const b = dragEnd.value;
+    const start = a <= b ? a : b;
+    const lastNight = a <= b ? b : a;
+    const c = new Date(lastNight);
+    c.setDate(c.getDate() + 1); // check-out = day after the last selected night
+    dragRoom.value = null;
+    dragStart.value = null;
+    dragEnd.value = null;
+    openCreate(room, start, c.toISOString().split('T')[0]);
+}
+function isInDrag(roomId, date) {
+    if (dragRoom.value === null || dragRoom.value !== roomId) return false;
+    const lo = dragStart.value <= dragEnd.value ? dragStart.value : dragEnd.value;
+    const hi = dragStart.value <= dragEnd.value ? dragEnd.value : dragStart.value;
+    return date >= lo && date <= hi;
+}
+
+// Finalize the selection even if the mouse is released off the grid.
+onMounted(() => window.addEventListener('mouseup', endDrag));
+onBeforeUnmount(() => window.removeEventListener('mouseup', endDrag));
 
 function onReservationCreated() {
     toasts.value?.success('Rezervimi u krijua.');
@@ -276,12 +320,17 @@ function getRoomCalendarCells(room) {
                                 </button>
                             </td>
 
-                            <!-- Empty cell -->
+                            <!-- Empty cell — click for 1 night, or drag across days for a range -->
                             <td
                                 v-else
-                                class="border-b border-r border-neutral-200 p-0.5 h-12"
-                                :class="canCreate && 'cursor-pointer hover:bg-accent-50/50'"
-                                @click="openCreate(cell.roomId, cell.date)"
+                                class="border-b border-r border-neutral-200 p-0.5 h-12 select-none"
+                                :class="[
+                                    canCreate && 'cursor-pointer hover:bg-accent-50/50',
+                                    isInDrag(cell.roomId, cell.date) && 'bg-accent-100',
+                                ]"
+                                @mousedown.prevent="startDrag(cell.roomId, cell.date)"
+                                @mouseenter="extendDrag(cell.roomId, cell.date)"
+                                @mouseup="endDrag"
                             >
                             </td>
                         </template>

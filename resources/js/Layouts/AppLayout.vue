@@ -44,7 +44,7 @@ const icons = {
 const allNavItems = [
     { label: 'Dashboard', href: '/dashboard', routeName: 'dashboard', icon: icons.dashboard, permission: null },
     { label: 'Dhomat', href: '/pms/rooms', icon: icons.rooms, permission: 'view_rooms' },
-    { label: 'Rezervimet', href: '/pms/reservations', icon: icons.reservations, permission: 'view_reservations' },
+    { label: 'Rezervimet', href: '/pms/reservations/calendar', match: '/pms/reservations', icon: icons.reservations, permission: 'view_reservations' },
     { label: 'Mysafiret', href: '/pms/guests', icon: icons.guests, permission: 'view_guests' },
     { label: 'Housekeeping', href: '/pms/housekeeping', icon: icons.housekeeping, permission: 'view_housekeeping' },
     { label: 'POS Bar/Restaurant', href: '/pms/pos', icon: icons.pos, permission: 'view_pos_orders' },

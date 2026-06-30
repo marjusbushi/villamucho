@@ -21,7 +21,10 @@ function isActive(item) {
     if (item.routeName) {
         return route().current(item.routeName);
     }
-    return page.url === item.href || page.url.startsWith(item.href + '/');
+    // `match` lets a nav item link to a sub-page (e.g. /reservations/calendar)
+    // while staying highlighted across the whole section (/reservations*).
+    const base = item.match || item.href;
+    return page.url === base || page.url.startsWith(base + '/');
 }
 </script>
 
