@@ -8,7 +8,9 @@ use App\Http\Controllers\PosShiftController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\GuestController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ChannexController;
 use App\Http\Controllers\PricingController;
+use App\Http\Controllers\SmartPricingController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RoomController;
@@ -160,6 +162,14 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::put('/pricing/seasons/{season}', [PricingController::class, 'updateSeason'])->name('pricing.seasons.update');
         Route::delete('/pricing/seasons/{season}', [PricingController::class, 'destroySeason'])->name('pricing.seasons.destroy');
         Route::post('/pricing/rates', [PricingController::class, 'saveRates'])->name('pricing.rates.save');
+
+        // Çmim Inteligjent — occupancy-based price suggestions (suggest-only; Apply writes a date override)
+        Route::get('/pricing/smart', [SmartPricingController::class, 'index'])->name('pricing.smart.index');
+        Route::post('/pricing/smart/apply', [SmartPricingController::class, 'apply'])->name('pricing.smart.apply');
+        Route::post('/pricing/smart/remove', [SmartPricingController::class, 'remove'])->name('pricing.smart.remove');
+
+        // Channel manager (Channex) — manual full re-sync
+        Route::post('/channex/sync', [ChannexController::class, 'sync'])->name('channex.sync');
 
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/settings/hotel', [SettingsController::class, 'updateHotel'])->name('settings.hotel');

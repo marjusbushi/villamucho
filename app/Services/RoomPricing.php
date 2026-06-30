@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\RateOverride;
 use App\Models\RoomType;
 use App\Models\Season;
 use App\Models\SeasonRate;
@@ -46,20 +47,35 @@ class RoomPricing
             ])
             ->values();
 
+        // Per-DATE overrides (e.g. accepted Smart Pricing suggestions) win over any season.
+        // whereDate compares only the date part (the column may carry a 00:00:00 time).
+        $overrides = RateOverride::where('room_type_id', $roomType->id)
+            ->whereDate('date', '>=', $start->toDateString())
+            ->whereDate('date', '<', $end->toDateString())
+            ->get()
+            ->keyBy(fn ($o) => $o->date->toDateString());
+
         $total = 0.0;
         $breakdown = [];
 
         for ($d = $start->copy(); $d->lt($end); $d->addDay()) {
-            $price = $base;
-            foreach ($seasons as $s) { // already ordered by priority desc
-                if ($d->betweenIncluded($s['start'], $s['end'])) {
-                    // First (highest-priority) covering season wins; no rate → base price.
-                    $price = $s['rate'] !== null ? (float) $s['rate'] : $base;
-                    break;
+            $dateStr = $d->toDateString();
+
+            if (isset($overrides[$dateStr])) {
+                $price = (float) $overrides[$dateStr]->price; // date override beats season/base
+            } else {
+                $price = $base;
+                foreach ($seasons as $s) { // already ordered by priority desc
+                    if ($d->betweenIncluded($s['start'], $s['end'])) {
+                        // First (highest-priority) covering season wins; no rate → base price.
+                        $price = $s['rate'] !== null ? (float) $s['rate'] : $base;
+                        break;
+                    }
                 }
             }
+
             $total += $price;
-            $breakdown[] = ['date' => $d->toDateString(), 'price' => round($price, 2)];
+            $breakdown[] = ['date' => $dateStr, 'price' => round($price, 2)];
         }
 
         return [
@@ -92,5 +108,32 @@ class RoomPricing
         $prices = array_filter($prices, fn ($p) => $p > 0);
 
         return $prices ? round(min($prices), 2) : 0.0;
+    }
+
+    /**
+     * The seasonal-or-base price for ONE date, IGNORING any per-date override — the reference
+     * the Smart Pricing engine applies its occupancy adjustment to. Mirrors quote()'s rule:
+     * the highest-priority season covering the date governs (no rate cell → base price).
+     */
+    public static function seasonPrice(RoomType $roomType, string|Carbon $date): float
+    {
+        $d = $date instanceof Carbon ? $date->copy() : Carbon::parse($date);
+        $base = (float) $roomType->base_price;
+
+        $season = Season::query()
+            ->whereDate('start_date', '<=', $d->toDateString())
+            ->whereDate('end_date', '>=', $d->toDateString())
+            ->orderByDesc('priority')
+            ->orderBy('id')
+            ->with(['rates' => fn ($q) => $q->where('room_type_id', $roomType->id)])
+            ->first();
+
+        if ($season) {
+            $rate = optional($season->rates->first())->price;
+
+            return $rate !== null ? (float) $rate : $base;
+        }
+
+        return $base;
     }
 }
