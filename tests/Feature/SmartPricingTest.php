@@ -174,4 +174,35 @@ class SmartPricingTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page->component('Pricing/Smart'));
     }
+
+    public function test_calendar_marks_full_day_as_actionable_raise(): void
+    {
+        $type = $this->type(100);
+        [$a] = $this->rooms($type, 1);
+        $date = now()->addDays(4)->toDateString();
+        $this->book($a, $date); // 1/1 = 100%
+
+        $days = collect(SmartPricing::calendar($type, now()->startOfDay(), now()->addDays(20)->startOfDay()));
+        $row = $days->firstWhere('date', $date);
+
+        $this->assertTrue($row['actionable']);
+        $this->assertSame('peak', $row['kind']);
+        $this->assertEquals(130.0, $row['suggested_price']); // 100 × 1.30
+    }
+
+    public function test_calendar_suppresses_far_future_discounts(): void
+    {
+        $type = $this->type(100);
+        $this->rooms($type, 2); // nothing booked → 0% everywhere
+
+        $days = collect(SmartPricing::calendar($type, now()->startOfDay(), now()->addDays(20)->startOfDay()));
+
+        $near = $days->firstWhere('date', now()->addDays(3)->toDateString());
+        $this->assertTrue($near['actionable']);        // near + empty → discount
+        $this->assertSame('low', $near['kind']);
+
+        $far = $days->firstWhere('date', now()->addDays(19)->toDateString());
+        $this->assertFalse($far['actionable']);        // far + empty → no nag
+        $this->assertNull($far['kind']);
+    }
 }

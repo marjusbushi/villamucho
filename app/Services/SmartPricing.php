@@ -137,4 +137,78 @@ class SmartPricing
 
         return $rows;
     }
+
+    /**
+     * One room type, one month: per-date occupancy + suggestion for the calendar view.
+     * Raises show across the horizon; DISCOUNTS only near-term (discount_horizon_days) so
+     * far-future empty days don't nag. Past days are never actionable.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function calendar(RoomType $type, Carbon $from, Carbon $to): array
+    {
+        $s = self::settings();
+        $today = Carbon::today();
+        $discountHorizon = (int) Setting::get('pricing.smart.discount_horizon_days', 14);
+
+        $total = Room::where('room_type_id', $type->id)->where('status', '!=', 'maintenance')->count();
+
+        $reservations = Reservation::whereNotIn('status', ['cancelled', 'checked_out'])
+            ->whereHas('room', fn ($q) => $q->where('room_type_id', $type->id))
+            ->whereDate('check_out_date', '>', $from->toDateString())
+            ->whereDate('check_in_date', '<=', $to->toDateString())
+            ->get(['id', 'room_id', 'check_in_date', 'check_out_date']);
+
+        $overrides = RateOverride::where('room_type_id', $type->id)
+            ->whereDate('date', '>=', $from->toDateString())
+            ->whereDate('date', '<=', $to->toDateString())
+            ->get()
+            ->keyBy(fn ($o) => $o->date->toDateString());
+
+        $days = [];
+
+        for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
+            $dateStr = $d->toDateString();
+
+            $booked = $total > 0
+                ? $reservations->filter(fn ($r) => $d->betweenIncluded($r->check_in_date, $r->check_out_date->copy()->subDay()))
+                    ->pluck('room_id')->unique()->count()
+                : 0;
+            $occ = $total > 0 ? (int) round($booked / $total * 100) : 0;
+
+            $isPast = $d->lt($today);
+            $daysUntil = (int) $today->diffInDays($d, false); // signed: past = negative
+            $reference = RoomPricing::seasonPrice($type, $d);
+            $override = $overrides->get($dateStr);
+            $current = $override ? (float) $override->price : $reference;
+
+            $adj = $isPast ? 0.0 : self::adjustmentFor($occ, max($daysUntil, 0), $s);
+            if ($adj < 0 && $daysUntil > $discountHorizon) {
+                $adj = 0.0; // don't nag discounts on far-future empty days
+            }
+
+            $suggested = ($reference > 0 && $adj != 0.0) ? round($reference * (1 + $adj / 100), 2) : round($current, 2);
+            $actionable = $adj != 0.0 && $reference > 0 && abs($suggested - $current) >= 0.01;
+
+            $kind = $actionable ? ($adj > 0 ? ($occ >= $s['peak_threshold'] ? 'peak' : 'high') : 'low') : null;
+
+            $days[] = [
+                'date' => $dateStr,
+                'dow' => (int) $d->dayOfWeekIso, // 1=Mon .. 7=Sun
+                'occupancy_pct' => $occ,
+                'booked' => $booked,
+                'total' => $total,
+                'current_price' => round($current, 2),
+                'suggested_price' => $suggested,
+                'adjustment_pct' => $adj,
+                'kind' => $kind,
+                'has_override' => (bool) $override,
+                'days_until' => $daysUntil,
+                'actionable' => $actionable,
+                'is_past' => $isPast,
+            ];
+        }
+
+        return $days;
+    }
 }

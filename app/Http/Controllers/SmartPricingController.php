@@ -5,22 +5,53 @@ namespace App\Http\Controllers;
 use App\Jobs\PushRoomTypeAri;
 use App\Models\AuditLog;
 use App\Models\RateOverride;
+use App\Models\RoomType;
 use App\Models\Setting;
 use App\Services\SmartPricing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SmartPricingController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        return Inertia::render('Pricing/Smart', [
-            'suggestions' => SmartPricing::suggestions(),
+        $types = RoomType::orderBy('name')->get(['id', 'name', 'base_price']);
+
+        $base = [
+            'roomTypes' => $types->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->values(),
             'settings' => SmartPricing::settings(),
             'currency' => Setting::get('financial.default_currency_symbol', '€'),
-        ]);
+        ];
+
+        if ($types->isEmpty()) {
+            $today = Carbon::today()->startOfMonth();
+
+            return Inertia::render('Pricing/Smart', array_merge($base, [
+                'selectedTypeId' => null, 'days' => [],
+                'month' => $today->toDateString(),
+                'prevMonth' => $today->copy()->subMonth()->toDateString(),
+                'nextMonth' => $today->copy()->addMonth()->toDateString(),
+            ]));
+        }
+
+        $selected = $types->firstWhere('id', (int) $request->input('room_type_id')) ?? $types->first();
+
+        $month = $request->filled('month')
+            ? Carbon::parse($request->input('month'))->startOfMonth()
+            : Carbon::today()->startOfMonth();
+        $from = $month->copy()->startOfMonth();
+        $to = $month->copy()->endOfMonth();
+
+        return Inertia::render('Pricing/Smart', array_merge($base, [
+            'selectedTypeId' => $selected->id,
+            'month' => $from->toDateString(),
+            'prevMonth' => $from->copy()->subMonth()->toDateString(),
+            'nextMonth' => $from->copy()->addMonth()->toDateString(),
+            'days' => SmartPricing::calendar($selected, $from, $to),
+        ]));
     }
 
     /** Accept a suggestion → set the price for that single date + room type. */
