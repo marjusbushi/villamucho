@@ -222,6 +222,40 @@ class ChannexClient
         return $resp->successful();
     }
 
+    // -- bookings (inbound: OTA -> PMS) -----------------------------------
+
+    /**
+     * Fetch one booking revision by id. Returns the JSON:API resource
+     * ({id, type, attributes:{...}}) or null. Throws on a non-2xx.
+     */
+    public function getBookingRevision(string $id): ?array
+    {
+        $resp = $this->http(idempotent: true)->get("{$this->baseUrl}/booking_revisions/{$id}");
+        if (! $resp->successful()) {
+            throw new RuntimeException("Channex GET booking_revisions/{$id} failed: HTTP {$resp->status()}");
+        }
+
+        return $resp->json('data');
+    }
+
+    /** Unacknowledged booking revisions (the canonical catch-up feed). */
+    public function getBookingFeed(): array
+    {
+        return $this->getList('/booking_revisions/feed');
+    }
+
+    /**
+     * Acknowledge a revision so Channex stops re-delivering it. Only call after
+     * the revision has been imported successfully.
+     */
+    public function ackBookingRevision(string $id): bool
+    {
+        $resp = $this->http(idempotent: true)->post("{$this->baseUrl}/booking_revisions/{$id}/ack");
+        $this->log('pull', 'ack_booking', ['revision_id' => $id], $resp);
+
+        return $resp->successful();
+    }
+
     // -- internals --------------------------------------------------------
 
     protected function http(bool $idempotent = false): PendingRequest

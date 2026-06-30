@@ -3,10 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Prunable;
 
 class ChannelSyncLog extends Model
 {
+    use Prunable;
+
     public $timestamps = false; // append-only; only created_at
+
+    /**
+     * Retention: this is an append-only audit trail that would otherwise grow
+     * forever. `php artisan model:prune` (scheduled) drops rows older than 90
+     * days. Callers must log IDs/refs only — never guest PII (name/email/phone)
+     * or auth headers — so even un-pruned rows hold nothing sensitive.
+     */
+    public function prunable()
+    {
+        return static::where('created_at', '<', now()->subDays(90));
+    }
 
     protected $fillable = [
         'channel',

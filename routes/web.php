@@ -9,6 +9,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\GuestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChannexController;
+use App\Http\Controllers\ChannexWebhookController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\SmartPricingController;
 use App\Http\Controllers\ReportsController;
@@ -38,6 +39,10 @@ Route::get('/book/confirmation/{token}', [WebsiteController::class, 'bookingConf
 Route::get('/about', [WebsiteController::class, 'about'])->name('website.about');
 Route::get('/contact', [WebsiteController::class, 'contact'])->name('website.contact');
 Route::post('/contact', [WebsiteController::class, 'submitContact'])->middleware('throttle:5,1')->name('website.contact.submit');
+
+// Inbound Channex booking webhook (server-to-server; CSRF-excluded in bootstrap/app.php).
+// Auth is a shared secret header validated in the controller — Channex has no HMAC.
+Route::post('/channex/webhook', [ChannexWebhookController::class, 'handle'])->middleware('throttle:120,1')->name('channex.webhook');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])->name('dashboard');

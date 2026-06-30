@@ -1,0 +1,233 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\ChannelMapping;
+use App\Models\ChannelSyncLog;
+use App\Models\Guest;
+use App\Models\Reservation;
+use App\Models\Room;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+/**
+ * Maps a Channex booking revision (an OTA reservation — Booking.com, Airbnb, ...)
+ * into PMS reservation(s). Idempotent: re-delivering the same revision updates in
+ * place instead of duplicating (keyed on channel + channel_ref + room), reusing
+ * the room the booking already occupies so a re-delivery never shuffles rooms.
+ *
+ * An OTA booking is NEVER dropped: if the room type is mapped but every room is
+ * taken (the OTA oversold us), it is still created on a room of that type and
+ * flagged in the notes for the front desk to resolve.
+ *
+ * Logs only IDs/refs to ChannelSyncLog — never the guest's name/email/phone.
+ */
+class ChannexBookingImporter
+{
+    /** OTA display name (ota_name) -> PMS channel slug (Reservation::CHANNELS). */
+    private const OTA_CHANNEL = [
+        'booking.com' => 'booking.com',
+        'booking' => 'booking.com',
+        'expedia' => 'expedia',
+        'airbnb' => 'airbnb',
+        'agoda' => 'agoda',
+    ];
+
+    /**
+     * @param  array  $resource  the JSON:API revision ({id, attributes:{...}}) or a bare attributes array
+     * @return array{status:string,channel:string,ref:string,created:int,updated:int,cancelled:int,flagged:array<int,string>}
+     */
+    public function importRevision(array $resource): array
+    {
+        $rev = $resource['attributes'] ?? $resource;
+        $revisionId = $resource['id'] ?? ($rev['id'] ?? null);
+
+        $channel = $this->channel($rev['ota_name'] ?? '');
+        $ref = (string) ($rev['ota_reservation_code'] ?? $rev['unique_id'] ?? $revisionId ?? '');
+        $cancelled = ($rev['status'] ?? 'new') === 'cancelled';
+        $rooms = $rev['rooms'] ?? [];
+
+        $summary = [
+            'status' => $rev['status'] ?? 'new', 'channel' => $channel, 'ref' => $ref,
+            'created' => 0, 'updated' => 0, 'cancelled' => 0, 'flagged' => [],
+        ];
+
+        if ($ref === '') {
+            $summary['flagged'][] = 'revision with no reference — skipped';
+
+            return $summary;
+        }
+
+        DB::transaction(function () use ($rev, $channel, $ref, $cancelled, $rooms, $revisionId, &$summary) {
+            if ($cancelled) {
+                $n = Reservation::where('channel', $channel)->where('channel_ref', $ref)
+                    ->where('status', '!=', 'cancelled')
+                    ->update(['status' => 'cancelled']);
+                $summary['cancelled'] = $n;
+                if ($n === 0) {
+                    // Surface it: a cancel that matched nothing means the booking
+                    // is still 'confirmed' (or was never imported) and blocks a room.
+                    $summary['flagged'][] = "cancel matched no reservation for {$ref}";
+                }
+                $this->log($channel, $ref, $revisionId, 'booking.cancelled', null, null);
+
+                return;
+            }
+
+            $guest = $this->guest($rev['customer'] ?? []);
+            $creator = $this->systemUserId();
+            $groupId = count($rooms) > 1 ? (string) Str::uuid() : null;
+            $taken = [];
+            $kept = [];
+            $firstRoom = true;
+
+            foreach ($rooms as $room) {
+                $channexRoomTypeId = $room['room_type_id'] ?? null;
+                $roomTypeId = $channexRoomTypeId
+                    ? ChannelMapping::where('channel', 'channex')->where('channex_room_type_id', $channexRoomTypeId)->value('room_type_id')
+                    : null;
+                if (! $roomTypeId) {
+                    $summary['flagged'][] = "room type {$channexRoomTypeId} not mapped";
+
+                    continue;
+                }
+
+                [$physical, $overbooked] = $this->pickRoom($roomTypeId, $channel, $ref, $room['checkin_date'] ?? null, $room['checkout_date'] ?? null, $taken);
+                if (! $physical) {
+                    $summary['flagged'][] = "no room for type {$roomTypeId}";
+
+                    continue;
+                }
+                $taken[] = $physical->id;
+
+                $existed = Reservation::where('channel', $channel)->where('channel_ref', $ref)->where('room_id', $physical->id)->exists();
+                $res = Reservation::updateOrCreate(
+                    ['channel' => $channel, 'channel_ref' => $ref, 'room_id' => $physical->id],
+                    [
+                        'guest_id' => $guest->id,
+                        'created_by' => $creator,
+                        'check_in_date' => $room['checkin_date'] ?? null,
+                        'check_out_date' => $room['checkout_date'] ?? null,
+                        'status' => 'confirmed',
+                        'total_amount' => (float) ($room['amount'] ?? 0),
+                        'commission_amount' => $firstRoom ? (float) ($rev['ota_commission'] ?? 0) : 0,
+                        'adults' => max(1, min(255, (int) ($room['occupancy']['adults'] ?? 1))),
+                        'children' => max(0, min(255, (int) ($room['occupancy']['children'] ?? 0))),
+                        'booking_group_id' => $groupId,
+                        'notes' => trim(($rev['ota_name'] ?? 'OTA')." #{$ref}".($overbooked ? ' — MBI-BOOKIM (s\'ka dhomë të lirë)' : '')),
+                    ],
+                );
+                $existed ? $summary['updated']++ : $summary['created']++;
+                $firstRoom = false;
+                $kept[] = $res->id;
+                $this->log($channel, $ref, $revisionId, 'booking.'.($existed ? 'modified' : 'new'), $res->id, $roomTypeId);
+            }
+
+            // Reconcile: cancel any prior reservation for this booking whose room is
+            // no longer in the revision (a room removed, or the room TYPE swapped),
+            // so the (channel, channel_ref) set is authoritative per revision and a
+            // ghost 'confirmed' row never blocks inventory or double-books.
+            $summary['cancelled'] += Reservation::where('channel', $channel)->where('channel_ref', $ref)
+                ->where('status', '!=', 'cancelled')
+                ->whereNotIn('id', $kept ?: [0])
+                ->update(['status' => 'cancelled']);
+        });
+
+        return $summary;
+    }
+
+    private function channel(string $otaName): string
+    {
+        $key = strtolower(trim($otaName));
+
+        return self::OTA_CHANNEL[$key] ?? (in_array($key, Reservation::CHANNELS, true) ? $key : 'booking.com');
+    }
+
+    private function guest(array $c): Guest
+    {
+        $first = trim((string) ($c['name'] ?? '')) ?: 'Mysafir';
+        $last = trim((string) ($c['surname'] ?? ''));
+        $email = trim((string) ($c['mail'] ?? ''));
+        $attrs = [
+            'first_name' => $first,
+            'last_name' => $last,
+            'phone' => $c['phone'] ?? null,
+            'nationality' => $c['country'] ?? null,
+        ];
+
+        return $email !== ''
+            ? Guest::firstOrCreate(['email' => strtolower($email)], $attrs)
+            : Guest::firstOrCreate(['first_name' => $first, 'last_name' => $last], $attrs);
+    }
+
+    /**
+     * @return array{0: ?Room, 1: bool}  [room, wasOverbooked]
+     */
+    private function pickRoom(int $roomTypeId, string $channel, string $ref, ?string $in, ?string $out, array $taken): array
+    {
+        // 1) reuse the room this booking already occupies (stable on re-delivery)
+        $existing = Reservation::where('channel', $channel)->where('channel_ref', $ref)
+            ->whereNotIn('room_id', $taken ?: [0])
+            ->whereHas('room', fn ($q) => $q->where('room_type_id', $roomTypeId))
+            ->first();
+        if ($existing && $existing->room) {
+            return [$existing->room, false];
+        }
+
+        // Prefer SERVICEABLE rooms (don't seat a guest in maintenance while a usable
+        // room exists — consistent with the availability we push to OTAs).
+        $serviceable = Room::where('room_type_id', $roomTypeId)
+            ->where('status', '!=', 'maintenance')
+            ->whereNotIn('id', $taken ?: [0])->get();
+
+        // 2) a free serviceable room for these dates
+        foreach ($serviceable as $room) {
+            if ($this->isFree($room->id, $in, $out)) {
+                return [$room, false];
+            }
+        }
+        // 3) none free -> accept the OTA booking anyway (overbooked) on a serviceable room
+        if ($serviceable->isNotEmpty()) {
+            return [$serviceable->first(), true];
+        }
+
+        // 4) every room of the type is in maintenance -> STILL never drop the OTA
+        // booking: fall back to any room of the type, flagged as overbooked.
+        $any = Room::where('room_type_id', $roomTypeId)->whereNotIn('id', $taken ?: [0])->first();
+
+        return [$any, $any !== null];
+    }
+
+    private function isFree(int $roomId, ?string $in, ?string $out): bool
+    {
+        if (! $in || ! $out) {
+            return true;
+        }
+
+        return ! Reservation::where('room_id', $roomId)
+            ->whereNotIn('status', ['cancelled', 'checked_out'])
+            ->whereDate('check_in_date', '<', $out)
+            ->whereDate('check_out_date', '>', $in)
+            ->exists();
+    }
+
+    private function systemUserId(): int
+    {
+        return User::where('email', 'system@villamucho.local')->value('id')
+            ?? User::orderBy('id')->value('id');
+    }
+
+    private function log(string $channel, string $ref, ?string $revisionId, string $action, ?int $reservationId, ?int $roomTypeId): void
+    {
+        ChannelSyncLog::record([
+            'channel' => $channel,
+            'direction' => 'pull',
+            'action' => $action,
+            'reservation_id' => $reservationId,
+            'room_type_id' => $roomTypeId,
+            'status' => 'ok',
+            'request' => ['ref' => $ref, 'revision_id' => $revisionId], // IDs only — no guest PII
+        ]);
+    }
+}

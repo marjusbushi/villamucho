@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        // Channex posts the booking webhook server-to-server (no CSRF token);
+        // it is authenticated by a shared-secret header in the controller.
+        $middleware->validateCsrfTokens(except: ['channex/webhook']);
+
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
@@ -25,4 +30,13 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->withSchedule(function (Schedule $schedule): void {
+        // Retention for the channel sync audit trail (ChannelSyncLog is Prunable).
+        $schedule->command('model:prune', ['--model' => [\App\Models\ChannelSyncLog::class]])->daily();
+        // Catch-up: re-pull any OTA booking a missed webhook left unacknowledged.
+        $schedule->command('channex:pull-bookings')->everyFifteenMinutes()->withoutOverlapping();
+        // Nightly safety-net: re-push availability + rates in case a real-time push was missed.
+        $schedule->command('channex:push-ari --queue')->dailyAt('04:00');
+    })
+    ->create();
