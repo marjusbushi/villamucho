@@ -14,6 +14,8 @@ class RoomType extends Model
         'name',
         'description',
         'base_price',
+        'min_price',
+        'max_price',
         'max_occupancy',
         'amenities',
         'breakfast_included',
@@ -23,6 +25,8 @@ class RoomType extends Model
     {
         return [
             'base_price' => 'decimal:2',
+            'min_price' => 'decimal:2',
+            'max_price' => 'decimal:2',
             'amenities' => 'array',
             'breakfast_included' => 'boolean',
         ];

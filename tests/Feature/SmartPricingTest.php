@@ -89,11 +89,22 @@ class SmartPricingTest extends TestCase
         return collect($rows)->first(fn ($r) => $r['date'] === $date && $r['room_type_id'] === $type->id);
     }
 
+    /** First non-Fri/Sat date >= today+$days (the DOW factor would skew asserts). */
+    private function weekdayAfter(int $days): string
+    {
+        $d = now()->startOfDay()->addDays($days);
+        while (in_array((int) $d->dayOfWeekIso, [5, 6], true)) {
+            $d->addDay();
+        }
+
+        return $d->toDateString();
+    }
+
     public function test_full_occupancy_suggests_peak_increase(): void
     {
         $type = $this->type(100);
         [$a, $b] = $this->rooms($type, 2);
-        $date = now()->addDays(20)->toDateString();
+        $date = $this->weekdayAfter(15);
         $this->book($a, $date);
         $this->book($b, $date); // 2/2 = 100%
 
@@ -106,29 +117,36 @@ class SmartPricingTest extends TestCase
 
     public function test_low_occupancy_suggests_discount(): void
     {
+        // Engine v2: continuous occupancy curve (20% → -7.5) + lead-time taper
+        // (8-14 days out, soft → -4), composed multiplicatively.
         $type = $this->type(100);
         $rooms = $this->rooms($type, 5);
-        $date = now()->addDays(20)->toDateString();
+        $date = $this->weekdayAfter(9); // 9-11 days out — inside the discount horizon
         $this->book($rooms[0], $date); // 1/5 = 20%
 
         $row = $this->rowFor(SmartPricing::suggestions(60), $type, $date);
         $this->assertNotNull($row);
         $this->assertEquals(20, $row['occupancy_pct']);
-        $this->assertEquals(-15.0, $row['adjustment_pct']);
-        $this->assertEquals(85.0, $row['suggested_price']); // 100 × 0.85
+        $this->assertEquals(-11.2, $row['adjustment_pct']); // 0.925 × 0.96 - 1
+        $this->assertEquals(88.8, $row['suggested_price']);
+        $keys = collect($row['factors'])->pluck('key');
+        $this->assertTrue($keys->contains('occupancy'));
+        $this->assertTrue($keys->contains('lead_time'));
     }
 
     public function test_last_minute_low_occupancy_discounts_more(): void
     {
+        // Engine v2: ≤3 days out and soft → the deepest lead-time tier (-12),
+        // on top of the occupancy curve (20% → -7.5): 100 × 0.925 × 0.88.
         $type = $this->type(100);
         $rooms = $this->rooms($type, 5);
-        $date = now()->addDays(3)->toDateString(); // within last-minute window
+        $date = $this->weekdayAfter(1); // 1-3 days out
         $this->book($rooms[0], $date); // 20%
 
         $row = $this->rowFor(SmartPricing::suggestions(60), $type, $date);
         $this->assertNotNull($row);
-        $this->assertEquals(-25.0, $row['adjustment_pct']); // -15 + -10 last-minute
-        $this->assertEquals(75.0, $row['suggested_price']);
+        $this->assertEquals(-18.6, $row['adjustment_pct']);
+        $this->assertEquals(81.4, $row['suggested_price']);
     }
 
     private function admin(): User
@@ -179,7 +197,7 @@ class SmartPricingTest extends TestCase
     {
         $type = $this->type(100);
         [$a] = $this->rooms($type, 1);
-        $date = now()->addDays(4)->toDateString();
+        $date = $this->weekdayAfter(4);
         $this->book($a, $date); // 1/1 = 100%
 
         $days = collect(SmartPricing::calendar($type, now()->startOfDay(), now()->addDays(20)->startOfDay()));

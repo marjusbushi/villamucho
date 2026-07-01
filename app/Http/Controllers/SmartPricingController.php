@@ -18,13 +18,24 @@ use Inertia\Response;
 
 class SmartPricingController extends Controller
 {
-    /** A price outside 0.25×–4× of the room's base price is treated as a fat-finger / AI hallucination. */
+    /** Fallback sanity band when the owner has not set min/max on the type. */
     private const MIN_BAND = 0.25;
     private const MAX_BAND = 4.0;
 
-    private function priceOutOfBand(float $price, float $base): bool
+    /**
+     * A price outside the owner's min/max (or, when unset, 0.25×–4× of base)
+     * is treated as a fat-finger / hallucination and never reaches the OTAs.
+     */
+    private function priceOutOfBand(float $price, ?RoomType $type): bool
     {
-        return $base > 0 && ($price < $base * self::MIN_BAND || $price > $base * self::MAX_BAND);
+        if (! $type) {
+            return false;
+        }
+        $base = (float) $type->base_price;
+        $min = $type->min_price !== null ? (float) $type->min_price : ($base > 0 ? $base * self::MIN_BAND : null);
+        $max = $type->max_price !== null ? (float) $type->max_price : ($base > 0 ? $base * self::MAX_BAND : null);
+
+        return ($min !== null && $price < $min) || ($max !== null && $price > $max);
     }
 
     public function index(Request $request): Response
@@ -76,9 +87,9 @@ class SmartPricingController extends Controller
         ]);
 
         // Guard against an order-of-magnitude typo reaching the live OTA (e.g. €1 or €900k).
-        $base = (float) (RoomType::whereKey($data['room_type_id'])->value('base_price') ?? 0);
-        if ($this->priceOutOfBand((float) $data['price'], $base)) {
-            return back()->with('error', "Çmimi {$data['price']} është shumë larg çmimit bazë ({$base}). Kontrollo shumën.");
+        $type = RoomType::find($data['room_type_id']);
+        if ($this->priceOutOfBand((float) $data['price'], $type)) {
+            return back()->with('error', "Çmimi {$data['price']} është jashtë kufijve të lejuar për këtë tip dhome. Kontrollo shumën (ose kufijtë min/max).");
         }
 
         // whereDate matches on the date part (the column may carry a 00:00:00 time), so a
@@ -169,14 +180,13 @@ class SmartPricingController extends Controller
             return back()->with('error', 'Intervali është shumë i gjatë (maksimumi ~2 muaj).');
         }
 
-        // Reject any suggested price wildly off the base price (AI hallucination / typo) before
-        // it can be written and pushed to Booking.com etc.
-        $bases = RoomType::whereIn('id', collect($data['prices'])->pluck('room_type_id'))
-            ->pluck('base_price', 'id');
+        // Reject any suggested price wildly off the allowed band (AI hallucination / typo)
+        // before it can be written and pushed to Booking.com etc.
+        $types = RoomType::whereIn('id', collect($data['prices'])->pluck('room_type_id'))
+            ->get()->keyBy('id');
         foreach ($data['prices'] as $p) {
-            $base = (float) ($bases[$p['room_type_id']] ?? 0);
-            if ($this->priceOutOfBand((float) $p['suggested'], $base)) {
-                return back()->with('error', "Çmimi i sugjeruar {$p['suggested']} është jashtë kufijve të arsyeshëm (bazë {$base}). Nuk u aplikua.");
+            if ($this->priceOutOfBand((float) $p['suggested'], $types->get($p['room_type_id']))) {
+                return back()->with('error', "Çmimi i sugjeruar {$p['suggested']} është jashtë kufijve të lejuar. Nuk u aplikua.");
             }
         }
 
