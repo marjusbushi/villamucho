@@ -26,6 +26,12 @@ function money(v) { const n = Number(v) || 0; return n % 1 === 0 ? String(n) : n
 function note(m) { diag.value += (diag.value ? '\n' : '') + m; try { console.log('[POK]', m); } catch (e) {} }
 
 onMounted(() => {
+    // Surface the SDK's OWN console.error (the real cause it hides behind "GENERAL_ERROR").
+    const origErr = console.error;
+    console.error = (...a) => {
+        try { note('console.error: ' + a.map((x) => x?.message || (x && typeof x === 'object' ? JSON.stringify(x) : String(x))).join(' ')); } catch (e) {}
+        origErr.apply(console, a);
+    };
     window.addEventListener('error', (ev) => note('JS error: ' + (ev.message || ev.error?.message || ev.error)));
     window.addEventListener('unhandledrejection', (ev) => note('Promise reject: ' + (ev.reason?.message || JSON.stringify(ev.reason))));
 
