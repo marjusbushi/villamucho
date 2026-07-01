@@ -32,8 +32,8 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withSchedule(function (Schedule $schedule): void {
-        // Retention for the channel sync audit trail (ChannelSyncLog is Prunable).
-        $schedule->command('model:prune', ['--model' => [\App\Models\ChannelSyncLog::class]])->daily();
+        // Retention: channel sync audit (90d) + website search demand log (2y).
+        $schedule->command('model:prune', ['--model' => [\App\Models\ChannelSyncLog::class, \App\Models\WebsiteSearchLog::class]])->daily();
         // Catch-up: re-pull any OTA booking a missed webhook left unacknowledged.
         $schedule->command('channex:pull-bookings')->everyFifteenMinutes()->withoutOverlapping();
         // On-the-books snapshot per future date × room type (pickup-pace history).
