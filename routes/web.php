@@ -172,6 +172,9 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::get('/pricing/smart', [SmartPricingController::class, 'index'])->name('pricing.smart.index');
         Route::post('/pricing/smart/apply', [SmartPricingController::class, 'apply'])->name('pricing.smart.apply');
         Route::post('/pricing/smart/remove', [SmartPricingController::class, 'remove'])->name('pricing.smart.remove');
+        // AI Pricing Assistant — generate a reasoned plan (JSON) + apply one recommendation
+        Route::post('/pricing/smart/ai-plan', [SmartPricingController::class, 'aiPlan'])->name('pricing.smart.ai-plan');
+        Route::post('/pricing/smart/apply-plan', [SmartPricingController::class, 'applyPlan'])->name('pricing.smart.apply-plan');
 
         // Channel manager (Channex) — manual full re-sync
         Route::post('/channex/sync', [ChannexController::class, 'sync'])->name('channex.sync');
@@ -182,6 +185,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/settings/about', [SettingsController::class, 'updateAbout'])->name('settings.about');
         Route::put('/settings/financial', [SettingsController::class, 'updateFinancial'])->name('settings.financial');
         Route::put('/settings/housekeeping', [SettingsController::class, 'updateHousekeeping'])->name('settings.housekeeping');
+        Route::put('/settings/ai', [SettingsController::class, 'updateAi'])->name('settings.ai');
 
         // Settings: Room Types
         // Settings: Floors (Katet)

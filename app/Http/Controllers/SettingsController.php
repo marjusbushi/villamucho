@@ -21,8 +21,18 @@ class SettingsController extends Controller
 {
     public function index(): Response
     {
+        $settings = Setting::allGrouped();
+
+        // Never ship the raw AI key to the browser — expose only a masked hint + a configured flag.
+        $aiKey = $settings['ai']['gemini_key'] ?? null;
+        $settings['ai'] = [
+            'gemini_configured' => ! empty($aiKey) || ! empty(config('services.gemini.key')),
+            'gemini_key_hint' => $aiKey ? str_repeat('•', 6).substr((string) $aiKey, -4) : null,
+            'gemini_from_env' => empty($aiKey) && ! empty(config('services.gemini.key')),
+        ];
+
         return Inertia::render('Settings/Index', [
-            'settings' => Setting::allGrouped(),
+            'settings' => $settings,
             'roomTypes' => RoomType::withCount('rooms')->with('images')->orderBy('name')->get(),
             'menuCategories' => MenuCategory::with(['items' => fn($q) => $q->orderBy('name')])
                 ->orderBy('sort_order')
@@ -244,6 +254,30 @@ class SettingsController extends Controller
         Setting::set('housekeeping.default_priority', $request->default_priority);
 
         return back()->with('success', 'Konfigurimet e housekeeping u ruajten.');
+    }
+
+    // --- AI (Gemini key for the Pricing Assistant) ---
+    public function updateAi(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'gemini_key' => ['nullable', 'string', 'max:200'],
+            'clear' => ['nullable', 'boolean'],
+        ]);
+
+        if ($request->boolean('clear')) {
+            Setting::set('ai.gemini_key', '', 'text');
+
+            return back()->with('success', 'Çelësi AI u hoq.');
+        }
+
+        $key = trim((string) ($data['gemini_key'] ?? ''));
+        if ($key === '') {
+            return back()->with('success', 'Asnjë ndryshim — fusha ishte bosh.');
+        }
+
+        Setting::set('ai.gemini_key', $key, 'text');
+
+        return back()->with('success', 'Çelësi AI u ruajt. Asistenti i çmimeve tani është aktiv.');
     }
 
     // --- Room Types CRUD ---
