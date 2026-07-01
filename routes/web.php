@@ -183,6 +183,9 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         // AI Pricing Assistant — generate a reasoned plan (JSON) + apply one recommendation
         Route::post('/pricing/smart/ai-plan', [SmartPricingController::class, 'aiPlan'])->name('pricing.smart.ai-plan');
         Route::post('/pricing/smart/apply-plan', [SmartPricingController::class, 'applyPlan'])->name('pricing.smart.apply-plan');
+        Route::post('/pricing/smart/apply-range', [SmartPricingController::class, 'applyRange'])->name('pricing.smart.apply-range');
+        Route::post('/pricing/smart/strategy', [SmartPricingController::class, 'updateStrategy'])->name('pricing.smart.strategy');
+        Route::put('/pricing/smart/bounds/{roomType}', [SmartPricingController::class, 'updateBounds'])->name('pricing.smart.bounds');
 
         // Channel manager (Channex) — manual full re-sync
         Route::post('/channex/sync', [ChannexController::class, 'sync'])->name('channex.sync');
