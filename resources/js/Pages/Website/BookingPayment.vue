@@ -72,9 +72,7 @@ function focusPokFormWhenReady() {
         obs.disconnect();
         sdkLoading.value = false;
         el.focus({ preventScroll: true });
-        // Keep the page at the top: the summary (room, total, countdown) must stay
-        // visible ABOVE the card form — never center-scroll the form out of context.
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        host.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     obs.observe(host, { childList: true, subtree: true });
     setTimeout(() => { obs.disconnect(); sdkLoading.value = false; }, 12000);
@@ -155,22 +153,22 @@ onUnmounted(() => { if (tick) clearInterval(tick); });
 <template>
     <Head title="Pagesa" />
     <WebsiteLayout>
-        <div class="max-w-xl mx-auto px-5 py-8 sm:py-10">
-            <p class="text-eyebrow text-ionian mb-1">Hapi i fundit</p>
+        <div class="max-w-xl mx-auto px-5 py-16 sm:py-20">
+            <p class="text-eyebrow text-ionian mb-3">Hapi i fundit</p>
             <h1 class="font-serif text-display-sm text-ink">Përfundo pagesën</h1>
-            <p class="text-driftwood text-body-sm mt-1 mb-5">
+            <p class="text-driftwood mt-2 mb-8 lead">
                 <template v-if="guestName">{{ guestName }}, r</template><template v-else>R</template>ezervimi mbahet për ty derisa të paguash. Pagesa është e sigurt përmes POK.
             </p>
 
-            <!-- summary (compact — must stay visible together with the card form) -->
-            <div class="rounded-2xl border border-limestone bg-bone/60 p-4 mb-2">
+            <!-- summary -->
+            <div class="rounded-2xl border border-limestone bg-bone/60 p-5 mb-3">
                 <div class="flex items-center justify-between text-ink/70 text-body-sm">
                     <span>{{ roomName || 'Dhoma' }}</span>
                     <span>{{ nights }} net<template v-if="adults"> · {{ adults }} të rritur</template><template v-if="children">, {{ children }} fëmijë</template></span>
                 </div>
-                <div class="flex items-baseline justify-between mt-2 pt-2 border-t border-limestone">
+                <div class="flex items-baseline justify-between mt-3 pt-3 border-t border-limestone">
                     <span class="text-ink font-medium">Total për të paguar</span>
-                    <span class="font-serif text-2xl text-brass">{{ currency }}{{ money(amount) }}</span>
+                    <span class="font-serif text-3xl text-brass">{{ currency }}{{ money(amount) }}</span>
                 </div>
             </div>
 
@@ -178,7 +176,7 @@ onUnmounted(() => { if (tick) clearInterval(tick); });
             <p
                 v-if="holdExpiresAt && !holdExpired && openForPayment"
                 role="status"
-                :class="['text-center text-body-sm mb-4 tabular-nums', holdUrgent ? 'text-error-600 font-medium' : 'text-driftwood']"
+                :class="['text-center text-body-sm mb-6 tabular-nums', holdUrgent ? 'text-error-600 font-medium' : 'text-driftwood']"
             >
                 Dhoma mbahet për ty edhe {{ holdClock }} min
             </p>
