@@ -2,8 +2,12 @@
 import { ref, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
-import { renderForm } from '@nebula-ltd/pok-payments-js';
-import '@nebula-ltd/pok-payments-js/style.css';
+
+// NOTE: we do NOT import the npm SDK here. POK's docs are explicit: the drop-in card form
+// (renderForm) must come from the CDN build (window.PokPayment) or the React component — the
+// npm `import` path is only the low-level encryptCard(). Bundling the npm build through Vite
+// broke the SDK (status-0 aborted requests → GENERAL_ERROR). The CDN build is self-contained.
+const POK_CDN = 'https://static.pokpay.io/public/dist/pokpayments/pok-payment.js';
 
 const props = defineProps({
     orderId: String,
@@ -12,31 +16,35 @@ const props = defineProps({
     currency: { type: String, default: '€' },
     guestName: { type: String, default: null },
     confirmUrl: String,
-    payUrl: { type: String, default: null }, // POK's hosted card page (reliable fallback)
+    payUrl: { type: String, default: null },
     roomName: { type: String, default: null },
     nights: { type: Number, default: 0 },
     openForPayment: { type: Boolean, default: true },
 });
 
 const error = ref('');
-const diag = ref('');       // on-page technical detail (staging) so a failure is visible without DevTools
+const diag = ref('');
 const confirming = ref(false);
+const started = ref(false);
 
 function money(v) { const n = Number(v) || 0; return n % 1 === 0 ? String(n) : n.toFixed(2); }
 function note(m) { diag.value += (diag.value ? '\n' : '') + m; try { console.log('[POK]', m); } catch (e) {} }
 
-onMounted(() => {
-    // Surface the SDK's OWN console.error (the real cause it hides behind "GENERAL_ERROR").
-    const origErr = console.error;
-    console.error = (...a) => {
-        try { note('console.error: ' + a.map((x) => x?.message || (x && typeof x === 'object' ? JSON.stringify(x) : String(x))).join(' ')); } catch (e) {}
-        origErr.apply(console, a);
-    };
-    window.addEventListener('error', (ev) => note('JS error: ' + (ev.message || ev.error?.message || ev.error)));
-    window.addEventListener('unhandledrejection', (ev) => note('Promise reject: ' + (ev.reason?.message || JSON.stringify(ev.reason))));
+function loadPokSdk() {
+    return new Promise((resolve, reject) => {
+        if (window.PokPayment) return resolve(window.PokPayment);
+        const s = document.createElement('script');
+        s.src = POK_CDN;
+        s.async = true;
+        s.onload = () => (window.PokPayment ? resolve(window.PokPayment) : reject(new Error('PokPayment global missing after load')));
+        s.onerror = () => reject(new Error('Nuk u ngarkua dot SDK-ja e POK-ut nga CDN.'));
+        document.head.appendChild(s);
+    });
+}
 
-    // Capture the network mechanism behind the silent GENERAL_ERROR. POK's SDK uses axios (XHR),
-    // so XHR is the key one — a status-0 XHR is a browser-blocked/failed request.
+onMounted(() => {
+    // Diagnostics only (staging) — confirm the CDN build no longer aborts (no "XHR 0").
+    window.addEventListener('error', (ev) => note('JS error: ' + (ev.message || ev.error?.message || ev.error)));
     try {
         const OrigXHR = window.XMLHttpRequest;
         window.XMLHttpRequest = function () {
@@ -48,39 +56,16 @@ onMounted(() => {
             return xhr;
         };
         window.XMLHttpRequest.prototype = OrigXHR.prototype;
-
-        const OrigWS = window.WebSocket;
-        window.WebSocket = function (url, proto) {
-            note('WebSocket → ' + url);
-            const ws = proto ? new OrigWS(url, proto) : new OrigWS(url);
-            ws.addEventListener('error', () => note('WebSocket ERROR: ' + url));
-            ws.addEventListener('close', (ev) => note('WebSocket closed code=' + ev.code + ' ' + url));
-            return ws;
-        };
-        window.WebSocket.prototype = OrigWS.prototype;
-
-        const origFetch = window.fetch.bind(window);
-        window.fetch = async (...a) => {
-            try {
-                const r = await origFetch(...a);
-                if (!r.ok) note('fetch ' + r.status + ' ' + (a[0]?.url || a[0]));
-                return r;
-            } catch (e) { note('fetch FAILED ' + (a[0]?.url || a[0]) + ' — ' + e.message); throw e; }
-        };
-
-        window.addEventListener('message', (ev) => {
-            const o = String(ev.origin);
-            if (o.includes('pok') || o.includes('cyber') || o.includes('cardinal')) {
-                note('postMessage ' + o + ': ' + String(typeof ev.data === 'object' ? JSON.stringify(ev.data) : ev.data).slice(0, 140));
-            }
-        });
     } catch (e) { note('instrument failed: ' + e.message); }
+});
 
-    if (!props.openForPayment || !props.orderId) return;
-
+async function startPayment() {
+    if (started.value || !props.orderId) return;
+    started.value = true;
     try {
-        note('renderForm(' + props.orderId + ', env=' + props.env + ')');
-        renderForm(
+        const Pok = await loadPokSdk();
+        note('PokPayment.renderForm(' + props.orderId + ', env=' + props.env + ')');
+        Pok.renderForm(
             'pok-form',
             props.orderId,
             () => {
@@ -93,10 +78,11 @@ onMounted(() => {
             { env: props.env, locale: 'al' },
         );
     } catch (ex) {
-        note('renderForm threw: ' + (ex?.message || ex));
-        error.value = "Forma s'u ngarkua.";
+        note('startPayment threw: ' + (ex?.message || ex));
+        error.value = ex?.message || "Forma s'u ngarkua.";
+        started.value = false;
     }
-});
+}
 </script>
 
 <template>
@@ -108,7 +94,6 @@ onMounted(() => {
                 <template v-if="guestName">{{ guestName }}, r</template><template v-else>R</template>ezervimi mbahet për ty derisa të paguash. Pagesa është e sigurt përmes POK.
             </p>
 
-            <!-- summary -->
             <div class="rounded-2xl border border-limestone bg-bone/60 p-5 mb-6">
                 <div class="flex items-center justify-between text-ink/70 text-body-sm">
                     <span>{{ roomName || 'Dhoma' }}</span>
@@ -120,23 +105,27 @@ onMounted(() => {
                 </div>
             </div>
 
-            <div v-if="error" class="mb-5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-body-sm px-4 py-3">
-                {{ error }}
-            </div>
+            <div v-if="error" class="mb-5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-body-sm px-4 py-3">{{ error }}</div>
 
             <div v-if="!openForPayment" class="rounded-xl bg-limestone/40 border border-limestone text-ink/80 text-body-sm px-4 py-6 text-center">
                 Po konfirmojmë pagesën tënde… Nëse e ke paguar, rifresko këtë faqe pas pak sekondash.
             </div>
 
             <template v-if="openForPayment">
-                <!-- POK embedded card form mounts here -->
-                <div id="pok-form" class="min-h-[220px]"></div>
+                <div v-if="!started" class="text-center">
+                    <button type="button" @click="startPayment"
+                        class="rounded-xl bg-ionian text-white font-medium px-7 py-3.5 hover:bg-ionian-dark">
+                        Paguaj me kartë
+                    </button>
+                </div>
+
+                <!-- POK card form (CDN build) mounts here -->
+                <div v-show="started" id="pok-form" class="min-h-[220px]"></div>
 
                 <p v-if="confirming" class="text-center text-driftwood text-body-sm mt-5">Po konfirmohet pagesa…</p>
 
-                <!-- Reliable fallback: POK's own hosted card page (opens in the same tab, returns here). -->
                 <div v-if="payUrl" class="mt-8 pt-6 border-t border-limestone text-center">
-                    <p class="text-driftwood text-body-sm mb-3">Nuk shfaqet forma e kartës më lart?</p>
+                    <p class="text-driftwood text-body-sm mb-3">Nuk shfaqet forma e kartës?</p>
                     <a :href="payUrl" class="inline-block rounded-xl bg-brass text-white font-medium px-6 py-3 hover:bg-brass-dark no-underline">
                         Paguaj në faqen e sigurt të POK →
                     </a>
@@ -147,7 +136,6 @@ onMounted(() => {
                     datë skadence në të ardhmen, çfarëdo CVV 3-shifror.
                 </p>
 
-                <!-- Diagnostic (staging only): shows WHY the embedded SDK failed, no DevTools needed. -->
                 <pre v-if="env === 'staging' && diag" class="mt-6 whitespace-pre-wrap break-words rounded-lg bg-ink/5 border border-limestone text-ink/60 text-[11px] leading-relaxed p-3">{{ diag }}</pre>
             </template>
         </div>
