@@ -80,6 +80,18 @@
         @apply outline-none ring-2 ring-ionian/60 ring-offset-2 ring-offset-bone;
     }
 
+    /* POK card form — compact + centered so the payment summary (room, total, countdown)
+       stays visible above it. Uses POK's OFFICIALLY documented override hooks
+       (#pok-payment-container scope; see docs.pokpay.io "Customizing styles"). */
+    .site #pok-payment-container .pok-payment-form {
+        max-width: 26rem;
+        padding: 14px 16px;
+        gap: 0.625rem;
+    }
+    .site #pok-payment-container .pok-payment-button {
+        padding: 0.625rem 1rem;
+    }
+
     /* Light editorial serif for every public-site heading (never bold).
        Color is intentionally NOT forced here — it inherits `.site`'s ink
        default but lets pages set text-bone/text-white on dark sections. */
