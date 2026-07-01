@@ -36,6 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('model:prune', ['--model' => [\App\Models\ChannelSyncLog::class]])->daily();
         // Catch-up: re-pull any OTA booking a missed webhook left unacknowledged.
         $schedule->command('channex:pull-bookings')->everyFifteenMinutes()->withoutOverlapping();
+        // On-the-books snapshot per future date × room type (pickup-pace history).
+        // Runs before the 04:00 ARI push so both see the same overnight state.
+        $schedule->command('pricing:snapshot')->dailyAt('03:30');
         // Nightly safety-net: re-push availability + rates in case a real-time push was missed.
         $schedule->command('channex:push-ari --queue')->dailyAt('04:00');
     })

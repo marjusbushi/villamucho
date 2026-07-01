@@ -4,12 +4,20 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * One row per (snapshot_date × stay_date × room_type): how many rooms of the
+ * type were on the books for that future night, as seen on snapshot_date.
+ * Written nightly by `pricing:snapshot` — the raw feed for pickup-pace pricing.
+ */
 class RoomInventorySnapshot extends Model
 {
     protected $fillable = [
         'snapshot_date',
+        'stay_date',
+        'room_type_id',
         'total_rooms',
         'out_of_order',
+        'booked',
         'available',
     ];
 
@@ -17,9 +25,16 @@ class RoomInventorySnapshot extends Model
     {
         return [
             'snapshot_date' => 'date',
+            'stay_date' => 'date',
             'total_rooms' => 'integer',
             'out_of_order' => 'integer',
+            'booked' => 'integer',
             'available' => 'integer',
         ];
+    }
+
+    public function roomType()
+    {
+        return $this->belongsTo(RoomType::class);
     }
 }
