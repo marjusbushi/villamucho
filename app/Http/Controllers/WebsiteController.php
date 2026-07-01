@@ -2,17 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditLog;
 use App\Models\Guest;
-use App\Models\Payment;
 use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\PokClient;
+use App\Services\PokPayments;
 use App\Services\RoomPricing;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -281,12 +279,36 @@ class WebsiteController extends Controller
             ->with('room.roomType')
             ->firstOrFail();
 
-        // Already paid/confirmed (or never had an order) → straight to confirmation.
+        // No order / already resolved → the confirmation page reflects the true state.
         if ($reservation->status !== 'pending' || ! $reservation->pok_order_id) {
             return redirect()->route('website.booking.confirmation', $token);
         }
 
-        return Inertia::render('Website/BookingPayment', [
+        // POK captures the moment the card form succeeds, so the guest may ALREADY have paid
+        // (a lost confirm POST, or they navigated back here). Re-verify BEFORE re-mounting a live
+        // card form — otherwise a paid guest is shown "pay again" (confusing / double-charge risk).
+        try {
+            if (app(PokPayments::class)->settle($reservation)) {
+                return redirect()->route('website.booking.confirmation', $token);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+            // POK unreachable — show a neutral "confirming your payment" state, NOT a live form.
+            return Inertia::render('Website/BookingPayment', array_merge($this->paymentProps($reservation, $token), [
+                'openForPayment' => false,
+            ]));
+        }
+
+        // Order genuinely still open/unpaid → render the embedded card form.
+        return Inertia::render('Website/BookingPayment', array_merge($this->paymentProps($reservation, $token), [
+            'openForPayment' => true,
+        ]));
+    }
+
+    /** @return array<string,mixed> */
+    private function paymentProps(Reservation $reservation, string $token): array
+    {
+        return [
             'orderId' => $reservation->pok_order_id,
             'env' => config('services.pok.production') ? 'production' : 'staging',
             'amount' => (float) $reservation->total_amount,
@@ -295,7 +317,7 @@ class WebsiteController extends Controller
             'confirmUrl' => route('website.pay.confirm', $token),
             'roomName' => $reservation->room?->roomType?->name,
             'nights' => (int) now()->parse($reservation->check_in_date)->diffInDays($reservation->check_out_date),
-        ]);
+        ];
     }
 
     /** Browser calls this after the embedded form fires onSuccess — verify + confirm. */
@@ -304,7 +326,7 @@ class WebsiteController extends Controller
         $reservation = Reservation::where('confirmation_token', $token)->firstOrFail();
 
         try {
-            $this->markReservationPaid($reservation);
+            app(PokPayments::class)->settle($reservation);
         } catch (\Throwable $e) {
             report($e); // never 500 the guest — the webhook is the backstop
         }
@@ -317,7 +339,7 @@ class WebsiteController extends Controller
             ->with('error', "Pagesa s'u konfirmua ende. Nëse e paguat, prit pak sekonda dhe rifresko.");
     }
 
-    /** POK server-to-server webhook (CSRF-exempt). Never trusts the body — re-verifies. */
+    /** POK server-to-server webhook (CSRF-exempt). Never trusts the body — re-verifies via getOrder. */
     public function paymentWebhook(Request $request): \Illuminate\Http\Response
     {
         $orderId = $request->input('id')
@@ -330,7 +352,7 @@ class WebsiteController extends Controller
             $reservation = Reservation::where('pok_order_id', $orderId)->first();
             if ($reservation) {
                 try {
-                    $this->markReservationPaid($reservation);
+                    app(PokPayments::class)->settle($reservation); // confirms a payment OR reverses a refund
                 } catch (\Throwable $e) {
                     report($e);
                 }
@@ -341,75 +363,23 @@ class WebsiteController extends Controller
         return response('ok', 200);
     }
 
-    /**
-     * Verify the POK order and, if genuinely paid, atomically confirm the reservation +
-     * record the folio card payment. Idempotent + hardened (R1–R7 from last session's review):
-     * amount+currency verified, atomic status guard (no late-webhook resurrection, no double
-     * confirm), unique pok_order_id backstops a double folio row.
-     */
-    private function markReservationPaid(Reservation $reservation): bool
-    {
-        if (! $reservation->pok_order_id) {
-            return false;
-        }
-
-        $order = app(PokClient::class)->getOrder($reservation->pok_order_id);
-        $expected = round((float) $reservation->total_amount, 2);
-
-        $paid = $order['isCompleted']
-            && ! $order['isCanceled']
-            && ! $order['isRefunded']
-            && abs($order['finalAmount'] - $expected) < 0.01          // R2 amount bypass
-            && strtoupper($order['currencyCode']) === 'EUR';          // R6 currency
-
-        if (! $paid) {
-            return false;
-        }
-
-        // Atomic guard (R1 resurrection + R3 SQLite lock no-op): only a still-PENDING, unpaid
-        // reservation flips. A released/cancelled hold or an already-confirmed one affects 0 rows.
-        $flipped = Reservation::whereKey($reservation->id)
-            ->where('status', 'pending')
-            ->whereNull('paid_at')
-            ->update(['status' => 'confirmed', 'paid_at' => now()]);
-
-        if ($flipped !== 1) {
-            return false; // already settled or released — idempotent no-op
-        }
-
-        try {
-            Payment::create([
-                'reservation_id' => $reservation->id,
-                'amount' => $expected,
-                'method' => 'card',
-                'type' => 'payment',
-                'pok_order_id' => $reservation->pok_order_id,
-                'currency' => 'EUR',
-                'created_by' => $reservation->created_by,
-            ]);
-        } catch (QueryException $e) {
-            // UNIQUE(pok_order_id) — a concurrent path already recorded this order's payment.
-        }
-
-        AuditLog::record('payment.pok_capture', $reservation, [
-            'pok_order_id' => $reservation->pok_order_id,
-            'amount' => $expected,
-            'currency' => 'EUR',
-        ]);
-
-        return true;
-    }
-
-    public function bookingConfirmation(string $token): Response
+    public function bookingConfirmation(string $token): Response|RedirectResponse
     {
         // Look up by the unguessable token, never by the sequential id (IDOR-safe).
         $reservation = Reservation::where('confirmation_token', $token)
             ->with(['room.roomType', 'guest'])
             ->firstOrFail();
 
+        // Payment not finished yet (pending with a POK order) → send the guest back to pay,
+        // never show a "booked successfully" screen for an unpaid hold.
+        if ($reservation->status === 'pending' && $reservation->pok_order_id) {
+            return redirect()->route('website.pay.show', $token);
+        }
+
         // Pass ONLY the fields this page renders — never the full Guest model
         // (document_number, date_of_birth, etc. must not reach the public props).
         return Inertia::render('Website/BookingConfirmation', [
+            'status' => $reservation->status, // 'confirmed' (paid) | 'pending' (no online payment) | 'cancelled'
             'reservation' => [
                 'reference' => strtoupper(substr($reservation->confirmation_token, 0, 8)),
                 // The booker's submitted name (flashed) — NOT the stored guest's name,

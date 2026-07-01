@@ -167,8 +167,10 @@ class PokPaymentTest extends TestCase
         $this->assertEquals(0, Payment::count());
     }
 
-    public function test_release_unpaid_holds_cancels_abandoned_but_keeps_fresh(): void
+    public function test_release_unpaid_holds_cancels_genuinely_unpaid_but_keeps_fresh(): void
     {
+        $this->configurePok();
+        $this->fakePok($this->paidStatus(['isCompleted' => false])); // POK confirms: NOT paid
         $room = $this->room();
         $old = $this->pendingReservation($room, 'ord_old');
         $old->forceFill(['created_at' => now()->subMinutes(40)])->save(); // abandoned
@@ -178,5 +180,78 @@ class PokPaymentTest extends TestCase
 
         $this->assertSame('cancelled', $old->fresh()->status);
         $this->assertSame('pending', $fresh->fresh()->status);
+    }
+
+    public function test_release_SETTLES_a_paid_hold_instead_of_cancelling(): void
+    {
+        // THE critical fix: a guest paid (money captured) but both confirm paths missed the window.
+        $this->configurePok();
+        $this->fakePok($this->paidStatus()); // POK confirms: PAID
+        $old = $this->pendingReservation($this->room(), 'ord_old');
+        $old->forceFill(['created_at' => now()->subMinutes(40)])->save();
+
+        $this->artisan('pok:release-unpaid')->assertExitCode(0);
+
+        $this->assertSame('confirmed', $old->fresh()->status);          // settled, NOT cancelled
+        $this->assertEquals(1, Payment::where('reservation_id', $old->id)->count());
+    }
+
+    public function test_release_SKIPS_when_pok_is_unreachable(): void
+    {
+        $this->configurePok();
+        Http::fake([
+            '*/auth/sdk/login' => Http::response(['data' => ['accessToken' => 'tok']], 200),
+            '*/sdk-orders/*' => Http::response('', 503), // POK down → getOrder throws
+        ]);
+        $old = $this->pendingReservation($this->room(), 'ord_old');
+        $old->forceFill(['created_at' => now()->subMinutes(40)])->save();
+
+        $this->artisan('pok:release-unpaid')->assertExitCode(0);
+
+        $this->assertSame('pending', $old->fresh()->status); // fail-safe: never cancel on uncertainty
+    }
+
+    public function test_missing_finalAmount_keeps_hold_pending_and_does_not_silently_reject(): void
+    {
+        $this->configurePok();
+        // Response-shape drift: no finalAmount → getOrder must THROW, not treat as 0.
+        $this->fakePok(['id' => 'ord_1', 'isCompleted' => true, 'isCanceled' => false, 'isRefunded' => false, 'currencyCode' => 'EUR']);
+        $reservation = $this->pendingReservation($this->room());
+
+        $this->post(route('website.pay.webhook'), ['id' => 'ord_1'])->assertOk(); // swallowed + reported
+
+        $this->assertSame('pending', $reservation->fresh()->status); // hold survives, not confirmed, not lost
+        $this->assertEquals(0, Payment::count());
+    }
+
+    public function test_refund_after_confirmation_reverses_and_voids_payment(): void
+    {
+        $this->configurePok();
+        $reservation = $this->pendingReservation($this->room());
+        // Already settled earlier (confirmed + folio card payment on file).
+        $reservation->update(['status' => 'confirmed', 'paid_at' => now()]);
+        Payment::create([
+            'reservation_id' => $reservation->id, 'amount' => 150, 'method' => 'card',
+            'type' => 'payment', 'pok_order_id' => 'ord_1', 'currency' => 'EUR',
+        ]);
+
+        // Now POK reports the order refunded → the webhook must reverse it.
+        $this->fakePok($this->paidStatus(['isRefunded' => true]));
+        $this->post(route('website.pay.webhook'), ['id' => 'ord_1'])->assertOk();
+
+        $this->assertSame('cancelled', $reservation->fresh()->status);         // room freed
+        $this->assertTrue((bool) Payment::where('reservation_id', $reservation->id)->first()->is_voided);
+    }
+
+    public function test_payment_page_settles_an_already_paid_order_and_redirects_to_confirmation(): void
+    {
+        $this->configurePok();
+        $this->fakePok($this->paidStatus()); // guest already paid; browser confirm was lost
+        $reservation = $this->pendingReservation($this->room());
+
+        $this->get(route('website.pay.show', $reservation->confirmation_token))
+            ->assertRedirect(route('website.booking.confirmation', $reservation->confirmation_token));
+
+        $this->assertSame('confirmed', $reservation->fresh()->status); // settled on page load, no re-charge
     }
 }

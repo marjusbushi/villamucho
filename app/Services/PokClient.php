@@ -128,11 +128,18 @@ class PokClient
 
         $o = $res->json('data.sdkOrder') ?? [];
 
+        // Fail LOUD on response-shape drift: a missing finalAmount must NOT become 0 (that would
+        // silently fail the amount check and discard a captured payment). Throw so callers keep
+        // the hold + the anomaly surfaces, instead of quietly charging a guest with no booking.
+        if (! array_key_exists('finalAmount', $o) || ! is_numeric($o['finalAmount'])) {
+            throw new RuntimeException("POK get-order {$sdkOrderId}: response has no numeric finalAmount (shape drift?).");
+        }
+
         return [
             'isCompleted' => (bool) ($o['isCompleted'] ?? false),
             'isCanceled' => (bool) ($o['isCanceled'] ?? false),
             'isRefunded' => (bool) ($o['isRefunded'] ?? false),
-            'finalAmount' => (float) ($o['finalAmount'] ?? 0),
+            'finalAmount' => (float) $o['finalAmount'],
             'currencyCode' => (string) ($o['currencyCode'] ?? ''),
         ];
     }

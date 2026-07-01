@@ -14,6 +14,8 @@ const props = defineProps({
     confirmUrl: String,
     roomName: { type: String, default: null },
     nights: { type: Number, default: 0 },
+    // False when POK couldn't be reached to verify — show a "confirming" state, never a live form.
+    openForPayment: { type: Boolean, default: true },
 });
 
 const error = ref('');
@@ -25,8 +27,8 @@ function money(v) {
 }
 
 onMounted(() => {
-    if (!props.orderId) {
-        error.value = 'Porosia e pagesës nuk u gjet. Kthehu te rezervimi.';
+    // Only mount POK's live card form for a genuinely open, unpaid order.
+    if (!props.openForPayment || !props.orderId) {
         return;
     }
     // Mount POK's secure card form into #pok-form (card data goes straight to POK, never our server).
@@ -74,12 +76,17 @@ onMounted(() => {
                 {{ error }}
             </div>
 
-            <!-- POK embedded card form mounts here -->
-            <div id="pok-form" class="min-h-[220px]"></div>
+            <!-- Paid already / POK temporarily unreachable → neutral confirming state, no live form. -->
+            <div v-if="!openForPayment" class="rounded-xl bg-limestone/40 border border-limestone text-ink/80 text-body-sm px-4 py-6 text-center">
+                Po konfirmojmë pagesën tënde… Nëse e ke paguar, rifresko këtë faqe pas pak sekondash.
+            </div>
+
+            <!-- POK embedded card form mounts here (only for an open, unpaid order) -->
+            <div v-show="openForPayment" id="pok-form" class="min-h-[220px]"></div>
 
             <p v-if="confirming" class="text-center text-driftwood text-body-sm mt-5">Po konfirmohet pagesa…</p>
 
-            <p v-if="env === 'staging'" class="text-center text-tiny text-driftwood mt-8 leading-relaxed">
+            <p v-if="openForPayment && env === 'staging'" class="text-center text-tiny text-driftwood mt-8 leading-relaxed">
                 Modaliteti TEST — përdor kartën <b class="text-ink">4242 4242 4242 4242</b>,<br>
                 datë skadence në të ardhmen, çfarëdo CVV 3-shifror.
             </p>

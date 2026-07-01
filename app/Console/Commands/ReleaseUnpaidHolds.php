@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Payment;
 use App\Models\Reservation;
+use App\Services\PokPayments;
 use Illuminate\Console\Command;
 
 /**
@@ -31,20 +32,37 @@ class ReleaseUnpaidHolds extends Command
             ->get();
 
         $released = 0;
+        $settled = 0;
+        $pok = app(PokPayments::class);
+
         foreach ($stale as $reservation) {
-            // Belt-and-suspenders: never cancel one that actually carries a card payment.
+            // Belt-and-suspenders: never cancel one that already carries a card payment.
             if (Payment::where('reservation_id', $reservation->id)->where('method', 'card')->exists()) {
                 continue;
             }
 
-            // Atomic guard — a payment landing at this exact moment (pending→confirmed) wins the race.
+            // CRITICAL: POK captures money immediately (autoCapture), so NEVER cancel on local
+            // state alone. Ask POK first. settle() re-verifies via getOrder and, if the guest
+            // actually paid, confirms + records the folio payment (idempotent) — we then keep it.
+            try {
+                if ($pok->settle($reservation)) {
+                    $settled++;
+                    continue; // was genuinely paid — settled, do NOT cancel
+                }
+            } catch (\Throwable $e) {
+                report($e);
+                continue; // POK unreachable / shape drift → SKIP (fail-safe: never cancel blind)
+            }
+
+            // settle() returned false with no error → POK confirms the order is NOT completed →
+            // genuinely unpaid/expired → safe to release. Atomic guard wins any last-second race.
             $released += Reservation::whereKey($reservation->id)
                 ->where('status', 'pending')
                 ->whereNull('paid_at')
                 ->update(['status' => 'cancelled']);
         }
 
-        $this->info("Released {$released} unpaid hold(s).");
+        $this->info("Released {$released} unpaid hold(s)".($settled ? ", settled {$settled} late payment(s)." : '.'));
 
         return self::SUCCESS;
     }
