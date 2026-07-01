@@ -11,7 +11,15 @@ const props = defineProps({
 });
 
 const mobileMenu = ref(false);
+const menuBtn = ref(null);
 const scrolled = ref(false);
+
+// Escape closes the mobile menu and returns focus to the hamburger.
+function closeMenu() {
+    if (!mobileMenu.value) return;
+    mobileMenu.value = false;
+    menuBtn.value?.focus();
+}
 const page = usePage();
 const settings = computed(() => page.props.settings || {});
 const hotelName = settings.value.hotel_name || 'Villa Mucho';
@@ -58,6 +66,10 @@ function isActive(href) {
 
 <template>
     <div class="site min-h-screen">
+        <!-- Keyboard users skip the 6+ header links on every page of the booking flow -->
+        <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:bg-ink focus:text-bone focus:px-4 focus:py-2 focus:rounded-md">
+            Kalo te përmbajtja
+        </a>
         <!-- Header -->
         <header
             :class="[
@@ -105,8 +117,16 @@ function isActive(href) {
                     </nav>
 
                     <!-- Mobile hamburger -->
-                    <button :class="['md:hidden p-2 transition-colors', solid ? 'text-ink' : 'text-bone']" @click="mobileMenu = !mobileMenu" aria-label="Menu">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                        ref="menuBtn"
+                        :class="['md:hidden p-2 transition-colors', solid ? 'text-ink' : 'text-bone']"
+                        :aria-expanded="mobileMenu"
+                        aria-controls="site-mobile-menu"
+                        :aria-label="mobileMenu ? 'Mbyll menunë' : 'Hap menunë'"
+                        @click="mobileMenu = !mobileMenu"
+                        @keydown.escape="closeMenu"
+                    >
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path v-if="!mobileMenu" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16" />
                             <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -114,7 +134,7 @@ function isActive(href) {
                 </div>
 
                 <!-- Mobile menu -->
-                <div v-if="mobileMenu" class="md:hidden pb-4 border-t border-driftwood/15 mt-2 pt-3">
+                <div v-if="mobileMenu" id="site-mobile-menu" class="md:hidden pb-4 border-t border-driftwood/15 mt-2 pt-3" @keydown.escape="closeMenu">
                     <Link
                         v-for="link in navLinks"
                         :key="link.href"
@@ -136,7 +156,7 @@ function isActive(href) {
         </header>
 
         <!-- Content (offset for fixed header only when it's NOT floating over a hero) -->
-        <main :class="transparentHeader ? '' : 'pt-16'">
+        <main id="main" tabindex="-1" :class="[transparentHeader ? '' : 'pt-16', 'outline-none']">
             <slot />
         </main>
 

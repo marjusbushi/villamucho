@@ -43,8 +43,11 @@ const cells = computed(() => {
     return arr;
 });
 
+const fetchFailed = ref(false);
+
 async function fetchAvailability() {
     loading.value = true;
+    fetchFailed.value = false;
     const first = viewMonth.value;
     const monthStart = ymd(first);
     const monthEnd = ymd(new Date(first.getFullYear(), first.getMonth() + 1, 0));
@@ -55,9 +58,16 @@ async function fetchAvailability() {
         const { data } = await axios.get('/book/availability', { params });
         days.value = { ...days.value, ...data.days };
     } catch (e) {
-        // leave days as-is on failure
+        // Surface it — a silently empty calendar reads as "everything is booked".
+        fetchFailed.value = true;
+        message.value = "S'u ngarkua disponueshmëria — provo sërish.";
     }
     loading.value = false;
+}
+
+function retryFetch() {
+    message.value = '';
+    fetchAvailability();
 }
 
 watch(() => props.roomTypeId, () => { days.value = {}; fetchAvailability(); });
@@ -125,18 +135,27 @@ function nextMonth() {
     if (!canNext.value) return;
     viewMonth.value = new Date(viewMonth.value.getFullYear(), viewMonth.value.getMonth() + 1, 1);
 }
+
+// Spoken label for a day button — a bare number tells a screen reader nothing.
+function dayLabel(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00').toLocaleDateString('sq-AL', { day: 'numeric', month: 'long' });
+    if (isPast(dateStr)) return `${d} — e kaluar`;
+    if (isFull(dateStr)) return `${d} — e zënë`;
+    const n = free(dateStr);
+    return n === undefined ? d : `${d} — ${n} dhoma të lira`;
+}
 </script>
 
 <template>
     <div class="select-none">
-        <!-- Header -->
+        <!-- Header: 44px tap targets, labelled, month announced on change -->
         <div class="flex items-center justify-between mb-3">
-            <button type="button" :disabled="!canPrev" class="h-8 w-8 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="prevMonth">
-                <ChevronLeft class="h-5 w-5" />
+            <button type="button" :disabled="!canPrev" aria-label="Muaji i mëparshëm" class="h-11 w-11 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="prevMonth">
+                <ChevronLeft class="h-5 w-5" aria-hidden="true" />
             </button>
-            <span class="text-body font-medium text-ink capitalize">{{ monthLabel }}</span>
-            <button type="button" :disabled="!canNext" class="h-8 w-8 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="nextMonth">
-                <ChevronRight class="h-5 w-5" />
+            <span aria-live="polite" class="text-body font-medium text-ink capitalize">{{ monthLabel }}</span>
+            <button type="button" :disabled="!canNext" aria-label="Muaji tjetër" class="h-11 w-11 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="nextMonth">
+                <ChevronRight class="h-5 w-5" aria-hidden="true" />
             </button>
         </div>
 
@@ -153,13 +172,16 @@ function nextMonth() {
                     v-else
                     type="button"
                     :disabled="!clickable(c)"
+                    :aria-label="dayLabel(c)"
+                    :aria-pressed="c === checkIn || c === checkOut"
                     class="relative h-12 rounded-lg text-body-sm flex flex-col items-center justify-center transition-colors"
                     :class="[
                         c === checkIn || c === checkOut ? 'bg-ionian text-bone font-semibold'
                           : inRange(c) ? 'bg-ionian/15 text-ink'
                           : isPast(c) ? 'text-ink/25 cursor-not-allowed'
                           : isFull(c) ? 'bg-limestone/60 text-ink/30 line-through cursor-not-allowed'
-                          : 'bg-success-50 text-success-800 hover:bg-success-100 cursor-pointer',
+                          : (free(c) ?? 0) > 0 ? 'bg-success-50 text-success-800 hover:bg-success-100 cursor-pointer'
+                          : 'bg-limestone/30 text-ink/30', // availability unknown (loading/failed) — never fake 'free'
                     ]"
                     @click="pick(c)"
                 >
@@ -175,6 +197,9 @@ function nextMonth() {
             <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-limestone/60" /> E zënë</span>
             <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-ionian" /> Zgjedhja jote</span>
         </div>
-        <p v-if="message" class="mt-2 text-small text-error-600">{{ message }}</p>
+        <p v-if="message" role="alert" class="mt-2 text-small text-error-600">
+            {{ message }}
+            <button v-if="fetchFailed" type="button" class="underline ml-1" @click="retryFetch">Provo sërish</button>
+        </p>
     </div>
 </template>
