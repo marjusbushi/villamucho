@@ -35,8 +35,20 @@ onMounted(() => {
     window.addEventListener('error', (ev) => note('JS error: ' + (ev.message || ev.error?.message || ev.error)));
     window.addEventListener('unhandledrejection', (ev) => note('Promise reject: ' + (ev.reason?.message || JSON.stringify(ev.reason))));
 
-    // Capture the network mechanism behind the silent GENERAL_ERROR (websocket / hidden-iframe / fetch).
+    // Capture the network mechanism behind the silent GENERAL_ERROR. POK's SDK uses axios (XHR),
+    // so XHR is the key one — a status-0 XHR is a browser-blocked/failed request.
     try {
+        const OrigXHR = window.XMLHttpRequest;
+        window.XMLHttpRequest = function () {
+            const xhr = new OrigXHR();
+            let u = '';
+            const open = xhr.open;
+            xhr.open = function (m, url, ...rest) { u = m + ' ' + url; return open.call(xhr, m, url, ...rest); };
+            xhr.addEventListener('loadend', () => { if (xhr.status === 0 || xhr.status >= 400) note('XHR ' + xhr.status + ' ' + u); });
+            return xhr;
+        };
+        window.XMLHttpRequest.prototype = OrigXHR.prototype;
+
         const OrigWS = window.WebSocket;
         window.WebSocket = function (url, proto) {
             note('WebSocket → ' + url);
