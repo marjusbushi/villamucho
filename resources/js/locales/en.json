@@ -222,6 +222,7 @@
         },
         "cta": {
             "home": "Back to homepage"
-        }
+        },
+        "keepReference": "Keep the reference number below — we will ask for it at check-in."
     }
 }

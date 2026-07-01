@@ -359,6 +359,11 @@ class WebsiteController extends Controller
             'payUrl' => rtrim(config('services.pok.production') ? 'https://pay.pokpay.io' : 'https://pay-staging.pokpay.io', '/').'/sdk-orders/'.$reservation->pok_order_id,
             'roomName' => $reservation->room?->roomType?->name,
             'nights' => (int) now()->parse($reservation->check_in_date)->diffInDays($reservation->check_out_date),
+            'adults' => (int) $reservation->adults,
+            'children' => (int) $reservation->children,
+            // The POK order expires 30 min after creation (createOrder 'expires' => 30) and the
+            // release cron frees unpaid holds — show the guest the same clock that's running.
+            'holdExpiresAt' => $reservation->created_at?->copy()->addMinutes(30)->toIso8601String(),
         ];
     }
 

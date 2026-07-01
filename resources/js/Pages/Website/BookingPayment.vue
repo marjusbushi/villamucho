@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 
 // NOTE: we do NOT import the npm SDK here. POK's docs are explicit: the drop-in card form
@@ -20,6 +20,9 @@ const props = defineProps({
     initialState: { type: Object, default: () => ({}) }, // pre-fill email/name/country/phone from the booking
     roomName: { type: String, default: null },
     nights: { type: Number, default: 0 },
+    adults: { type: Number, default: 0 },
+    children: { type: Number, default: 0 },
+    holdExpiresAt: { type: String, default: null }, // ISO — when the 30-min room hold ends
     openForPayment: { type: Boolean, default: true },
 });
 
@@ -27,9 +30,24 @@ const error = ref('');
 const diag = ref('');
 const confirming = ref(false);
 const started = ref(false);
+const sdkLoading = ref(false);
+const errorBox = ref(null);
+const flashError = computed(() => usePage().props.flash?.error);
 
 function money(v) { const n = Number(v) || 0; return n % 1 === 0 ? String(n) : n.toFixed(2); }
 function note(m) { diag.value += (diag.value ? '\n' : '') + m; try { console.log('[POK]', m); } catch (e) {} }
+
+// ── 30-minute room-hold countdown ──
+const now = ref(Date.now());
+let tick = null;
+const holdRemainingMs = computed(() => (props.holdExpiresAt ? new Date(props.holdExpiresAt).getTime() - now.value : null));
+const holdExpired = computed(() => holdRemainingMs.value !== null && holdRemainingMs.value <= 0);
+const holdUrgent = computed(() => holdRemainingMs.value !== null && holdRemainingMs.value > 0 && holdRemainingMs.value < 5 * 60 * 1000);
+const holdClock = computed(() => {
+    if (holdRemainingMs.value === null || holdRemainingMs.value <= 0) return '0:00';
+    const s = Math.floor(holdRemainingMs.value / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+});
 
 function loadPokSdk() {
     return new Promise((resolve, reject) => {
@@ -38,34 +56,37 @@ function loadPokSdk() {
         s.src = POK_CDN;
         s.async = true;
         s.onload = () => (window.PokPayment ? resolve(window.PokPayment) : reject(new Error('PokPayment global missing after load')));
-        s.onerror = () => reject(new Error('Nuk u ngarkua dot SDK-ja e POK-ut nga CDN.'));
+        s.onerror = () => reject(new Error('Nuk u ngarkua dot forma e pagesës. Kontrollo lidhjen dhe provo sërish.'));
         document.head.appendChild(s);
     });
 }
 
-onMounted(() => {
-    // Diagnostics only (staging) — confirm the CDN build no longer aborts (no "XHR 0").
-    window.addEventListener('error', (ev) => note('JS error: ' + (ev.message || ev.error?.message || ev.error)));
-    try {
-        const OrigXHR = window.XMLHttpRequest;
-        window.XMLHttpRequest = function () {
-            const xhr = new OrigXHR();
-            let u = '';
-            const open = xhr.open;
-            xhr.open = function (m, url, ...rest) { u = m + ' ' + url; return open.call(xhr, m, url, ...rest); };
-            xhr.addEventListener('loadend', () => { if (xhr.status === 0 || xhr.status >= 400) note('XHR ' + xhr.status + ' ' + u); });
-            return xhr;
-        };
-        window.XMLHttpRequest.prototype = OrigXHR.prototype;
-    } catch (e) { note('instrument failed: ' + e.message); }
-});
+// When POK's form appears inside #pok-form, clear the loading note and hand FOCUS to it
+// (first input, or the iframe — the only cross-origin-legal handoff). 12s safety timeout.
+function focusPokFormWhenReady() {
+    const host = document.getElementById('pok-form');
+    if (!host) return;
+    const obs = new MutationObserver(() => {
+        const el = host.querySelector('input, select, iframe, button');
+        if (!el) return;
+        obs.disconnect();
+        sdkLoading.value = false;
+        el.focus({ preventScroll: true });
+        host.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    obs.observe(host, { childList: true, subtree: true });
+    setTimeout(() => { obs.disconnect(); sdkLoading.value = false; }, 12000);
+}
 
 async function startPayment() {
-    if (started.value || !props.orderId) return;
+    if (started.value || !props.orderId || holdExpired.value) return;
     started.value = true;
+    sdkLoading.value = true;
+    error.value = '';
     try {
         const Pok = await loadPokSdk();
         note('PokPayment.renderForm(' + props.orderId + ', env=' + props.env + ')');
+        focusPokFormWhenReady();
         Pok.renderForm(
             'pok-form',
             props.orderId,
@@ -81,6 +102,7 @@ async function startPayment() {
                 // (the reservation stays held) rather than leaving them stuck.
                 if (props.payUrl) { window.location.href = props.payUrl; return; }
                 error.value = e?.message || 'Pagesa dështoi.';
+                started.value = false; // bring the retry button back — never a dead end
             },
             // Pre-fill identity fields so the guest enters ONLY card number / expiry / CVC.
             { env: props.env, locale: 'al', initialState: { ...props.initialState } },
@@ -89,11 +111,47 @@ async function startPayment() {
         note('startPayment threw: ' + (ex?.message || ex));
         error.value = ex?.message || "Forma s'u ngarkua.";
         started.value = false;
+        sdkLoading.value = false;
     }
 }
+
+// Any error (local or flashed by the server) renders ABOVE the card form where a phone
+// guest isn't looking — move focus + view to it.
+watch([error, flashError], ([e, f]) => {
+    if (e || f) nextTick(() => {
+        errorBox.value?.focus({ preventScroll: true });
+        errorBox.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+});
+
+onMounted(() => {
+    // Diagnostics (staging) — surface any silent SDK failure without DevTools.
+    window.addEventListener('error', (ev) => note('JS error: ' + (ev.message || ev.error?.message || ev.error)));
+    try {
+        const OrigXHR = window.XMLHttpRequest;
+        window.XMLHttpRequest = function () {
+            const xhr = new OrigXHR();
+            let u = '';
+            const open = xhr.open;
+            xhr.open = function (m, url, ...rest) { u = m + ' ' + url; return open.call(xhr, m, url, ...rest); };
+            xhr.addEventListener('loadend', () => { if (xhr.status === 0 || xhr.status >= 400) note('XHR ' + xhr.status + ' ' + u); });
+            return xhr;
+        };
+        window.XMLHttpRequest.prototype = OrigXHR.prototype;
+    } catch (e) { note('instrument failed: ' + e.message); }
+
+    if (props.holdExpiresAt) tick = setInterval(() => { now.value = Date.now(); }, 1000);
+
+    // The guest already committed on the previous step ("Vazhdo te pagesa") — start the
+    // card form immediately; the button below only reappears as a retry after a failure.
+    if (props.openForPayment && props.orderId && !holdExpired.value) startPayment();
+});
+
+onUnmounted(() => { if (tick) clearInterval(tick); });
 </script>
 
 <template>
+    <Head title="Pagesa" />
     <WebsiteLayout>
         <div class="max-w-xl mx-auto px-5 py-16 sm:py-20">
             <p class="text-eyebrow text-ionian mb-3">Hapi i fundit</p>
@@ -102,10 +160,11 @@ async function startPayment() {
                 <template v-if="guestName">{{ guestName }}, r</template><template v-else>R</template>ezervimi mbahet për ty derisa të paguash. Pagesa është e sigurt përmes POK.
             </p>
 
-            <div class="rounded-2xl border border-limestone bg-bone/60 p-5 mb-6">
+            <!-- summary -->
+            <div class="rounded-2xl border border-limestone bg-bone/60 p-5 mb-3">
                 <div class="flex items-center justify-between text-ink/70 text-body-sm">
                     <span>{{ roomName || 'Dhoma' }}</span>
-                    <span>{{ nights }} net</span>
+                    <span>{{ nights }} net<template v-if="adults"> · {{ adults }} të rritur</template><template v-if="children">, {{ children }} fëmijë</template></span>
                 </div>
                 <div class="flex items-baseline justify-between mt-3 pt-3 border-t border-limestone">
                     <span class="text-ink font-medium">Total për të paguar</span>
@@ -113,26 +172,61 @@ async function startPayment() {
                 </div>
             </div>
 
-            <div v-if="error" class="mb-5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-body-sm px-4 py-3">{{ error }}</div>
+            <!-- room-hold countdown -->
+            <p
+                v-if="holdExpiresAt && !holdExpired && openForPayment"
+                role="status"
+                :class="['text-center text-body-sm mb-6 tabular-nums', holdUrgent ? 'text-error-600 font-medium' : 'text-driftwood']"
+            >
+                Dhoma mbahet për ty edhe {{ holdClock }} min
+            </p>
 
-            <div v-if="!openForPayment" class="rounded-xl bg-limestone/40 border border-limestone text-ink/80 text-body-sm px-4 py-6 text-center">
-                Po konfirmojmë pagesën tënde… Nëse e ke paguar, rifresko këtë faqe pas pak sekondash.
+            <div
+                v-if="error || flashError"
+                ref="errorBox"
+                role="alert"
+                tabindex="-1"
+                class="mb-5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-body-sm px-4 py-3 focus:outline-none"
+            >
+                {{ error || flashError }}
             </div>
 
-            <template v-if="openForPayment">
+            <!-- hold expired → the release cron frees the room; don't offer a dead payment -->
+            <div v-if="holdExpired" class="rounded-xl bg-limestone/40 border border-limestone text-ink/80 text-body-sm px-4 py-6 text-center">
+                <p>Koha e mbajtjes mbaroi — dhoma u lirua.</p>
+                <Link href="/book" class="btn-reserve inline-block mt-4">Rezervo përsëri</Link>
+            </div>
+
+            <div v-else-if="!openForPayment" class="rounded-xl bg-limestone/40 border border-limestone text-ink/80 text-body-sm px-4 py-6 text-center">
+                <p>Po konfirmojmë pagesën tënde…</p>
+                <button type="button" class="mt-3 text-ionian underline text-body-sm" @click="router.reload()">Rifresko gjendjen</button>
+            </div>
+
+            <template v-else>
+                <!-- retry (the form auto-starts; this shows only after a failure) -->
                 <div v-if="!started" class="text-center">
                     <button type="button" @click="startPayment"
                         class="rounded-xl bg-ionian text-white font-medium px-7 py-3.5 hover:bg-ionian-dark">
-                        Paguaj me kartë
+                        {{ error ? 'Provo sërish' : 'Paguaj me kartë' }}
                     </button>
                 </div>
 
-                <!-- POK card form (CDN build) mounts here -->
-                <div v-show="started" id="pok-form" class="min-h-[220px]"></div>
+                <p v-if="sdkLoading" role="status" class="text-center text-ink/70 text-body-sm py-6">Po hapet forma e pagesës…</p>
 
-                <p v-if="confirming" class="text-center text-driftwood text-body-sm mt-5">Po konfirmohet pagesa…</p>
+                <!-- POK card form (CDN build) mounts here; hidden while the server confirms so a
+                     nervous guest can't re-tap POK's pay button mid-confirmation -->
+                <div v-show="started && !confirming" id="pok-form" tabindex="-1" aria-label="Forma e pagesës me kartë" class="min-h-[220px] outline-none"></div>
 
-                <p v-if="env === 'staging'" class="text-center text-tiny text-driftwood mt-8 leading-relaxed">
+                <p v-if="confirming" role="status" aria-live="polite" class="text-center text-driftwood text-body-sm mt-5">
+                    <span class="inline-block h-4 w-4 mr-1.5 align-[-2px] rounded-full border-2 border-ionian border-t-transparent animate-spin" aria-hidden="true"></span>
+                    Po konfirmohet pagesa… mos e mbyll faqen.
+                </p>
+
+                <p class="text-center text-tiny text-driftwood mt-8 leading-relaxed">
+                    🔒 Pagesë e sigurt nëpërmjet POK — të dhënat e kartës nuk kalojnë kurrë nëpër serverët tanë.
+                </p>
+
+                <p v-if="env === 'staging'" class="text-center text-tiny text-driftwood mt-3 leading-relaxed">
                     Modaliteti TEST — përdor kartën <b class="text-ink">4242 4242 4242 4242</b>,<br>
                     datë skadence në të ardhmen, çfarëdo CVV 3-shifror.
                 </p>

@@ -1,12 +1,18 @@
 <script setup>
+import { ref, onMounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { Check } from 'lucide-vue-next';
+import { Check, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 
 defineProps({ reservation: Object, hotel: Object, status: { type: String, default: 'confirmed' } });
 
 const { t } = useI18n();
+
+// Arriving from the payment redirect leaves focus on <body> — announce the outcome
+// immediately so the guest (and a screen reader) lands on "confirmed" / "not completed".
+const headingEl = ref(null);
+onMounted(() => headingEl.value?.focus({ preventScroll: true }));
 </script>
 
 <template>
@@ -17,24 +23,30 @@ const { t } = useI18n();
                 <!-- Hold released because online payment was not completed. -->
                 <template v-if="status === 'cancelled'">
                     <div class="h-20 w-20 rounded-full bg-error-50 flex items-center justify-center mx-auto mb-6">
-                        <span class="text-4xl leading-none text-error-500">×</span>
+                        <X class="h-9 w-9 text-error-500" :stroke-width="1.5" aria-hidden="true" />
                     </div>
-                    <h1 class="text-h1 text-primary-900">Rezervimi nuk u përfundua</h1>
+                    <h1 ref="headingEl" tabindex="-1" class="text-h1 text-primary-900 focus:outline-none">Rezervimi nuk u përfundua</h1>
                     <p class="text-body text-neutral-600 mt-3">Pagesa nuk u përfundua në kohë, ndaj dhoma u lirua. Mund të provosh sërish.</p>
                     <Link href="/book" class="btn-reserve mt-8">Provo sërish</Link>
+                    <p v-if="hotel?.phone" class="text-body-sm text-neutral-500 mt-5">
+                        Ose na telefono dhe e rregullojmë bashkë:
+                        <a :href="'tel:' + hotel.phone" class="text-ionian font-medium whitespace-nowrap">{{ hotel.phone }}</a>
+                    </p>
                 </template>
 
                 <template v-else>
                 <div class="h-20 w-20 rounded-full bg-ionian/10 flex items-center justify-center mx-auto mb-6">
-                    <Check class="h-9 w-9 text-ionian" :stroke-width="1.5" />
+                    <Check class="h-9 w-9 text-ionian" :stroke-width="1.5" aria-hidden="true" />
                 </div>
-                <h1 class="text-h1 text-primary-900">{{ $t('confirmation.heading') }}</h1>
+                <h1 ref="headingEl" tabindex="-1" class="text-h1 text-primary-900 focus:outline-none">{{ $t('confirmation.heading') }}</h1>
                 <p class="text-body text-neutral-600 mt-3">{{ $t('confirmation.intro') }}</p>
+                <!-- No confirmation email is sent — this reference is the guest's only proof. -->
+                <p class="text-body-sm text-neutral-500 mt-2">{{ $t('confirmation.keepReference') }}</p>
 
                 <div class="bg-neutral-50 rounded-xl p-6 mt-8 text-left space-y-3">
-                    <div class="flex justify-between">
+                    <div class="flex justify-between items-baseline">
                         <span class="text-body-sm text-neutral-500">{{ $t('confirmation.labels.reference') }}</span>
-                        <span class="text-body-sm text-primary-900 font-medium">{{ reservation.reference }}</span>
+                        <span class="text-h4 text-primary-900 font-semibold tracking-wider">{{ reservation.reference }}</span>
                     </div>
                     <div v-if="reservation.guest_name" class="flex justify-between">
                         <span class="text-body-sm text-neutral-500">{{ $t('confirmation.labels.guest') }}</span>
