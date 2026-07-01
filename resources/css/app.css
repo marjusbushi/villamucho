@@ -73,8 +73,10 @@
     /* Keyboard focus must be VISIBLE across the public site (booking flow especially).
        :focus-visible only — phone taps get no ring, Tab/Enter users always do.
        Programmatic landmark focus (tabindex="-1" headings/#main/#pok-form) is not
-       :focus-visible, so those keep their outline-none. */
-    .site :is(a, button, input, select, textarea, [role='button']):focus-visible {
+       :focus-visible, so those keep their outline-none.
+       #pok-form internals are EXCLUDED: POK's card form ships its own focus/error
+       styling — layering our ring on top reads as a double border. */
+    .site :is(a, button, input, select, textarea, [role='button']):focus-visible:not(#pok-form *) {
         @apply outline-none ring-2 ring-ionian/60 ring-offset-2 ring-offset-bone;
     }
 
