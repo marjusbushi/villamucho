@@ -326,6 +326,7 @@ function getRoomCalendarCells(room) {
                         <td class="sticky left-0 z-10 bg-white border-b border-r border-neutral-200 px-3 py-2 group-hover:bg-neutral-50 transition-colors">
                             <p class="text-body-sm text-primary-900 font-medium">{{ room.room_number }}</p>
                             <p class="text-tiny text-neutral-400">{{ room.room_type?.name }}</p>
+                            <span v-if="room.status === 'maintenance'" class="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-tiny bg-warning-100 text-warning-800" title="Kjo dhome nuk rezervohet dot derisa te ndryshosh statusin te Dhomat">🔧 Mirëmbajtje</span>
                         </td>
 
                         <!-- Calendar cells -->
