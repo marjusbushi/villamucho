@@ -75,16 +75,18 @@ class PokClient
     }
 
     /**
-     * Create an sdk-order. $amountMinor = price in MINOR units (euros × 100).
+     * Create an sdk-order. $amount = price in MAJOR units — EUR 120 = €120, NOT cents
+     * (verified last session + recorded in the POK architecture memory; the Postman examples
+     * agree: 15000 ALL ≈ €150). Getting this wrong overcharges the guest 100×.
      * Returns the order the browser renderForm mounts.
      *
      * @param  array{webhook?:?string,redirect?:?string,fail?:?string,expires?:int}  $urls
-     * @return array{id:string, finalAmount:int, currencyCode:string}
+     * @return array{id:string, finalAmount:float, currencyCode:string}
      */
-    public function createOrder(int $amountMinor, string $currency, array $urls = []): array
+    public function createOrder(int|float $amount, string $currency, array $urls = []): array
     {
         $res = $this->authed('post', '/merchants/'.$this->merchantId().'/sdk-orders', array_filter([
-            'amount' => $amountMinor,
+            'amount' => $amount,
             'currencyCode' => $currency,
             'autoCapture' => true,         // mandatory full prepayment → capture immediately
             'shippingCost' => 0,
@@ -105,15 +107,16 @@ class PokClient
 
         return [
             'id' => (string) $o['id'],
-            'finalAmount' => (int) ($o['finalAmount'] ?? $amountMinor),
+            'finalAmount' => (float) ($o['finalAmount'] ?? $amount),
             'currencyCode' => (string) ($o['currencyCode'] ?? $currency),
         ];
     }
 
     /**
      * Authoritative payment status for an order (server-side verification).
+     * finalAmount is in MAJOR units (EUR), same as createOrder.
      *
-     * @return array{isCompleted:bool, isCanceled:bool, isRefunded:bool, finalAmount:int, currencyCode:string}
+     * @return array{isCompleted:bool, isCanceled:bool, isRefunded:bool, finalAmount:float, currencyCode:string}
      */
     public function getOrder(string $sdkOrderId): array
     {
@@ -129,7 +132,7 @@ class PokClient
             'isCompleted' => (bool) ($o['isCompleted'] ?? false),
             'isCanceled' => (bool) ($o['isCanceled'] ?? false),
             'isRefunded' => (bool) ($o['isRefunded'] ?? false),
-            'finalAmount' => (int) ($o['finalAmount'] ?? 0),
+            'finalAmount' => (float) ($o['finalAmount'] ?? 0),
             'currencyCode' => (string) ($o['currencyCode'] ?? ''),
         ];
     }
