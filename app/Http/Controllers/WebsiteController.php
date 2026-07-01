@@ -278,7 +278,7 @@ class WebsiteController extends Controller
     public function bookingPayment(string $token): Response|RedirectResponse
     {
         $reservation = Reservation::where('confirmation_token', $token)
-            ->with('room.roomType')
+            ->with(['room.roomType', 'guest'])
             ->firstOrFail();
 
         // No order / already resolved → the confirmation page reflects the true state.
@@ -317,12 +317,44 @@ class WebsiteController extends Controller
             'currency' => Setting::get('financial.default_currency_symbol', '€'),
             'guestName' => session('book_guest_name'),
             'confirmUrl' => route('website.pay.confirm', $token),
-            // POK's own hosted card page for this order — the reliable fallback when the
-            // embedded SDK misbehaves. The guest pays here and POK returns them to pay.show.
+            // Pre-fill POK's card form from the PERSISTED guest (survives refresh + POK round-trip),
+            // so the guest re-enters ONLY the card number/expiry/CVC — never email/name/country/phone
+            // they already typed at booking. array_filter drops nulls so only real values reach POK.
+            // countryCode must be ISO alpha-2 (Book.vue's country <select> already stores alpha-2);
+            // legacy/empty values fall through to no preset rather than an invalid one.
+            'initialState' => $this->pokInitialState($reservation->guest),
+            // POK's own hosted card page for this order — a silent fallback the SDK onError path
+            // redirects to (no longer a visible competing button). The guest pays here and POK
+            // returns them to pay.show.
             'payUrl' => rtrim(config('services.pok.production') ? 'https://pay.pokpay.io' : 'https://pay-staging.pokpay.io', '/').'/sdk-orders/'.$reservation->pok_order_id,
             'roomName' => $reservation->room?->roomType?->name,
             'nights' => (int) now()->parse($reservation->check_in_date)->diffInDays($reservation->check_out_date),
         ];
+    }
+
+    /**
+     * POK renderForm initialState from the guest — pre-fills the identity fields so the card form
+     * asks only for the card itself. Never pre-fill card data. Only a valid ISO alpha-2 nationality
+     * becomes countryCode; anything else is omitted (empty POK country dropdown, not a wrong preset).
+     *
+     * @return array<string,string>
+     */
+    private function pokInitialState(?\App\Models\Guest $guest): array
+    {
+        if (! $guest) {
+            return [];
+        }
+
+        $country = preg_match('/^[A-Za-z]{2}$/', (string) $guest->nationality)
+            ? strtoupper($guest->nationality)
+            : null;
+
+        return array_filter([
+            'email' => $guest->email ?: null,
+            'holdersName' => trim("{$guest->first_name} {$guest->last_name}") ?: null,
+            'countryCode' => $country,
+            'phoneNumber' => $guest->phone ?: null,
+        ], fn ($v) => $v !== null && $v !== '');
     }
 
     /** Browser calls this after the embedded form fires onSuccess — verify + confirm. */

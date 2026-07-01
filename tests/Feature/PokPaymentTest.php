@@ -10,6 +10,7 @@ use App\Models\RoomType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class PokPaymentTest extends TestCase
@@ -253,5 +254,45 @@ class PokPaymentTest extends TestCase
             ->assertRedirect(route('website.booking.confirmation', $reservation->confirmation_token));
 
         $this->assertSame('confirmed', $reservation->fresh()->status); // settled on page load, no re-charge
+    }
+
+    public function test_payment_page_prefills_guest_identity_so_the_card_form_is_not_re_asked(): void
+    {
+        $this->configurePok();
+        $this->fakePok($this->paidStatus(['isCompleted' => false])); // open order → renders the form
+        $room = $this->room();
+        $guest = Guest::create(['first_name' => 'Ana', 'last_name' => 'Test', 'email' => 'ana@test.al', 'phone' => '0691234567', 'nationality' => 'AL']);
+        $reservation = Reservation::create([
+            'room_id' => $room->id, 'guest_id' => $guest->id, 'created_by' => User::factory()->create()->id,
+            'check_in_date' => now()->addDays(3)->toDateString(), 'check_out_date' => now()->addDays(4)->toDateString(),
+            'status' => 'pending', 'total_amount' => 150, 'adults' => 1, 'channel' => 'direct', 'pok_order_id' => 'ord_1',
+        ]);
+
+        $this->get(route('website.pay.show', $reservation->confirmation_token))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Website/BookingPayment')
+                ->where('initialState.email', 'ana@test.al')
+                ->where('initialState.holdersName', 'Ana Test')
+                ->where('initialState.countryCode', 'AL')
+                ->where('initialState.phoneNumber', '0691234567')
+                ->where('openForPayment', true));
+    }
+
+    public function test_prefill_omits_a_non_alpha2_nationality_rather_than_sending_a_bad_country(): void
+    {
+        $this->configurePok();
+        $this->fakePok($this->paidStatus(['isCompleted' => false]));
+        $room = $this->room();
+        $guest = Guest::create(['first_name' => 'Jon', 'last_name' => 'Doe', 'email' => 'jon@test.al', 'nationality' => 'ALB']); // legacy alpha-3
+        $reservation = Reservation::create([
+            'room_id' => $room->id, 'guest_id' => $guest->id, 'created_by' => User::factory()->create()->id,
+            'check_in_date' => now()->addDays(3)->toDateString(), 'check_out_date' => now()->addDays(4)->toDateString(),
+            'status' => 'pending', 'total_amount' => 150, 'adults' => 1, 'channel' => 'direct', 'pok_order_id' => 'ord_1',
+        ]);
+
+        $this->get(route('website.pay.show', $reservation->confirmation_token))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('initialState.email', 'jon@test.al')
+                ->missing('initialState.countryCode')); // 'ALB' is not alpha-2 → omitted, not sent wrong
     }
 }

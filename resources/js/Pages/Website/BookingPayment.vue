@@ -17,6 +17,7 @@ const props = defineProps({
     guestName: { type: String, default: null },
     confirmUrl: String,
     payUrl: { type: String, default: null },
+    initialState: { type: Object, default: () => ({}) }, // pre-fill email/name/country/phone from the booking
     roomName: { type: String, default: null },
     nights: { type: Number, default: 0 },
     openForPayment: { type: Boolean, default: true },
@@ -74,8 +75,15 @@ async function startPayment() {
                     onError: () => { confirming.value = false; error.value = "Pagesa u krye, por s'u konfirmua ende. Prit pak sekonda dhe rifresko."; },
                 });
             },
-            (e) => { error.value = e?.message || 'Pagesa dështoi.'; note('SDK onError: ' + JSON.stringify(e ?? {})); },
-            { env: props.env, locale: 'al' },
+            (e) => {
+                note('SDK onError: ' + JSON.stringify(e ?? {}));
+                // Silent safety net: if the card form fails, send the guest to POK's hosted page
+                // (the reservation stays held) rather than leaving them stuck.
+                if (props.payUrl) { window.location.href = props.payUrl; return; }
+                error.value = e?.message || 'Pagesa dështoi.';
+            },
+            // Pre-fill identity fields so the guest enters ONLY card number / expiry / CVC.
+            { env: props.env, locale: 'al', initialState: { ...props.initialState } },
         );
     } catch (ex) {
         note('startPayment threw: ' + (ex?.message || ex));
@@ -123,13 +131,6 @@ async function startPayment() {
                 <div v-show="started" id="pok-form" class="min-h-[220px]"></div>
 
                 <p v-if="confirming" class="text-center text-driftwood text-body-sm mt-5">Po konfirmohet pagesa…</p>
-
-                <div v-if="payUrl" class="mt-8 pt-6 border-t border-limestone text-center">
-                    <p class="text-driftwood text-body-sm mb-3">Nuk shfaqet forma e kartës?</p>
-                    <a :href="payUrl" class="inline-block rounded-xl bg-brass text-white font-medium px-6 py-3 hover:bg-brass-dark no-underline">
-                        Paguaj në faqen e sigurt të POK →
-                    </a>
-                </div>
 
                 <p v-if="env === 'staging'" class="text-center text-tiny text-driftwood mt-8 leading-relaxed">
                     Modaliteti TEST — përdor kartën <b class="text-ink">4242 4242 4242 4242</b>,<br>
