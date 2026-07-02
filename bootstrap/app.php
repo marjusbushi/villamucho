@@ -43,5 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('channex:push-ari --queue')->dailyAt('04:00');
         // Free abandoned holds: cancel pending direct bookings whose POK payment never completed.
         $schedule->command('pok:release-unpaid')->everyFiveMinutes()->withoutOverlapping();
+        // Monday-morning pricing narrative for the owner (skips if Gemini unset).
+        $schedule->command('pricing:weekly-report')->weeklyOn(1, '07:00');
     })
     ->create();
