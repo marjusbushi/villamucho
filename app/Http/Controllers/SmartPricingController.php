@@ -32,21 +32,34 @@ class SmartPricingController extends Controller
             return false;
         }
         $base = (float) $type->base_price;
-        $min = $type->min_price !== null ? (float) $type->min_price : ($base > 0 ? $base * self::MIN_BAND : null);
-        $max = $type->max_price !== null ? (float) $type->max_price : ($base > 0 ? $base * self::MAX_BAND : null);
+        // priceBounds() normalizes an inverted min>max pair to unset, so the
+        // guard can never reject a price the engine itself suggested.
+        [$min, $max] = $type->priceBounds();
+        $min ??= $base > 0 ? $base * self::MIN_BAND : null;
+        $max ??= $base > 0 ? $base * self::MAX_BAND : null;
 
         return ($min !== null && $price < $min) || ($max !== null && $price > $max);
     }
 
     public function index(Request $request): Response
     {
-        $types = RoomType::orderBy('name')->get(['id', 'name', 'base_price']);
+        // min/max MUST ride along: the engine clamps off these attributes, and
+        // a partial model would silently read them as null (no clamp at all).
+        $types = RoomType::orderBy('name')->get(['id', 'name', 'base_price', 'min_price', 'max_price']);
 
         $base = [
-            'roomTypes' => $types->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->values(),
-            'settings' => SmartPricing::settings(),
+            'roomTypes' => $types->map(fn ($t) => [
+                'id' => $t->id, 'name' => $t->name,
+                'min_price' => $t->min_price !== null ? (float) $t->min_price : null,
+                'max_price' => $t->max_price !== null ? (float) $t->max_price : null,
+            ])->values(),
+            'strategy' => \App\Services\PricingEngine::strategy(),
             'currency' => Setting::get('financial.default_currency_symbol', '€'),
             'aiConfigured' => AiPricing::configured(),
+            // Page-level OTA sync pulse (pushes are per-type full-window, so a
+            // per-date pushed/pending status does not exist in the data model).
+            'lastSyncAt' => \App\Models\ChannelSyncLog::where('direction', 'push')
+                ->where('status', 'ok')->latest('id')->value('created_at')?->toDateTimeString(),
         ];
 
         if ($types->isEmpty()) {
@@ -215,5 +228,86 @@ class SmartPricingController extends Controller
         }
 
         return back()->with('success', 'Plani u aplikua për këto data.');
+    }
+
+    /** One slider, three presets — the only tuning knob the owner needs. */
+    public function updateStrategy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'strategy' => ['required', 'in:kujdesshem,balancuar,agresiv'],
+        ]);
+
+        Setting::set('pricing.strategy', $data['strategy']);
+        AuditLog::record('pricing.strategy', null, $data);
+
+        return back()->with('success', 'Strategjia e çmimeve u ndryshua.');
+    }
+
+    /** Per-type price guardrails, editable right on the pricing screen. */
+    public function updateBounds(Request $request, RoomType $roomType): RedirectResponse
+    {
+        $data = $request->validate([
+            'min_price' => ['nullable', 'numeric', 'min:0'],
+            'max_price' => ['nullable', 'numeric', 'min:0', function ($attr, $value, $fail) use ($request) {
+                $min = $request->input('min_price');
+                if ($value !== null && $value !== '' && $min !== null && $min !== '' && (float) $value < (float) $min) {
+                    $fail('Çmimi maksimal duhet të jetë ≥ çmimit minimal.');
+                }
+            }],
+        ]);
+
+        $roomType->update([
+            'min_price' => $data['min_price'] !== null && $data['min_price'] !== '' ? $data['min_price'] : null,
+            'max_price' => $data['max_price'] !== null && $data['max_price'] !== '' ? $data['max_price'] : null,
+        ]);
+        AuditLog::record('pricing.bounds', $roomType, $data);
+
+        return back()->with('success', 'Kufijtë e çmimit u ruajtën.');
+    }
+
+    /**
+     * Bulk-accept the ENGINE\'s suggestions for a range (Apliko javën/muajin).
+     * The server recomputes every price — client-sent prices are never trusted.
+     */
+    public function applyRange(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'room_type_id' => ['required', 'exists:room_types,id'],
+            'date_from' => ['required', 'date'],
+            'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+        ]);
+
+        $from = Carbon::parse($data['date_from'])->startOfDay();
+        $to = Carbon::parse($data['date_to'])->startOfDay();
+        if ($from->diffInDays($to) > 35) {
+            return back()->with('error', 'Intervali është shumë i gjatë (maksimumi një muaj).');
+        }
+
+        $type = RoomType::findOrFail($data['room_type_id']);
+        $suggestions = collect(\App\Services\PricingEngine::forRange($type, $from, $to))
+            ->filter(fn ($d) => $d['actionable'] && ! $d['is_past']);
+
+        if ($suggestions->isEmpty()) {
+            return back()->with('error', 'S\'ka sugjerime për t\'u aplikuar në këtë interval.');
+        }
+
+        DB::transaction(function () use ($suggestions, $type) {
+            foreach ($suggestions as $day) {
+                $override = RateOverride::whereDate('date', $day['date'])
+                    ->where('room_type_id', $type->id)->first()
+                    ?? new RateOverride(['date' => $day['date'], 'room_type_id' => $type->id]);
+                $override->price = $day['suggested_price'];
+                $override->created_by = auth()->id();
+                $override->save();
+            }
+            AuditLog::record('pricing.range_apply', $type, [
+                'dates' => $suggestions->keys()->values()->all(),
+                'count' => $suggestions->count(),
+            ]);
+        });
+
+        PushRoomTypeAri::dispatch($type->id);
+
+        return back()->with('success', 'U aplikuan '.$suggestions->count().' çmime — po dërgohen te OTA-t.');
     }
 }
