@@ -252,6 +252,28 @@ class PricingEngineTest extends TestCase
         $this->assertSame(1, $row['total'], 'maintenance room is not sellable supply');
     }
 
+    /** A suggestion that moves the live price <1% is noise, not advice. */
+    public function test_micro_suggestions_below_one_percent_are_not_actionable(): void
+    {
+        $type = $this->type(100);
+        [$a, $b] = $this->rooms($type, 2);
+        $date = $this->weekdayAfter(15);
+        $this->book($a, $date->toDateString());
+        $this->book($b, $date->toDateString()); // engine wants 130
+
+        // Owner already priced it at 129.50 — a +€0.50 nudge is not worth showing.
+        \App\Models\RateOverride::create(['date' => $date->toDateString(), 'room_type_id' => $type->id, 'price' => 129.50]);
+        $row = $this->rowFor($type, $date);
+        $this->assertFalse($row['actionable'], '0.39% move is below the 1% floor');
+        $this->assertEquals(129.50, $row['suggested_price'], 'non-actionable → shows current');
+
+        // But a real gap (129.50 → 120 override → 8.3%) stays actionable.
+        \App\Models\RateOverride::whereDate('date', $date->toDateString())->update(['price' => 120]);
+        $row = $this->rowFor($type, $date);
+        $this->assertTrue($row['actionable']);
+        $this->assertEquals(130.0, $row['suggested_price']);
+    }
+
     public function test_far_future_empty_days_get_no_discount_nag(): void
     {
         $type = $this->type(100);

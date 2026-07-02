@@ -203,7 +203,11 @@ class PricingEngine
         }
 
         $pctTotal = $reference > 0 ? round(($suggested / $reference - 1) * 100, 1) : 0.0;
-        $actionable = ! $isPast && $reference > 0 && $pctTotal != 0.0 && abs($suggested - $current) >= 0.01;
+        // A suggestion must MOVE the price meaningfully vs what's live today —
+        // a +€0.09 nudge (the continuous curve grazing a knee) is noise, not
+        // revenue advice. 1% floor; the autopilot keeps its own ≥5% gate.
+        $moveVsCurrent = $current > 0 ? abs($suggested / $current - 1) * 100 : 0.0;
+        $actionable = ! $isPast && $reference > 0 && $pctTotal != 0.0 && $moveVsCurrent >= 1.0;
 
         return [
             'date' => $date->toDateString(),
