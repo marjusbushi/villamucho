@@ -90,7 +90,7 @@ function getReservationSpan(reservation, fromDate) {
 
 function navigate(direction) {
     const start = new Date(props.startDate);
-    start.setDate(start.getDate() + (direction * 14));
+    start.setDate(start.getDate() + (direction * 7));
     router.get(route('reservations.calendar'), { start: start.toISOString().split('T')[0] }, { preserveState: true });
 }
 
@@ -314,9 +314,9 @@ function getRoomCalendarCells(room) {
                 <Link :href="route('reservations.index')" class="no-underline">
                     <Button variant="outline" size="sm">📋 Lista</Button>
                 </Link>
-                <Button variant="outline" size="sm" @click="navigate(-1)">← 2 jave</Button>
+                <Button variant="outline" size="sm" @click="navigate(-1)">← 1 javë</Button>
                 <Button variant="ghost" size="sm" @click="goToToday">Sot</Button>
-                <Button variant="outline" size="sm" @click="navigate(1)">2 jave →</Button>
+                <Button variant="outline" size="sm" @click="navigate(1)">1 javë →</Button>
                 <Button v-if="canCreate" variant="primary" size="sm" @click="openCreate(null, new Date().toISOString().split('T')[0])">+ Rezervim</Button>
             </div>
         </div>
