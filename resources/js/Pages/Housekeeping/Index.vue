@@ -82,6 +82,29 @@ function changeStatus(task, status) {
         onSuccess: () => toasts.value?.success(`Dhoma ${task.room?.room_number}: ${statusBadge[status].label}`),
     });
 }
+// Fillo → start the task (snapshots the checklist server-side), then open the
+// full-screen cleaning view with its timer + checklist.
+function startCleaning(task) {
+    router.patch(route('housekeeping.status', task.id), { status: 'in_progress' }, {
+        preserveScroll: true,
+        onSuccess: () => router.visit(route('housekeeping.clean', task.id)),
+    });
+}
+// Vazhdo → reopen the cleaning view for a task already in progress (no re-start).
+function openClean(task) {
+    router.visit(route('housekeeping.clean', task.id));
+}
+function progressOf(task) {
+    const list = task.checklist || [];
+    return { done: list.filter((i) => i.done).length, total: list.length };
+}
+function fmtDateTime(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 function assignTask(task, userId) {
     router.patch(route('housekeeping.assign', task.id), { assigned_to: userId }, {
         preserveScroll: true,
@@ -192,11 +215,17 @@ const housekeeperOptions = props.housekeepers.map((h) => ({ value: h.id, label: 
                             </span>
                         </div>
                         <p v-if="task.issue_reported" class="text-tiny text-error-600 mt-1.5">⚠ {{ task.issue_reported }}</p>
+                        <p v-if="task.status === 'inspected' && task.inspected_by" class="text-tiny text-neutral-500 mt-1.5">
+                            ✓ Inspektoi {{ task.inspected_by.name }}<span v-if="task.inspected_at"> · {{ fmtDateTime(task.inspected_at) }}</span>
+                        </p>
 
                         <!-- Actions (always visible) -->
                         <div v-if="canUpdate" class="mt-2.5 pt-2.5 border-t border-neutral-100 flex items-center gap-1.5">
-                            <Button v-if="task.status === 'pending'" size="sm" variant="primary" @click="changeStatus(task, 'in_progress')">Fillo</Button>
-                            <Button v-else-if="task.status === 'in_progress'" size="sm" variant="primary" @click="changeStatus(task, 'completed')">Perfundo</Button>
+                            <Button v-if="task.status === 'pending'" size="sm" variant="primary" @click="startCleaning(task)">Fillo</Button>
+                            <template v-else-if="task.status === 'in_progress'">
+                                <Button size="sm" variant="primary" @click="openClean(task)">Vazhdo</Button>
+                                <span class="text-tiny text-neutral-500">{{ progressOf(task).done }}/{{ progressOf(task).total }}</span>
+                            </template>
                             <Button v-else-if="task.status === 'completed'" size="sm" variant="outline" @click="changeStatus(task, 'inspected')">Inspekto</Button>
                             <button v-if="['in_progress', 'completed'].includes(task.status)" class="ml-auto text-tiny text-error-600 hover:underline" @click="openIssue(task)">Problem</button>
                         </div>
@@ -233,8 +262,8 @@ const housekeeperOptions = props.housekeepers.map((h) => ({ value: h.id, label: 
                                 <td class="px-5 py-3 text-body-sm" :class="task.assigned_user ? 'text-neutral-600' : 'text-error-500'">{{ task.assigned_user?.name || 'Pa caktuar' }}</td>
                                 <td class="px-5 py-3"><Badge :variant="statusBadge[task.status]?.variant" dot>{{ statusBadge[task.status]?.label }}</Badge></td>
                                 <td class="px-5 py-3 text-right">
-                                    <Button v-if="canUpdate && task.status === 'pending'" size="sm" variant="primary" @click="changeStatus(task, 'in_progress')">Fillo</Button>
-                                    <Button v-else-if="canUpdate && task.status === 'in_progress'" size="sm" variant="primary" @click="changeStatus(task, 'completed')">Perfundo</Button>
+                                    <Button v-if="canUpdate && task.status === 'pending'" size="sm" variant="primary" @click="startCleaning(task)">Fillo</Button>
+                                    <Button v-else-if="canUpdate && task.status === 'in_progress'" size="sm" variant="primary" @click="openClean(task)">Vazhdo</Button>
                                     <Button v-else-if="canUpdate && task.status === 'completed'" size="sm" variant="outline" @click="changeStatus(task, 'inspected')">Inspekto</Button>
                                 </td>
                             </tr>
