@@ -70,6 +70,16 @@
         font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
     }
 
+    /* Keyboard focus must be VISIBLE across the public site (booking flow especially).
+       :focus-visible only — phone taps get no ring, Tab/Enter users always do.
+       LINKS + BUTTONS only: form fields (ours and POK's) already ship their own focus
+       border/ring — the global ring on top read as a double border (owner feedback).
+       Programmatic landmark focus (tabindex="-1" headings/#main/#pok-form) is not
+       :focus-visible, so those keep their outline-none. */
+    .site :is(a, button, [role='button']):focus-visible:not(#pok-form *) {
+        @apply outline-none ring-2 ring-ionian/60 ring-offset-2 ring-offset-bone;
+    }
+
     /* Light editorial serif for every public-site heading (never bold).
        Color is intentionally NOT forced here — it inherits `.site`'s ink
        default but lets pages set text-bone/text-white on dark sections. */

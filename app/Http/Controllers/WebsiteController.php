@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -65,6 +66,9 @@ class WebsiteController extends Controller
             'roomTypes' => $roomTypes,
             'preselectedType' => $request->input('room_type'),
             'hotel' => Setting::getGroup('hotel'),
+            // A card-payment step follows the form → the submit button says "Vazhdo te pagesa"
+            // instead of "Konfirmo", so the money step is never a surprise.
+            'paymentRequired' => app(PokClient::class)->configured(),
         ]);
     }
 
@@ -201,8 +205,12 @@ class WebsiteController extends Controller
 
         $room = Room::with('roomType')->findOrFail($request->room_id);
 
+        // A VALIDATION error (not a flash) so Inertia preserves the wizard's state — the guest
+        // keeps everything typed and recovers in-step instead of being reset to step 1.
         if ($room->roomType && ((int) $request->adults + (int) $request->children) > $room->roomType->max_occupancy) {
-            return back()->with('error', "Kjo dhome lejon maksimumi {$room->roomType->max_occupancy} persona.");
+            throw ValidationException::withMessages([
+                'room_id' => "Kjo dhomë lejon maksimumi {$room->roomType->max_occupancy} persona — zgjidh një dhomë më të madhe.",
+            ]);
         }
 
         $nights = now()->parse($request->check_in)->diffInDays($request->check_out);
@@ -238,6 +246,21 @@ class WebsiteController extends Controller
                     ]
                 );
 
+                // Fill-if-EMPTY only: an existing guest's saved values are never overwritten
+                // (anti-tamper above), but blanks may be completed from this submission — so
+                // a repeat booker's nationality/phone still reach the card form's pre-fill.
+                if (! $guest->wasRecentlyCreated) {
+                    if (! $guest->nationality && $request->filled('nationality')) {
+                        $guest->nationality = $request->nationality;
+                    }
+                    if (! $guest->phone && $request->filled('phone')) {
+                        $guest->phone = $request->phone;
+                    }
+                    if ($guest->isDirty()) {
+                        $guest->save();
+                    }
+                }
+
                 return Reservation::create([
                     'room_id' => $room->id,
                     'guest_id' => $guest->id,
@@ -253,7 +276,11 @@ class WebsiteController extends Controller
                 ]);
             });
         } catch (\RuntimeException $e) {
-            return back()->with('error', 'Kjo dhome nuk eshte me e disponueshme per keto data.');
+            // Validation error (not a flash) → the wizard keeps every typed field and shows
+            // an in-step recovery banner instead of resetting the guest to step 1.
+            throw ValidationException::withMessages([
+                'room_id' => 'Kjo dhomë nuk është më e disponueshme për këto data — zgjidh një dhomë tjetër.',
+            ]);
         }
 
         $guestName = trim("{$request->first_name} {$request->last_name}");
@@ -279,9 +306,12 @@ class WebsiteController extends Controller
             } catch (\Throwable $e) {
                 report($e);
                 // Couldn't reach POK — release the just-held room and ask the guest to retry.
+                // Validation error (not a flash) so the wizard keeps everything typed.
                 $reservation->update(['status' => 'cancelled']);
 
-                return back()->with('error', 'Nuk u lidh dot pagesa me kartë. Provo sërish pas pak.');
+                throw ValidationException::withMessages([
+                    'room_id' => 'Nuk u lidh dot pagesa me kartë. Provo sërish pas pak.',
+                ]);
             }
         }
 
@@ -295,7 +325,7 @@ class WebsiteController extends Controller
     public function bookingPayment(string $token): Response|RedirectResponse
     {
         $reservation = Reservation::where('confirmation_token', $token)
-            ->with('room.roomType')
+            ->with(['room.roomType', 'guest'])
             ->firstOrFail();
 
         // No order / already resolved → the confirmation page reflects the true state.
@@ -334,12 +364,49 @@ class WebsiteController extends Controller
             'currency' => Setting::get('financial.default_currency_symbol', '€'),
             'guestName' => session('book_guest_name'),
             'confirmUrl' => route('website.pay.confirm', $token),
-            // POK's own hosted card page for this order — the reliable fallback when the
-            // embedded SDK misbehaves. The guest pays here and POK returns them to pay.show.
+            // Pre-fill POK's card form from the PERSISTED guest (survives refresh + POK round-trip),
+            // so the guest re-enters ONLY the card number/expiry/CVC — never email/name/country/phone
+            // they already typed at booking. array_filter drops nulls so only real values reach POK.
+            // countryCode must be ISO alpha-2 (Book.vue's country <select> already stores alpha-2);
+            // legacy/empty values fall through to no preset rather than an invalid one.
+            'initialState' => $this->pokInitialState($reservation->guest),
+            // POK's own hosted card page for this order — a silent fallback the SDK onError path
+            // redirects to (no longer a visible competing button). The guest pays here and POK
+            // returns them to pay.show.
             'payUrl' => rtrim(config('services.pok.production') ? 'https://pay.pokpay.io' : 'https://pay-staging.pokpay.io', '/').'/sdk-orders/'.$reservation->pok_order_id,
             'roomName' => $reservation->room?->roomType?->name,
             'nights' => (int) now()->parse($reservation->check_in_date)->diffInDays($reservation->check_out_date),
+            'adults' => (int) $reservation->adults,
+            'children' => (int) $reservation->children,
+            // The POK order expires 30 min after creation (createOrder 'expires' => 30) and the
+            // release cron frees unpaid holds — show the guest the same clock that's running.
+            'holdExpiresAt' => $reservation->created_at?->copy()->addMinutes(30)->toIso8601String(),
         ];
+    }
+
+    /**
+     * POK renderForm initialState from the guest — pre-fills the identity fields so the card form
+     * asks only for the card itself. Never pre-fill card data. Only a valid ISO alpha-2 nationality
+     * becomes countryCode; anything else is omitted (empty POK country dropdown, not a wrong preset).
+     *
+     * @return array<string,string>
+     */
+    private function pokInitialState(?\App\Models\Guest $guest): array
+    {
+        if (! $guest) {
+            return [];
+        }
+
+        $country = preg_match('/^[A-Za-z]{2}$/', (string) $guest->nationality)
+            ? strtoupper($guest->nationality)
+            : null;
+
+        return array_filter([
+            'email' => $guest->email ?: null,
+            'holdersName' => trim("{$guest->first_name} {$guest->last_name}") ?: null,
+            'countryCode' => $country,
+            'phoneNumber' => $guest->phone ?: null,
+        ], fn ($v) => $v !== null && $v !== '');
     }
 
     /** Browser calls this after the embedded form fires onSuccess — verify + confirm. */

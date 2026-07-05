@@ -16,6 +16,7 @@ import ToastContainer from '@/Components/UI/ToastContainer.vue';
 
 const props = defineProps({
     settings: Object,
+    checklistDefaults: { type: Object, default: () => ({}) },
     roomTypes: Array,
     menuCategories: Array,
     floors: Array,
@@ -75,7 +76,7 @@ const tabs = [
                 <AmenitiesTab v-else-if="activeTab === 'amenities'" :amenities="amenities" :toasts="toasts" />
                 <FloorsTab v-else-if="activeTab === 'floors'" :floors="floors" :toasts="toasts" />
                 <MenuTab v-else-if="activeTab === 'menu'" :categories="menuCategories" :toasts="toasts" />
-                <HousekeepingTab v-else-if="activeTab === 'housekeeping'" :settings="settings.housekeeping || {}" :toasts="toasts" />
+                <HousekeepingTab v-else-if="activeTab === 'housekeeping'" :settings="settings.housekeeping || {}" :checklist-defaults="checklistDefaults" :toasts="toasts" />
                 <FinancialTab v-else-if="activeTab === 'financial'" :settings="settings.financial || {}" :toasts="toasts" />
                 <AiTab v-else-if="activeTab === 'ai'" :settings="settings.ai || {}" :toasts="toasts" />
             </div>

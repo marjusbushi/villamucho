@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Amenity;
+use App\Models\CleaningTask;
 use App\Models\Floor;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
@@ -33,6 +34,7 @@ class SettingsController extends Controller
 
         return Inertia::render('Settings/Index', [
             'settings' => $settings,
+            'checklistDefaults' => CleaningTask::DEFAULT_CHECKLISTS,
             'roomTypes' => RoomType::withCount('rooms')->with('images')->orderBy('name')->get(),
             'menuCategories' => MenuCategory::with(['items' => fn($q) => $q->orderBy('name')])
                 ->orderBy('sort_order')
@@ -247,11 +249,26 @@ class SettingsController extends Controller
             'task_types.*' => ['string', 'max:50'],
             'auto_create_on_checkout' => ['required', 'boolean'],
             'default_priority' => ['required', 'in:normal,urgent'],
+            'checklists' => ['nullable', 'array'],
+            'checklists.*' => ['array'],
+            // nullable: blank rows become null via TrimStrings/ConvertEmptyStringsToNull —
+            // the sanitize step below drops them rather than rejecting the whole save.
+            'checklists.*.*' => ['nullable', 'string', 'max:200'],
         ]);
+
+        // Sanitize server-side (don't trust the client): trim each item, drop blanks.
+        $checklists = collect($request->input('checklists', []))
+            ->map(fn ($list) => collect((array) $list)
+                ->map(fn ($s) => trim((string) $s))
+                ->filter(fn ($s) => $s !== '')
+                ->values()
+                ->all())
+            ->all();
 
         Setting::set('housekeeping.task_types', $request->task_types, 'json');
         Setting::set('housekeeping.auto_create_on_checkout', $request->auto_create_on_checkout ? '1' : '0', 'boolean');
         Setting::set('housekeeping.default_priority', $request->default_priority);
+        Setting::set('housekeeping.checklists', $checklists, 'json');
 
         return back()->with('success', 'Konfigurimet e housekeeping u ruajten.');
     }

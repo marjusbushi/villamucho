@@ -54,9 +54,10 @@ Route::post('/channex/webhook', [ChannexWebhookController::class, 'handle'])->mi
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])->name('dashboard');
 
+// Internal component gallery (dev reference) — no data, but staff-only (not public).
 Route::get('/design-system', function () {
     return Inertia::render('DesignSystem');
-})->name('design-system');
+})->middleware(['auth'])->name('design-system');
 
 // ===== PMS (authenticated) =====
 Route::middleware('auth')->prefix('pms')->group(function () {
@@ -112,8 +113,10 @@ Route::middleware('auth')->prefix('pms')->group(function () {
     // Housekeeping
     Route::middleware('permission:view_housekeeping')->group(function () {
         Route::get('/housekeeping', [CleaningTaskController::class, 'index'])->name('housekeeping.index');
+        Route::get('/housekeeping/{cleaningTask}/clean', [CleaningTaskController::class, 'clean'])->name('housekeeping.clean');
         Route::post('/housekeeping', [CleaningTaskController::class, 'store'])->middleware('permission:create_housekeeping')->name('housekeeping.store');
         Route::patch('/housekeeping/{cleaningTask}/status', [CleaningTaskController::class, 'updateStatus'])->middleware('permission:update_housekeeping')->name('housekeeping.status');
+        Route::patch('/housekeeping/{cleaningTask}/checklist', [CleaningTaskController::class, 'updateChecklist'])->middleware('permission:update_housekeeping')->name('housekeeping.checklist');
         Route::patch('/housekeeping/{cleaningTask}/assign', [CleaningTaskController::class, 'assign'])->middleware('permission:update_housekeeping')->name('housekeeping.assign');
         Route::post('/housekeeping/{cleaningTask}/issue', [CleaningTaskController::class, 'reportIssue'])->middleware('permission:update_housekeeping')->name('housekeeping.issue');
     });
