@@ -116,7 +116,9 @@ class CleaningTaskController extends Controller
         if ($newStatus === 'completed' || $newStatus === 'inspected') {
             DB::transaction(function () use ($cleaningTask, $data) {
                 $cleaningTask->update($data);
-                $room = $cleaningTask->room; // null-guard: a task can outlive its room (mistake #93)
+                // A task can outlive its room (a deleted room leaves the task behind) —
+                // guard the null so finishing such a task never crashes the board (mistake #93).
+                $room = $cleaningTask->room;
                 if ($room && $room->status === 'cleaning') {
                     $room->update(['status' => 'available']);
                 }
@@ -208,9 +210,9 @@ class CleaningTaskController extends Controller
             'issue_reported' => $request->issue_reported,
         ]);
 
-        // Set room to maintenance if serious (null-guard: task can outlive its room).
-        if ($request->boolean('set_maintenance') && $cleaningTask->room) {
-            $cleaningTask->room->update(['status' => 'maintenance']);
+        // Set room to maintenance if serious (room may be gone — guard the null).
+        if ($request->boolean('set_maintenance')) {
+            $cleaningTask->room?->update(['status' => 'maintenance']);
         }
 
         return back()->with('success', 'Problemi u raportua.');

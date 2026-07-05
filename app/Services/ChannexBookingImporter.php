@@ -61,9 +61,13 @@ class ChannexBookingImporter
 
         DB::transaction(function () use ($rev, $channel, $ref, $cancelled, $rooms, $revisionId, &$summary) {
             if ($cancelled) {
-                $n = Reservation::where('channel', $channel)->where('channel_ref', $ref)
-                    ->where('status', '!=', 'cancelled')
-                    ->update(['status' => 'cancelled']);
+                // Per-model saves (not mass ->update()) so model events fire:
+                // the status log records the cancellation time, and the observer
+                // re-pushes the freed room type's availability to Channex.
+                $n = $this->cancelReservations(
+                    Reservation::where('channel', $channel)->where('channel_ref', $ref)
+                        ->where('status', '!=', 'cancelled'),
+                );
                 $summary['cancelled'] = $n;
                 if ($n === 0) {
                     // Surface it: a cancel that matched nothing means the booking
@@ -144,13 +148,30 @@ class ChannexBookingImporter
             // no longer in the revision (a room removed, or the room TYPE swapped),
             // so the (channel, channel_ref) set is authoritative per revision and a
             // ghost 'confirmed' row never blocks inventory or double-books.
-            $summary['cancelled'] += Reservation::where('channel', $channel)->where('channel_ref', $ref)
-                ->where('status', '!=', 'cancelled')
-                ->whereNotIn('id', $kept ?: [0])
-                ->update(['status' => 'cancelled']);
+            $summary['cancelled'] += $this->cancelReservations(
+                Reservation::where('channel', $channel)->where('channel_ref', $ref)
+                    ->where('status', '!=', 'cancelled')
+                    ->whereNotIn('id', $kept ?: [0]),
+            );
         });
 
         return $summary;
+    }
+
+    /**
+     * Cancel each matching reservation via save() so model events fire
+     * (status log + Channex availability re-push) — a mass ->update() would
+     * silently bypass both. Returns how many were cancelled.
+     */
+    private function cancelReservations($query): int
+    {
+        $stale = $query->get();
+        $stale->each(function (Reservation $res) {
+            $res->status = 'cancelled';
+            $res->save();
+        });
+
+        return $stale->count();
     }
 
     private function channel(string $otaName): string

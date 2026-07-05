@@ -12,6 +12,8 @@ use App\Models\PosOrder;
 use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\Setting;
+use App\Services\RoomPricing;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -143,7 +145,7 @@ class ReservationController extends Controller
         $taxRate = (float) Setting::get('financial.tax_rate', 20);
         $taxAmount = $taxRate > 0 ? round($gross - ($gross / (1 + $taxRate / 100)), 2) : 0.0;
 
-        $paid = (float) $reservation->payments->sum('amount');
+        $paid = (float) $reservation->payments->reject(fn ($p) => $p->is_voided)->sum('amount');
         $outstanding = round($gross - $paid, 2);
 
         $openPosOrders = PosOrder::where('reservation_id', $reservation->id)
@@ -258,7 +260,7 @@ class ReservationController extends Controller
         $entered = $data['total_amount'] ?? null;
         $data['total_amount'] = is_numeric($entered) && (float) $entered > 0
             ? round((float) $entered, 2)
-            : $room->roomType->base_price * $nights;
+            : RoomPricing::total($room->roomType, $checkIn, $checkOut);
         $data['created_by'] = auth()->id();
         $data['status'] = $data['status'] ?? 'pending';
         $data['channel'] = $data['channel'] ?? 'manual';
@@ -358,7 +360,7 @@ class ReservationController extends Controller
                     $entered = $row['total_amount'] ?? null;
                     $total = is_numeric($entered) && (float) $entered > 0
                         ? round((float) $entered, 2)
-                        : $room->roomType->base_price * $nights;
+                        : RoomPricing::total($room->roomType, $data['check_in_date'], $data['check_out_date']);
 
                     Reservation::create([
                         'room_id' => $room->id,
@@ -414,13 +416,36 @@ class ReservationController extends Controller
         $entered = $data['total_amount'] ?? null;
         $data['total_amount'] = is_numeric($entered) && (float) $entered > 0
             ? round((float) $entered, 2)
-            : $room->roomType->base_price * $nights;
+            : RoomPricing::total($room->roomType, $checkIn, $checkOut);
         $data['channel'] = $data['channel'] ?? $reservation->channel ?? 'manual';
         $data['commission_amount'] = $this->channelCommission($data['channel'], (float) $data['total_amount']);
 
         $reservation->update($data);
 
         return back()->with('success', 'Rezervimi u perditesua.');
+    }
+
+    /**
+     * Seasonal price quote for the create/edit form. The client sends only the
+     * room + dates; the amount is computed SERVER-SIDE from RoomPricing (seasons +
+     * rate overrides). It never accepts a price from the client — this only feeds
+     * the form's suggested value, and the store/update paths recompute it anyway.
+     */
+    public function quote(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'room_id' => ['required', 'exists:rooms,id'],
+            'check_in' => ['required', 'date'],
+            'check_out' => ['required', 'date', 'after:check_in'],
+        ]);
+
+        $room = Room::with('roomType')->findOrFail($data['room_id']);
+        $quote = RoomPricing::quote($room->roomType, $data['check_in'], $data['check_out']);
+
+        return response()->json([
+            'nights' => $quote['nights'],
+            'total' => $quote['total'],
+        ]);
     }
 
     /**
@@ -558,7 +583,7 @@ class ReservationController extends Controller
                 $roomCharge = (float) $reservation->total_amount;
                 $folioCharges = (float) $reservation->folioItems->whereNotIn('type', ['discount', 'room'])->sum('amount');
                 $discounts = (float) $reservation->folioItems->where('type', 'discount')->sum('amount');
-                $paid = (float) $reservation->payments->sum('amount');
+                $paid = (float) $reservation->payments->reject(fn ($p) => $p->is_voided)->sum('amount');
                 $outstanding = round($roomCharge + $folioCharges - $discounts - $paid, 2);
 
                 if ($outstanding > 0) {

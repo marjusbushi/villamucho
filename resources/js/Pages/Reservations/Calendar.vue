@@ -84,21 +84,33 @@ function getReservationSpan(reservation, fromDate) {
     const end = new Date(reservation.check_out_date);
     const from = new Date(fromDate);
     const lastDay = new Date(props.endDate);
-    const actualEnd = end < lastDay ? end : lastDay;
-    return Math.ceil((actualEnd - from) / (1000 * 60 * 60 * 24));
+    if (end <= lastDay) {
+        return Math.ceil((end - from) / (1000 * 60 * 60 * 24));
+    }
+    // continues past the visible window — the guest still occupies the last column
+    return Math.ceil((lastDay - from) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+// Direction the grid slides when the week changes: 'next' = forward, 'prev' = backward
+const slideDir = ref('next');
+
+function goToWeek(startStr, direction) {
+    slideDir.value = direction >= 0 ? 'next' : 'prev';
+    router.get(route('reservations.calendar'), { start: startStr }, { preserveState: true, preserveScroll: true });
 }
 
 function navigate(direction) {
     const start = new Date(props.startDate);
-    start.setDate(start.getDate() + (direction * 14));
-    router.get(route('reservations.calendar'), { start: start.toISOString().split('T')[0] }, { preserveState: true });
+    start.setDate(start.getDate() + (direction * 7));
+    goToWeek(start.toISOString().split('T')[0], direction);
 }
 
 function goToToday() {
     const today = new Date();
     const monday = new Date(today);
     monday.setDate(today.getDate() - today.getDay() + 1);
-    router.get(route('reservations.calendar'), { start: monday.toISOString().split('T')[0] }, { preserveState: true });
+    const target = monday.toISOString().split('T')[0];
+    goToWeek(target, target >= props.startDate ? 1 : -1);
 }
 
 function openDetail(reservation) {
@@ -314,9 +326,9 @@ function getRoomCalendarCells(room) {
                 <Link :href="route('reservations.index')" class="no-underline">
                     <Button variant="outline" size="sm">📋 Lista</Button>
                 </Link>
-                <Button variant="outline" size="sm" @click="navigate(-1)">← 2 jave</Button>
+                <Button variant="outline" size="sm" @click="navigate(-1)">← Para</Button>
                 <Button variant="ghost" size="sm" @click="goToToday">Sot</Button>
-                <Button variant="outline" size="sm" @click="navigate(1)">2 jave →</Button>
+                <Button variant="outline" size="sm" @click="navigate(1)">Pas →</Button>
                 <Button v-if="canCreate" variant="primary" size="sm" @click="openCreate(null, new Date().toISOString().split('T')[0])">+ Rezervim</Button>
             </div>
         </div>
@@ -324,8 +336,10 @@ function getRoomCalendarCells(room) {
         <!-- Month label -->
         <p class="text-label text-neutral-500 uppercase tracking-wider mb-3">{{ monthLabel }}</p>
 
-        <!-- Calendar grid -->
-        <div class="bg-white rounded-lg border border-neutral-200 overflow-x-auto">
+        <!-- Calendar grid — slides horizontally when changing week -->
+        <div class="relative overflow-hidden">
+        <Transition :name="slideDir === 'next' ? 'cal-next' : 'cal-prev'">
+        <div :key="startDate" class="bg-white rounded-lg border border-neutral-200 overflow-x-auto">
             <table class="w-full border-collapse" style="min-width: 900px;">
                 <!-- Day headers -->
                 <thead>
@@ -394,6 +408,8 @@ function getRoomCalendarCells(room) {
                     </tr>
                 </tbody>
             </table>
+        </div>
+        </Transition>
         </div>
 
         <!-- Legend -->
@@ -537,3 +553,48 @@ function getRoomCalendarCells(room) {
         <ToastContainer ref="toasts" />
     </AppLayout>
 </template>
+
+<style scoped>
+/* Week-change slide: the leaving grid overlaps the entering one so they cross, not stack */
+.cal-next-enter-active,
+.cal-next-leave-active,
+.cal-prev-enter-active,
+.cal-prev-leave-active {
+    transition: transform 420ms cubic-bezier(0.4, 0, 0.2, 1), opacity 420ms ease;
+    will-change: transform, opacity;
+}
+.cal-next-leave-active,
+.cal-prev-leave-active {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+/* Pas (forward): new week comes in from the right, old exits left */
+.cal-next-enter-from {
+    transform: translateX(100%);
+    opacity: 0;
+}
+.cal-next-leave-to {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+/* Para (backward): new week comes in from the left, old exits right */
+.cal-prev-enter-from {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+.cal-prev-leave-to {
+    transform: translateX(100%);
+    opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+    .cal-next-enter-active,
+    .cal-next-leave-active,
+    .cal-prev-enter-active,
+    .cal-prev-leave-active {
+        transition: opacity 150ms ease;
+        transform: none !important;
+    }
+}
+</style>

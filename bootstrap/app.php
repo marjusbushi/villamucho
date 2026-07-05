@@ -32,13 +32,20 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withSchedule(function (Schedule $schedule): void {
-        // Retention for the channel sync audit trail (ChannelSyncLog is Prunable).
-        $schedule->command('model:prune', ['--model' => [\App\Models\ChannelSyncLog::class]])->daily();
+        // Retention: channel sync audit (90d) + website search demand log (2y).
+        $schedule->command('model:prune', ['--model' => [\App\Models\ChannelSyncLog::class, \App\Models\WebsiteSearchLog::class]])->daily();
         // Catch-up: re-pull any OTA booking a missed webhook left unacknowledged.
         $schedule->command('channex:pull-bookings')->everyFifteenMinutes()->withoutOverlapping();
+        // On-the-books snapshot per future date × room type (pickup-pace history).
+        // Runs before the 04:00 ARI push so both see the same overnight state.
+        $schedule->command('pricing:snapshot')->dailyAt('03:30');
         // Nightly safety-net: re-push availability + rates in case a real-time push was missed.
         $schedule->command('channex:push-ari --queue')->dailyAt('04:00');
         // Free abandoned holds: cancel pending direct bookings whose POK payment never completed.
         $schedule->command('pok:release-unpaid')->everyFiveMinutes()->withoutOverlapping();
+        // Guarded auto-pricing (owner-enabled only), between snapshot and ARI push.
+        $schedule->command('pricing:autopilot')->dailyAt('03:45');
+        // Monday-morning pricing narrative for the owner (skips if Gemini unset).
+        $schedule->command('pricing:weekly-report')->weeklyOn(1, '07:00');
     })
     ->create();

@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Jobs\PushRoomTypeAri;
 use App\Mail\NewReservationMail;
 use App\Models\Reservation;
+use App\Models\ReservationStatusLog;
 use App\Models\Room;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +19,8 @@ class ReservationObserver
      */
     public function created(Reservation $reservation): void
     {
+        $this->logStatus($reservation, null, (string) $reservation->status);
+
         $to = Setting::get('hotel.email');
         if (! $to) {
             return;
@@ -32,6 +35,22 @@ class ReservationObserver
     }
 
     /**
+     * Append-only status history: every transition (confirm, check-in/out,
+     * cancel, no-show) gets a row — this is where exact cancellation times
+     * come from for pricing analytics. 'updated' still sees getOriginal().
+     */
+    public function updated(Reservation $reservation): void
+    {
+        if ($reservation->wasChanged('status')) {
+            $this->logStatus(
+                $reservation,
+                (string) $reservation->getOriginal('status'),
+                (string) $reservation->status,
+            );
+        }
+    }
+
+    /**
      * Any create / status change / check-in-out / cancel changes how many rooms
      * of this type are free, so re-push that room type's availability to Channex.
      * 'saved' fires on create AND update, covering every booking path at once.
@@ -39,6 +58,22 @@ class ReservationObserver
     public function saved(Reservation $reservation): void
     {
         $this->syncChannel($reservation);
+    }
+
+    /** Best-effort: an audit-log failure must never break a booking write. */
+    private function logStatus(Reservation $reservation, ?string $from, string $to): void
+    {
+        try {
+            ReservationStatusLog::create([
+                'reservation_id' => $reservation->id,
+                'from_status' => $from,
+                'to_status' => $to,
+                'changed_by' => auth()->id(),
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Reservation status log failed: '.$e->getMessage());
+        }
     }
 
     public function deleted(Reservation $reservation): void

@@ -8,6 +8,7 @@ use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\WebsiteSearchLog;
 use App\Services\PokClient;
 use App\Services\PokPayments;
 use App\Services\RoomPricing;
@@ -92,6 +93,22 @@ class WebsiteController extends Controller
         })->values();
 
         $nights = now()->parse($request->check_in)->diffInDays($request->check_out);
+
+        // Demand signal for pricing (searches + denials). Best-effort: a
+        // logging failure must never break the guest's availability check.
+        try {
+            WebsiteSearchLog::create([
+                'check_in' => $request->check_in,
+                'check_out' => $request->check_out,
+                'room_type_id' => $request->room_type_id ?: null,
+                'results_count' => $rooms->count(),
+                'denied' => $rooms->isEmpty(),
+                'source' => 'book',
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Website search log failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'rooms' => $rooms->map(function ($r) use ($request, $nights) {
