@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\ChannelMapping;
 use App\Models\RoomType;
 use App\Services\ChannelSync;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -12,6 +13,11 @@ use Illuminate\Foundation\Queue\Queueable;
  * Push one room type's availability + rates to Channex, off the request cycle.
  * Dispatched in real time when a reservation or a price changes. Idempotent —
  * it re-sends the current PMS truth, so duplicate dispatches are harmless.
+ *
+ * A reservation event only touches the nights it occupies, so it dispatches a
+ * NARROW [$from, $to] window (Y-m-d strings — queue-serializable) and we push
+ * only those dates. Range-less callers (pricing save, Sync-now, channex:push-ari)
+ * leave both null and fall back to the full default window.
  */
 class PushRoomTypeAri implements ShouldQueue
 {
@@ -21,7 +27,11 @@ class PushRoomTypeAri implements ShouldQueue
 
     public int $backoff = 30;
 
-    public function __construct(public int $roomTypeId) {}
+    public function __construct(
+        public int $roomTypeId,
+        public ?string $from = null,
+        public ?string $to = null,
+    ) {}
 
     public function handle(ChannelSync $sync): void
     {
@@ -29,7 +39,12 @@ class PushRoomTypeAri implements ShouldQueue
         if ($roomType) {
             // pushRoomType throws on a rejected push -> the queue retries (tries=3);
             // a no-op skip (unconfigured/unmapped) returns false without throwing.
-            $sync->pushRoomType($roomType);
+            // Null from/to => pushRoomType uses its full default window.
+            $sync->pushRoomType(
+                $roomType,
+                $this->from ? CarbonImmutable::parse($this->from) : null,
+                $this->to ? CarbonImmutable::parse($this->to) : null,
+            );
         }
     }
 

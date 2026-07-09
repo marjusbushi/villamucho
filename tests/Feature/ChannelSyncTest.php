@@ -12,6 +12,7 @@ use App\Models\Season;
 use App\Models\SeasonRate;
 use App\Models\User;
 use App\Services\ChannelSync;
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -26,6 +27,10 @@ class ChannelSyncTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Freeze "now" so the observer's today-floor (and the hardcoded-date
+        // dispatch tests) are deterministic regardless of the wall clock.
+        Carbon::setTestNow('2026-07-01 09:00:00');
+        CarbonImmutable::setTestNow('2026-07-01 09:00:00');
         Http::preventStrayRequests();
         Queue::fake();
         config([
@@ -439,5 +444,80 @@ class ChannelSyncTest extends TestCase
     {
         (new PushRoomTypeAri(999999))->handle(app(ChannelSync::class)); // preventStrayRequests => no HTTP, no throw
         $this->assertTrue(true);
+    }
+
+    // -- incremental push: reservation events send ONLY the changed nights -----
+
+    public function test_one_night_booking_dispatches_a_push_scoped_to_that_single_night(): void
+    {
+        $type = $this->type();
+        $this->rooms($type, 1);
+        $in = CarbonImmutable::today()->addDays(10);
+        $this->reservation($type, $in->toDateString(), $in->addDay()->toDateString()); // 1 night: occupies $in only
+
+        // NOT the full today..today+365 window — just the one booked night.
+        Queue::assertPushed(PushRoomTypeAri::class, fn ($job) => $job->roomTypeId === $type->id
+            && $job->from === $in->toDateString()
+            && $job->to === $in->toDateString());
+    }
+
+    public function test_job_with_a_window_pushes_only_that_range_to_channex(): void
+    {
+        $type = $this->type('Std', 80);
+        $this->rooms($type, 2);
+        $this->map($type, 'RT-1', 'RP-1');
+        Http::fake(['*availability*' => Http::response(['data' => []]), '*restrictions*' => Http::response(['data' => []])]);
+
+        (new PushRoomTypeAri($type->id, '2026-08-10', '2026-08-10'))->handle(app(ChannelSync::class));
+
+        // A 1-night window => exactly one availability range spanning only that day.
+        Http::assertSent(function ($r) {
+            if (! str_contains($r->url(), '/availability')) {
+                return false;
+            }
+            $v = $r->data()['values'];
+
+            return count($v) === 1
+                && $v[0]['date_from'] === '2026-08-10'
+                && $v[0]['date_to'] === '2026-08-10';
+        });
+    }
+
+    public function test_extending_a_reservation_pushes_the_union_of_old_and_new_nights(): void
+    {
+        $type = $this->type();
+        $this->rooms($type, 1);
+        $in = CarbonImmutable::today()->addDays(10);
+        $res = $this->reservation($type, $in->toDateString(), $in->addDay()->toDateString()); // 1 night
+
+        Queue::fake(); // ignore the create-time dispatch
+        $res->update(['check_out_date' => $in->addDays(3)->toDateString()]); // now 3 nights: $in, +1, +2
+
+        Queue::assertPushed(PushRoomTypeAri::class, fn ($job) => $job->roomTypeId === $type->id
+            && $job->from === $in->toDateString()
+            && $job->to === $in->addDays(2)->toDateString()); // last occupied night = new check_out - 1
+    }
+
+    public function test_a_fully_past_reservation_change_dispatches_nothing(): void
+    {
+        $type = $this->type();
+        $this->rooms($type, 1);
+        $past = CarbonImmutable::today()->subDays(10);
+        $this->reservation($type, $past->toDateString(), $past->addDay()->toDateString());
+
+        Queue::assertNotPushed(PushRoomTypeAri::class); // past nights are unsellable — nothing to push
+    }
+
+    public function test_window_is_clamped_to_today_for_a_stay_that_started_in_the_past(): void
+    {
+        $type = $this->type();
+        $this->rooms($type, 1);
+        $in = CarbonImmutable::today()->subDays(2);
+        $out = CarbonImmutable::today()->addDays(2); // occupies past AND future nights
+        $this->reservation($type, $in->toDateString(), $out->toDateString());
+
+        Queue::assertPushed(PushRoomTypeAri::class, fn ($job) => $job->roomTypeId === $type->id
+            && $job->from === CarbonImmutable::today()->toDateString()        // floored at today
+            && $job->to === CarbonImmutable::today()->addDay()->toDateString()); // last night = check_out - 1
     }
 }

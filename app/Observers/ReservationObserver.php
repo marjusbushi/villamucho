@@ -8,6 +8,7 @@ use App\Models\Reservation;
 use App\Models\ReservationStatusLog;
 use App\Models\Room;
 use App\Models\Setting;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -88,6 +89,14 @@ class ReservationObserver
             return;
         }
 
+        // A reservation event only changes availability for the nights it occupies,
+        // so push ONLY that window — not the whole default year. If nothing in the
+        // sellable future changed (the stay is entirely in the past), don't push.
+        [$from, $to] = $this->changedWindow($reservation);
+        if ($from === null) {
+            return;
+        }
+
         $roomIds = collect([$reservation->room_id]);
 
         // A reservation MOVED to another room frees a room on the OLD room's type
@@ -99,6 +108,42 @@ class ReservationObserver
         Room::whereKey($roomIds->unique()->all())
             ->pluck('room_type_id')
             ->unique()
-            ->each(fn ($roomTypeId) => PushRoomTypeAri::dispatch($roomTypeId));
+            ->each(fn ($roomTypeId) => PushRoomTypeAri::dispatch($roomTypeId, $from, $to));
+    }
+
+    /**
+     * The inclusive Y-m-d window whose availability THIS reservation event affects:
+     * the occupied nights [check_in .. check_out-1] (half-open — the check-out day
+     * is free), widened to the UNION of the old and new nights when the dates moved
+     * (so freed dates are re-pushed too), and floored at today (past dates are
+     * unsellable and the full-window path never pushes them either). Returns
+     * [null, null] when the whole window is in the past — nothing to push.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function changedWindow(Reservation $reservation): array
+    {
+        $checkIn = CarbonImmutable::parse($reservation->check_in_date);
+        $checkOut = CarbonImmutable::parse($reservation->check_out_date);
+
+        // On an update that moved the dates, getOriginal() still holds the pre-change
+        // values ('saved' fires before syncOriginal), so cover both old and new.
+        if ($reservation->wasChanged('check_in_date') && $reservation->getOriginal('check_in_date')) {
+            $checkIn = $checkIn->min(CarbonImmutable::parse($reservation->getOriginal('check_in_date')));
+        }
+        if ($reservation->wasChanged('check_out_date') && $reservation->getOriginal('check_out_date')) {
+            $checkOut = $checkOut->max(CarbonImmutable::parse($reservation->getOriginal('check_out_date')));
+        }
+
+        $lastNight = $checkOut->subDay(); // check-out day is free
+        $today = CarbonImmutable::today();
+
+        if ($lastNight->lt($today)) {
+            return [null, null];
+        }
+
+        $from = $checkIn->lt($today) ? $today : $checkIn;
+
+        return [$from->toDateString(), $lastNight->toDateString()];
     }
 }
