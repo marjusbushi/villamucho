@@ -61,7 +61,7 @@ CHANNEX_WEBHOOK_SECRET="<sekret-i-ri>"             # gjenero një të ri për pr
 Pastaj: `php artisan config:clear` (ose `config:cache`).
 
 ### Hapi 3 — Rikrijo + lidh + shtyj dhomat te prodhimi *(UNË)*
-1. Krijo 8 tipet e dhomave + rate plans te Channex prodhimi (me API, si te testi).
+1. `php artisan channex:bootstrap-rooms --dry` → shiko; pastaj `php artisan channex:bootstrap-rooms` → krijon tipet e dhomave + rate plans te Channex prodhimi (idempotent, me emrat e PMS-së). Zëvendëson skriptin ad-hoc të staging-ut.
 2. `php artisan channex:link-rooms` → lidh (mbush `channel_mappings`).
 3. `php artisan channex:push-ari` → shtyn disponueshmërinë reale + çmimet sezonale.
 4. Verifiko: `php artisan channex:ping` → duhet të listojë Villa Mucho.
