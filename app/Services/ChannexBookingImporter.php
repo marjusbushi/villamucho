@@ -251,7 +251,10 @@ class ChannexBookingImporter
 
     private function systemUserId(): int
     {
-        return User::where('email', 'system@villamucho.local')->value('id')
+        // withTrashed: resolve the system user even if it was soft-deleted, so imported
+        // bookings are attributed to it (not silently to the first admin). Matches the
+        // soft-delete-safe lookup in WebsiteController::submitBooking.
+        return User::withTrashed()->where('email', 'system@villamucho.local')->value('id')
             ?? User::orderBy('id')->value('id');
     }
 
