@@ -127,6 +127,13 @@ class UserController extends Controller
             return back()->with('error', 'Nuk mund te fshish veten.');
         }
 
+        // The self-seeded system user that every public/website booking is attributed to.
+        // Deleting it (it was soft-deleted once, causing an 11-day booking outage) must be
+        // impossible from the UI — the booking funnel depends on it existing.
+        if ($user->email === 'system@villamucho.local') {
+            return back()->with('error', 'Ky eshte perdoruesi i sistemit per rezervimet online — nuk mund te fshihet.');
+        }
+
         $user->delete();
 
         AuditLog::record('user.delete', $user);
