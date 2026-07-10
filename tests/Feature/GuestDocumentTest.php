@@ -1,4 +1,5 @@
 <?php
+
 namespace Tests\Feature;
 
 use App\Models\Guest;
@@ -19,6 +20,7 @@ class GuestDocumentTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $u = User::factory()->create();
         $u->assignRole('admin');
+
         return $u;
     }
 
@@ -57,6 +59,9 @@ class GuestDocumentTest extends TestCase
 
         $noPerm = User::factory()->create(); // no roles/permissions
         $this->actingAs($noPerm)->get(route('guests.documents.show', $doc->id))->assertForbidden();
+
+        $guest->delete();
+        $this->actingAs($admin)->get(route('guests.documents.show', $doc->id))->assertNotFound();
     }
 
     public function test_delete_removes_file_and_record(): void
