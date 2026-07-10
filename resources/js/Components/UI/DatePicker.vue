@@ -12,6 +12,8 @@ const props = defineProps({
     placeholder: { type: String, default: 'dd/mm/vvvv' },
     disabled: { type: Boolean, default: false },
     error: { type: String, default: '' },
+    inputAttrs: { type: Object, default: () => ({}) },
+    ariaLabel: { type: String, default: 'Zgjidh datën' },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -37,6 +39,8 @@ const inner = computed({
 });
 const minDate = computed(() => toDate(props.min) || undefined);
 const maxDate = computed(() => toDate(props.max) || undefined);
+const resolvedInputAttrs = computed(() => ({ ...props.inputAttrs }));
+const ariaLabels = computed(() => ({ input: props.ariaLabel }));
 </script>
 
 <template>
@@ -46,6 +50,8 @@ const maxDate = computed(() => toDate(props.max) || undefined);
         :min-date="minDate"
         :max-date="maxDate"
         :placeholder="placeholder"
+        :input-attrs="resolvedInputAttrs"
+        :aria-labels="ariaLabels"
         :disabled="disabled"
         :clearable="true"
         :auto-apply="true"
