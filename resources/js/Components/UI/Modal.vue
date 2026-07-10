@@ -1,5 +1,5 @@
 <script setup>
-import { watch, onUnmounted } from 'vue';
+import { watch, onUnmounted, nextTick, ref, useId } from 'vue';
 
 const props = defineProps({
     show: {
@@ -22,6 +22,9 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+const panel = ref(null);
+const titleId = useId();
+let previouslyFocused = null;
 
 const maxWidthClasses = {
     sm: 'sm:max-w-sm',
@@ -37,9 +40,34 @@ function close() {
     }
 }
 
-function onEscape(e) {
+function focusableElements() {
+    return [...(panel.value?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) || [])].filter((el) => !el.hasAttribute('hidden') && el.getAttribute('aria-hidden') !== 'true');
+}
+
+function onKeydown(e) {
     if (e.key === 'Escape' && props.show) {
         close();
+        return;
+    }
+    if (e.key !== 'Tab' || !props.show || !panel.value) return;
+
+    const focusables = focusableElements();
+    if (!focusables.length) {
+        e.preventDefault();
+        panel.value.focus();
+        return;
+    }
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === panel.value)) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
     }
 }
 
@@ -47,12 +75,23 @@ watch(
     () => props.show,
     (val) => {
         document.body.style.overflow = val ? 'hidden' : '';
+        if (val) {
+            previouslyFocused = document.activeElement;
+            nextTick(() => {
+                const first = focusableElements()[0];
+                (first || panel.value)?.focus();
+            });
+        } else if (previouslyFocused instanceof HTMLElement) {
+            const target = previouslyFocused;
+            previouslyFocused = null;
+            nextTick(() => target.isConnected && target.focus());
+        }
     },
 );
 
-document.addEventListener('keydown', onEscape);
+document.addEventListener('keydown', onKeydown);
 onUnmounted(() => {
-    document.removeEventListener('keydown', onEscape);
+    document.removeEventListener('keydown', onKeydown);
     document.body.style.overflow = '';
 });
 </script>
@@ -71,6 +110,7 @@ onUnmounted(() => {
                 <!-- Overlay -->
                 <div
                     class="fixed inset-0 bg-neutral-900/50"
+                    aria-hidden="true"
                     @click="close"
                 />
 
@@ -86,6 +126,11 @@ onUnmounted(() => {
                     >
                         <div
                             v-if="show"
+                            ref="panel"
+                            role="dialog"
+                            aria-modal="true"
+                            :aria-labelledby="title ? titleId : undefined"
+                            tabindex="-1"
                             :class="[
                                 'relative w-full rounded-lg bg-white shadow-modal',
                                 maxWidthClasses[maxWidth],
@@ -94,9 +139,11 @@ onUnmounted(() => {
                         >
                             <!-- Header -->
                             <div v-if="title || closeable" class="flex items-center justify-between border-b border-neutral-200 px-5 py-4">
-                                <h3 v-if="title" class="text-h4 text-neutral-900">{{ title }}</h3>
+                                <h3 v-if="title" :id="titleId" class="text-h4 text-neutral-900">{{ title }}</h3>
                                 <button
                                     v-if="closeable"
+                                    type="button"
+                                    aria-label="Mbyll dialogun"
                                     class="ml-auto rounded-md p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors duration-150"
                                     @click="close"
                                 >
