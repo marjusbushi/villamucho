@@ -83,6 +83,7 @@ class ChannexBookingImportTest extends TestCase
         $this->assertSame('GB', $guest->nationality);
         $this->assertDatabaseHas('reservations', [
             'channel' => 'booking.com',
+            'created_via' => Reservation::CREATED_VIA_CHANNEL_MANAGER,
             'channel_ref' => 'BK123',
             'guest_id' => $guest->id,
             'status' => 'confirmed',
@@ -102,6 +103,7 @@ class ChannexBookingImportTest extends TestCase
         $importer = app(ChannexBookingImporter::class);
 
         $importer->importRevision($this->revision());
+        Reservation::first()->update(['created_via' => Reservation::CREATED_VIA_IMPORT]);
         // same ref re-delivered with a new price/dates (modification)
         $importer->importRevision($this->revision([
             'status' => 'modified',
@@ -113,6 +115,7 @@ class ChannexBookingImportTest extends TestCase
         $res = Reservation::first();
         $this->assertEquals(250.0, (float) $res->total_amount);
         $this->assertSame('2026-08-04', $res->check_out_date->toDateString());
+        $this->assertSame(Reservation::CREATED_VIA_IMPORT, $res->created_via);
     }
 
     public function test_cancelled_revision_cancels_the_reservation(): void

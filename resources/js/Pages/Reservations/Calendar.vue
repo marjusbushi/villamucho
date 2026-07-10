@@ -252,6 +252,7 @@ function doCancel(res) {
 
 // Net after channel commission — for the Total line in the detail popup.
 function feePctOf(res) {
+    if (res?.channel === 'direct') return 0;
     return Number(props.channelFees?.[res?.channel]) || 0;
 }
 function netOfRes(res) {

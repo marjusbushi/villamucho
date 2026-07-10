@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CleaningTask;
 use App\Models\FolioItem;
 use App\Models\Guest;
 use App\Models\Payment;
@@ -9,11 +10,11 @@ use App\Models\PosOrder;
 use App\Models\PosShift;
 use App\Models\Reservation;
 use App\Models\Room;
-use App\Models\Setting;
-use App\Models\CleaningTask;
 use App\Models\RoomType;
-use Illuminate\Support\Carbon;
+use App\Models\Setting;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -89,10 +90,11 @@ class ReportsController extends Controller
         $rows = Reservation::whereBetween('check_in_date', [$from, $to])
             ->where('status', '!=', 'cancelled')
             ->get(['channel', 'total_amount', 'commission_amount', 'check_in_date', 'check_out_date'])
-            ->groupBy(fn ($r) => $r->channel ?: 'manual')
+            ->groupBy(fn ($r) => Reservation::normalizeChannel($r->channel))
             ->map(function ($group, $channel) {
                 $revenue = (float) $group->sum('total_amount');
                 $commission = (float) $group->sum('commission_amount');
+
                 return [
                     'channel' => $channel,
                     'count' => $group->count(),
@@ -139,6 +141,7 @@ class ReportsController extends Controller
         $rows = $stays->map(function ($r) use ($folio, $pay) {
             $gross = round((float) $r->total_amount + (float) ($folio[$r->id]->charges ?? 0) - (float) ($folio[$r->id]->discounts ?? 0), 2);
             $paid = (float) ($pay[$r->id]->paid ?? 0);
+
             return [
                 'id' => $r->id,
                 'guest' => trim("{$r->guest?->first_name} {$r->guest?->last_name}") ?: 'Mysafir',
@@ -359,7 +362,7 @@ class ReportsController extends Controller
                 'pax' => (int) $r->adults + (int) $r->children,
                 'adults' => (int) $r->adults,
                 'children' => (int) $r->children,
-                'channel' => $r->channel ?: 'manual',
+                'channel' => Reservation::normalizeChannel($r->channel),
                 'balance' => round($gross - $paid, 2),
                 'notes' => $r->notes,
             ];
@@ -414,6 +417,7 @@ class ReportsController extends Controller
         $rows = $stays->map(function ($r) use ($folio, $pay, $openPos) {
             $gross = round((float) $r->total_amount + (float) ($folio[$r->id]->charges ?? 0) - (float) ($folio[$r->id]->discounts ?? 0), 2);
             $paid = (float) ($pay[$r->id]->paid ?? 0);
+
             return [
                 'id' => $r->id,
                 'check_out' => $r->check_out_date?->toDateString(),
@@ -537,7 +541,7 @@ class ReportsController extends Controller
             'id' => $r->id,
             'guest' => trim("{$r->guest?->first_name} {$r->guest?->last_name}") ?: 'Mysafir',
             'room' => $r->room?->room_number,
-            'channel' => $r->channel ?: 'manual',
+            'channel' => Reservation::normalizeChannel($r->channel),
             'check_in' => $r->check_in_date?->toDateString(),
             'check_out' => $r->check_out_date?->toDateString(),
             'value' => round((float) $r->total_amount, 2),
@@ -695,11 +699,11 @@ class ReportsController extends Controller
         };
 
         foreach ($rooms as $r) {
-            $month = substr((string) ($r->check_in_date instanceof \Carbon\CarbonInterface ? $r->check_in_date->toDateString() : $r->check_in_date), 0, 7);
+            $month = substr((string) ($r->check_in_date instanceof CarbonInterface ? $r->check_in_date->toDateString() : $r->check_in_date), 0, 7);
             $add($month, (float) $r->total_amount);
         }
         foreach ($pos as $o) {
-            $month = substr((string) ($o->created_at instanceof \Carbon\CarbonInterface ? $o->created_at->toDateString() : $o->created_at), 0, 7);
+            $month = substr((string) ($o->created_at instanceof CarbonInterface ? $o->created_at->toDateString() : $o->created_at), 0, 7);
             $add($month, (float) $o->total_amount);
         }
 
@@ -894,74 +898,74 @@ class ReportsController extends Controller
         ]);
     }
 
-public function bookingBehavior(Request $request): Response
-{
-    [$from, $to, $days] = $this->range($request);
+    public function bookingBehavior(Request $request): Response
+    {
+        [$from, $to, $days] = $this->range($request);
 
-    // Non-cancelled reservations whose check-in falls inside the selected range.
-    $reservations = Reservation::query()
-        ->whereDate('check_in_date', '>=', $from)
-        ->whereDate('check_in_date', '<=', $to)
-        ->where('status', '!=', 'cancelled')
-        ->get(['channel', 'check_in_date', 'check_out_date', 'created_at']);
+        // Non-cancelled reservations whose check-in falls inside the selected range.
+        $reservations = Reservation::query()
+            ->whereDate('check_in_date', '>=', $from)
+            ->whereDate('check_in_date', '<=', $to)
+            ->where('status', '!=', 'cancelled')
+            ->get(['channel', 'check_in_date', 'check_out_date', 'created_at']);
 
-    // Group by channel (null/empty -> 'manual'). Diffs computed in PHP via Carbon
-    // so the query stays SQLite + MySQL safe.
-    $groups = [];
-    $totalLead = 0;
-    $totalLos = 0;
-    $totalCount = 0;
+        // Normalize legacy null/manual/direct into the single user-facing direct channel.
+        // Diffs are computed in PHP so the query stays SQLite + MySQL safe.
+        $groups = [];
+        $totalLead = 0;
+        $totalLos = 0;
+        $totalCount = 0;
 
-    foreach ($reservations as $r) {
-        $channel = $r->channel ?: 'manual';
+        foreach ($reservations as $r) {
+            $channel = Reservation::normalizeChannel($r->channel);
 
-        $createdDate = Carbon::parse($r->created_at)->startOfDay();
-        $checkInDate = Carbon::parse($r->check_in_date)->startOfDay();
-        // Lead time in days, never negative (same-day or back-dated -> 0).
-        $lead = max(0, $createdDate->diffInDays($checkInDate, false));
+            $createdDate = Carbon::parse($r->created_at)->startOfDay();
+            $checkInDate = Carbon::parse($r->check_in_date)->startOfDay();
+            // Lead time in days, never negative (same-day or back-dated -> 0).
+            $lead = max(0, $createdDate->diffInDays($checkInDate, false));
 
-        // Length of stay in nights.
-        $los = max(0, Carbon::parse($r->check_in_date)->startOfDay()
-            ->diffInDays(Carbon::parse($r->check_out_date)->startOfDay(), false));
+            // Length of stay in nights.
+            $los = max(0, Carbon::parse($r->check_in_date)->startOfDay()
+                ->diffInDays(Carbon::parse($r->check_out_date)->startOfDay(), false));
 
-        if (!isset($groups[$channel])) {
-            $groups[$channel] = ['channel' => $channel, 'count' => 0, 'lead_sum' => 0, 'los_sum' => 0];
+            if (! isset($groups[$channel])) {
+                $groups[$channel] = ['channel' => $channel, 'count' => 0, 'lead_sum' => 0, 'los_sum' => 0];
+            }
+            $groups[$channel]['count']++;
+            $groups[$channel]['lead_sum'] += $lead;
+            $groups[$channel]['los_sum'] += $los;
+
+            $totalLead += $lead;
+            $totalLos += $los;
+            $totalCount++;
         }
-        $groups[$channel]['count']++;
-        $groups[$channel]['lead_sum'] += $lead;
-        $groups[$channel]['los_sum'] += $los;
 
-        $totalLead += $lead;
-        $totalLos += $los;
-        $totalCount++;
+        $rows = collect($groups)
+            ->map(function ($g) {
+                return [
+                    'channel' => $g['channel'],
+                    'count' => $g['count'],
+                    'avg_lead' => $g['count'] > 0 ? round($g['lead_sum'] / $g['count'], 1) : 0,
+                    'avg_los' => $g['count'] > 0 ? round($g['los_sum'] / $g['count'], 1) : 0,
+                ];
+            })
+            ->sortByDesc('count')
+            ->values()
+            ->all();
+
+        $summary = [
+            'count' => $totalCount,
+            'avg_lead' => $totalCount > 0 ? round($totalLead / $totalCount, 1) : 0,
+            'avg_los' => $totalCount > 0 ? round($totalLos / $totalCount, 1) : 0,
+        ];
+
+        return Inertia::render('Reports/BookingBehavior', [
+            'filters' => ['from' => $from, 'to' => $to],
+            'rows' => $rows,
+            'summary' => $summary,
+            'currency' => $this->currency(),
+        ]);
     }
-
-    $rows = collect($groups)
-        ->map(function ($g) {
-            return [
-                'channel' => $g['channel'],
-                'count' => $g['count'],
-                'avg_lead' => $g['count'] > 0 ? round($g['lead_sum'] / $g['count'], 1) : 0,
-                'avg_los' => $g['count'] > 0 ? round($g['los_sum'] / $g['count'], 1) : 0,
-            ];
-        })
-        ->sortByDesc('count')
-        ->values()
-        ->all();
-
-    $summary = [
-        'count' => $totalCount,
-        'avg_lead' => $totalCount > 0 ? round($totalLead / $totalCount, 1) : 0,
-        'avg_los' => $totalCount > 0 ? round($totalLos / $totalCount, 1) : 0,
-    ];
-
-    return Inertia::render('Reports/BookingBehavior', [
-        'filters' => ['from' => $from, 'to' => $to],
-        'rows' => $rows,
-        'summary' => $summary,
-        'currency' => $this->currency(),
-    ]);
-}
 
     /**
      * POS sales by hour-of-day and weekday over a date range.
@@ -1075,39 +1079,39 @@ public function bookingBehavior(Request $request): Response
         ]);
     }
 
-public function posVoids(Request $request): Response
-{
-    [$from, $to, $days] = $this->range($request);
+    public function posVoids(Request $request): Response
+    {
+        [$from, $to, $days] = $this->range($request);
 
-    $orders = PosOrder::with('createdBy')
-        ->where('status', 'cancelled')
-        ->whereDate('created_at', '>=', $from)
-        ->whereDate('created_at', '<=', $to)
-        ->orderByDesc('created_at')
-        ->get();
+        $orders = PosOrder::with('createdBy')
+            ->where('status', 'cancelled')
+            ->whereDate('created_at', '>=', $from)
+            ->whereDate('created_at', '<=', $to)
+            ->orderByDesc('created_at')
+            ->get();
 
-    $rows = $orders->map(function ($o) {
-        return [
-            'id'           => $o->id,
-            'table_number' => $o->table_number,
-            'total_amount' => (float) ($o->total_amount ?? 0),
-            'created_at'   => $o->created_at ? Carbon::parse($o->created_at)->format('d/m H:i') : '—',
-            'created_by'   => $o->createdBy->name ?? '—',
+        $rows = $orders->map(function ($o) {
+            return [
+                'id' => $o->id,
+                'table_number' => $o->table_number,
+                'total_amount' => (float) ($o->total_amount ?? 0),
+                'created_at' => $o->created_at ? Carbon::parse($o->created_at)->format('d/m H:i') : '—',
+                'created_by' => $o->createdBy->name ?? '—',
+            ];
+        })->values();
+
+        $summary = [
+            'count' => $rows->count(),
+            'total' => round($orders->sum('total_amount'), 2),
         ];
-    })->values();
 
-    $summary = [
-        'count' => $rows->count(),
-        'total' => round($orders->sum('total_amount'), 2),
-    ];
-
-    return Inertia::render('Reports/PosVoids', [
-        'filters'  => ['from' => $from, 'to' => $to],
-        'rows'     => $rows,
-        'summary'  => $summary,
-        'currency' => $this->currency(),
-    ]);
-}
+        return Inertia::render('Reports/PosVoids', [
+            'filters' => ['from' => $from, 'to' => $to],
+            'rows' => $rows,
+            'summary' => $summary,
+            'currency' => $this->currency(),
+        ]);
+    }
 
     /** Room status snapshot: all rooms with their type, grouped counts per status (point-in-time, no date range). */
     public function roomStatus(Request $request): Response
@@ -1190,46 +1194,46 @@ public function posVoids(Request $request): Response
         ]);
     }
 
-public function inHouse(Request $request): Response
-{
-    $reservations = Reservation::with(['room.roomType', 'guest'])
-        ->where('status', 'checked_in')
-        ->get()
-        ->sortBy(fn ($r) => $r->room?->room_number ?? '')
-        ->values();
+    public function inHouse(Request $request): Response
+    {
+        $reservations = Reservation::with(['room.roomType', 'guest'])
+            ->where('status', 'checked_in')
+            ->get()
+            ->sortBy(fn ($r) => $r->room?->room_number ?? '')
+            ->values();
 
-    $rows = $reservations->map(function ($r) {
-        $guest = $r->guest;
-        $name = $guest
-            ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? ''))
-            : '';
+        $rows = $reservations->map(function ($r) {
+            $guest = $r->guest;
+            $name = $guest
+                ? trim(($guest->first_name ?? '').' '.($guest->last_name ?? ''))
+                : '';
 
-        return [
-            'id'         => $r->id,
-            'guest'      => $name !== '' ? $name : '—',
-            'phone'      => $guest?->phone,
-            'room'       => $r->room?->room_number,
-            'room_type'  => $r->room?->roomType?->name,
-            'check_in'   => optional($r->check_in_date)->toDateString(),
-            'check_out'  => optional($r->check_out_date)->toDateString(),
-            'nights'     => $r->nights,
-            'adults'     => (int) ($r->adults ?? 0),
-            'children'   => (int) ($r->children ?? 0),
-            'pax'        => (int) ($r->adults ?? 0) + (int) ($r->children ?? 0),
+            return [
+                'id' => $r->id,
+                'guest' => $name !== '' ? $name : '—',
+                'phone' => $guest?->phone,
+                'room' => $r->room?->room_number,
+                'room_type' => $r->room?->roomType?->name,
+                'check_in' => optional($r->check_in_date)->toDateString(),
+                'check_out' => optional($r->check_out_date)->toDateString(),
+                'nights' => $r->nights,
+                'adults' => (int) ($r->adults ?? 0),
+                'children' => (int) ($r->children ?? 0),
+                'pax' => (int) ($r->adults ?? 0) + (int) ($r->children ?? 0),
+            ];
+        })->values();
+
+        $summary = [
+            'count' => $rows->count(),
+            'pax' => $rows->sum('pax'),
         ];
-    })->values();
 
-    $summary = [
-        'count' => $rows->count(),
-        'pax'   => $rows->sum('pax'),
-    ];
-
-    return Inertia::render('Reports/InHouse', [
-        'rows'     => $rows,
-        'summary'  => $summary,
-        'currency' => $this->currency(),
-    ]);
-}
+        return Inertia::render('Reports/InHouse', [
+            'rows' => $rows,
+            'summary' => $summary,
+            'currency' => $this->currency(),
+        ]);
+    }
 
     /** Discounts given (folio_items type=discount) in a date range. */
     public function discounts(Request $request): Response

@@ -21,20 +21,23 @@ use Illuminate\Support\Carbon;
 class ImportBookingCsv extends Command
 {
     protected $signature = 'booking:import {file : path to the CSV} {--dry-run : show the plan without writing}';
+
     protected $description = 'Import Booking.com reservations (CSV) into the PMS';
 
     public function handle(): int
     {
         $path = $this->argument('file');
-        if (!is_file($path)) {
+        if (! is_file($path)) {
             $this->error("File not found: {$path}");
+
             return self::FAILURE;
         }
 
         $dry = (bool) $this->option('dry-run');
         $rows = $this->readCsv($path);
-        if (!$rows) {
+        if (! $rows) {
             $this->error('No rows parsed.');
+
             return self::FAILURE;
         }
 
@@ -47,11 +50,16 @@ class ImportBookingCsv extends Command
         $roomsByNumber = Room::with('roomType')->get()->keyBy(fn ($r) => trim((string) $r->room_number));
         $roomsByType = Room::with('roomType')->get()->groupBy('room_type_id');
 
-        $created = 0; $updated = 0; $cancelled = 0; $flagged = [];
+        $created = 0;
+        $updated = 0;
+        $cancelled = 0;
+        $flagged = [];
 
         foreach ($rows as $i => $row) {
             $book = trim($row['Book Number'] ?? '');
-            if ($book === '') { continue; }
+            if ($book === '') {
+                continue;
+            }
 
             $status = str_starts_with(strtolower(trim($row['Status'] ?? '')), 'cancel') ? 'cancelled' : 'confirmed';
             $checkIn = $this->date($row['Check-in'] ?? null);
@@ -70,10 +78,15 @@ class ImportBookingCsv extends Command
             $unmapped = [];
             foreach ($units as $unit) {
                 $room = $this->resolveRoom($unit, $roomsByNumber, $roomsByType, $rooms, $checkIn, $checkOut, $status);
-                if ($room) { $rooms[] = $room; } else { $unmapped[] = $unit; }
+                if ($room) {
+                    $rooms[] = $room;
+                } else {
+                    $unmapped[] = $unit;
+                }
             }
-            if (!$rooms) {
-                $flagged[] = "#{$book} {$row['Guest Name(s)']} — s'u mapua dot: '" . ($row['Unit type'] ?? '') . "'";
+            if (! $rooms) {
+                $flagged[] = "#{$book} {$row['Guest Name(s)']} — s'u mapua dot: '".($row['Unit type'] ?? '')."'";
+
                 continue;
             }
 
@@ -91,25 +104,33 @@ class ImportBookingCsv extends Command
                     'commission_amount' => $idx === 0 ? $commission : 0,
                     'adults' => $adults,
                     'children' => $children,
-                    'notes' => trim("Booking.com #{$book}" . ($remarks ? " — {$remarks}" : '')),
+                    'notes' => trim("Booking.com #{$book}".($remarks ? " — {$remarks}" : '')),
                     'channel' => 'booking.com',
                 ];
-                $line = "  #{$book}  " . ($row['Guest Name(s)'] ?? '') . "  {$checkIn}→{$checkOut}  dhoma {$room->room_number} ({$room->roomType?->name})  {$status}  €{$attrs['total_amount']}";
-                if ($unmapped) { $line .= '  [pjesë e pamapuar: ' . implode(', ', $unmapped) . ']'; }
+                $line = "  #{$book}  ".($row['Guest Name(s)'] ?? '')."  {$checkIn}→{$checkOut}  dhoma {$room->room_number} ({$room->roomType?->name})  {$status}  €{$attrs['total_amount']}";
+                if ($unmapped) {
+                    $line .= '  [pjesë e pamapuar: '.implode(', ', $unmapped).']';
+                }
 
                 if ($dry) {
                     $this->line($line);
                     $created++;
+
                     continue;
                 }
 
                 $existing = Reservation::where('channel', 'booking.com')->where('channel_ref', $book)->where('room_id', $room->id)->first();
+                if (! $existing) {
+                    $attrs['created_via'] = Reservation::CREATED_VIA_IMPORT;
+                }
                 $res = Reservation::updateOrCreate(
                     ['channel' => 'booking.com', 'channel_ref' => $book, 'room_id' => $room->id],
                     $attrs
                 );
                 $existing ? $updated++ : $created++;
-                if ($status === 'cancelled') { $cancelled++; }
+                if ($status === 'cancelled') {
+                    $cancelled++;
+                }
                 ChannelSyncLog::record([
                     'direction' => 'pull', 'action' => 'import.booking', 'reservation_id' => $res->id,
                     'room_type_id' => $room->room_type_id, 'status' => 'ok',
@@ -119,10 +140,12 @@ class ImportBookingCsv extends Command
         }
 
         $this->newLine();
-        $this->info(($dry ? '[DRY-RUN] ' : '') . "Reservations: {$created} të reja, {$updated} të përditësuara ({$cancelled} të anuluara).");
+        $this->info(($dry ? '[DRY-RUN] ' : '')."Reservations: {$created} të reja, {$updated} të përditësuara ({$cancelled} të anuluara).");
         if ($flagged) {
-            $this->warn('Rreshta që s\'u mapuan dot (' . count($flagged) . '):');
-            foreach ($flagged as $f) { $this->line('  - ' . $f); }
+            $this->warn('Rreshta që s\'u mapuan dot ('.count($flagged).'):');
+            foreach ($flagged as $f) {
+                $this->line('  - '.$f);
+            }
         }
 
         return self::SUCCESS;
@@ -140,24 +163,32 @@ class ImportBookingCsv extends Command
             $name = 'deluxe double room with balcony'; // Booking lists it with a longer marketing name
         }
         $type = RoomType::all()->first(fn ($t) => strtolower(trim($t->name)) === $name);
-        if (!$type) { return null; }
+        if (! $type) {
+            return null;
+        }
 
         $pool = $roomsByType->get($type->id) ?? collect();
         $takenIds = collect($taken)->pluck('id')->all();
         // prefer a room with no overlapping non-cancelled reservation for these dates
         foreach ($pool as $room) {
-            if (in_array($room->id, $takenIds, true)) { continue; }
+            if (in_array($room->id, $takenIds, true)) {
+                continue;
+            }
             if ($status === 'cancelled' || $this->isFree($room->id, $in, $out)) {
                 return $room;
             }
         }
-        return $pool->first(fn ($r) => !in_array($r->id, $takenIds, true)) ?? $pool->first();
+
+        return $pool->first(fn ($r) => ! in_array($r->id, $takenIds, true)) ?? $pool->first();
     }
 
     private function isFree(int $roomId, ?string $in, ?string $out): bool
     {
-        if (!$in || !$out) { return true; }
-        return !Reservation::where('room_id', $roomId)
+        if (! $in || ! $out) {
+            return true;
+        }
+
+        return ! Reservation::where('room_id', $roomId)
             ->whereNotIn('status', ['cancelled'])
             ->where('check_in_date', '<', $out)
             ->where('check_out_date', '>', $in)
@@ -184,8 +215,14 @@ class ImportBookingCsv extends Command
     private function date(?string $v): ?string
     {
         $v = trim((string) $v);
-        if ($v === '') { return null; }
-        try { return Carbon::parse($v)->toDateString(); } catch (\Throwable $e) { return null; }
+        if ($v === '') {
+            return null;
+        }
+        try {
+            return Carbon::parse($v)->toDateString();
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function money(?string $v): float
@@ -196,16 +233,25 @@ class ImportBookingCsv extends Command
     private function readCsv(string $path): array
     {
         $fh = fopen($path, 'r');
-        if (!$fh) { return []; }
+        if (! $fh) {
+            return [];
+        }
         $header = fgetcsv($fh);
-        if (!$header) { fclose($fh); return []; }
+        if (! $header) {
+            fclose($fh);
+
+            return [];
+        }
         $header = array_map(fn ($h) => trim((string) $h), $header);
         $rows = [];
         while (($data = fgetcsv($fh)) !== false) {
-            if (count(array_filter($data, fn ($c) => trim((string) $c) !== '')) === 0) { continue; }
+            if (count(array_filter($data, fn ($c) => trim((string) $c) !== '')) === 0) {
+                continue;
+            }
             $rows[] = array_combine($header, array_pad(array_slice($data, 0, count($header)), count($header), null));
         }
         fclose($fh);
+
         return $rows;
     }
 }

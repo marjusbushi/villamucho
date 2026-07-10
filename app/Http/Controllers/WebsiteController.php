@@ -15,6 +15,7 @@ use App\Services\RoomPricing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -41,7 +42,7 @@ class WebsiteController extends Controller
     public function rooms(): Response
     {
         $roomTypes = RoomType::select('id', 'name', 'description', 'base_price', 'max_occupancy', 'amenities', 'breakfast_included')
-            ->withCount(['rooms', 'rooms as available_count' => fn($q) => $q->where('status', 'available')])
+            ->withCount(['rooms', 'rooms as available_count' => fn ($q) => $q->where('status', 'available')])
             ->with('images')
             ->get();
 
@@ -107,7 +108,7 @@ class WebsiteController extends Controller
                 'created_at' => now(),
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Website search log failed: '.$e->getMessage());
+            Log::warning('Website search log failed: '.$e->getMessage());
         }
 
         return response()->json([
@@ -233,10 +234,10 @@ class WebsiteController extends Controller
         try {
             // Lock the room row + re-check availability INSIDE the transaction so two
             // concurrent bookings for the same room can't both pass the check (no double-book).
-            $reservation = DB::transaction(function () use ($request, $room, $nights, $creator) {
+            $reservation = DB::transaction(function () use ($request, $room, $creator) {
                 Room::where('id', $room->id)->lockForUpdate()->first();
 
-                if (!Reservation::isRoomAvailable($room->id, $request->check_in, $request->check_out)) {
+                if (! Reservation::isRoomAvailable($room->id, $request->check_in, $request->check_out)) {
                     throw new \RuntimeException('room_unavailable');
                 }
 
@@ -279,7 +280,8 @@ class WebsiteController extends Controller
                     'adults' => $request->adults,
                     'children' => (int) $request->children,
                     'notes' => $request->notes,
-                    'channel' => 'direct', // booked on villamucho.com
+                    'channel' => 'direct',
+                    'created_via' => Reservation::CREATED_VIA_WEBSITE,
                     'created_by' => $creator->id,
                 ]);
             });
@@ -350,6 +352,7 @@ class WebsiteController extends Controller
             }
         } catch (\Throwable $e) {
             report($e);
+
             // POK unreachable — show a neutral "confirming your payment" state, NOT a live form.
             return Inertia::render('Website/BookingPayment', array_merge($this->paymentProps($reservation, $token), [
                 'openForPayment' => false,
@@ -399,7 +402,7 @@ class WebsiteController extends Controller
      *
      * @return array<string,string>
      */
-    private function pokInitialState(?\App\Models\Guest $guest): array
+    private function pokInitialState(?Guest $guest): array
     {
         if (! $guest) {
             return [];
@@ -522,7 +525,7 @@ class WebsiteController extends Controller
         ]);
 
         // For now, just log it. Later: send email or save to DB
-        \Illuminate\Support\Facades\Log::info('Contact form submission', $request->only('name', 'email', 'message'));
+        Log::info('Contact form submission', $request->only('name', 'email', 'message'));
 
         return back()->with('success', 'Faleminderit! Mesazhi juaj u derua me sukses.');
     }

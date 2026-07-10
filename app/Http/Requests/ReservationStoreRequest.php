@@ -9,6 +9,14 @@ use Illuminate\Validation\Rule;
 
 class ReservationStoreRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $channel = $this->input('channel');
+        if ($this->exists('channel') && (is_string($channel) || $channel === null)) {
+            $this->merge(['channel' => Reservation::normalizeChannel($channel)]);
+        }
+    }
+
     public function authorize(): bool
     {
         return $this->user()->can('create_reservations');
@@ -34,7 +42,7 @@ class ReservationStoreRequest extends FormRequest
     {
         $validator->after(function ($validator) {
             if ($this->room_id && $this->check_in_date && $this->check_out_date) {
-                if (!Reservation::isRoomAvailable($this->room_id, $this->check_in_date, $this->check_out_date)) {
+                if (! Reservation::isRoomAvailable($this->room_id, $this->check_in_date, $this->check_out_date)) {
                     $validator->errors()->add('room_id', 'Kjo dhome eshte e zene per keto data.');
                 }
             }
@@ -45,7 +53,7 @@ class ReservationStoreRequest extends FormRequest
 
     protected function validateOccupancy($validator): void
     {
-        if (!$this->room_id) {
+        if (! $this->room_id) {
             return;
         }
 

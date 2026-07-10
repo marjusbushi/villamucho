@@ -15,6 +15,8 @@ class NotificationController extends Controller
      */
     public function reservations(): JsonResponse
     {
+        $currentUserId = (int) auth()->id();
+
         $recent = Reservation::where('status', '!=', 'cancelled')
             ->with([
                 'guest:id,first_name,last_name',
@@ -36,6 +38,9 @@ class NotificationController extends Controller
                 'total' => $r->total_amount,
                 'channel' => $r->channel,
                 'created_by' => $r->created_by,
+                'should_notify' => $r->created_via !== Reservation::CREATED_VIA_IMPORT
+                    && ! ($r->created_via === Reservation::CREATED_VIA_STAFF
+                        && (int) $r->created_by === $currentUserId),
                 'created_at' => optional($r->created_at)->toIso8601String(),
             ]),
         ]);

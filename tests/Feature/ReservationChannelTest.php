@@ -43,10 +43,12 @@ class ReservationChannelTest extends TestCase
             'channel' => 'booking.com',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
-        $this->assertEquals('booking.com', Reservation::latest('id')->first()->channel);
+        $reservation = Reservation::latest('id')->first();
+        $this->assertEquals('booking.com', $reservation->channel);
+        $this->assertEquals(Reservation::CREATED_VIA_STAFF, $reservation->created_via);
     }
 
-    public function test_admin_create_defaults_channel_to_manual(): void
+    public function test_admin_create_defaults_channel_to_direct(): void
     {
         [$admin, $room, $guest] = $this->setupHotel();
 
@@ -58,7 +60,25 @@ class ReservationChannelTest extends TestCase
             'adults' => 1,
         ])->assertRedirect()->assertSessionHasNoErrors();
 
-        $this->assertEquals('manual', Reservation::latest('id')->first()->channel);
+        $reservation = Reservation::latest('id')->first();
+        $this->assertEquals('direct', $reservation->channel);
+        $this->assertEquals(Reservation::CREATED_VIA_STAFF, $reservation->created_via);
+    }
+
+    public function test_legacy_manual_payload_is_normalized_to_direct(): void
+    {
+        [$admin, $room, $guest] = $this->setupHotel();
+
+        $this->actingAs($admin)->post(route('reservations.store'), [
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'check_in_date' => now()->addDays(3)->toDateString(),
+            'check_out_date' => now()->addDays(5)->toDateString(),
+            'adults' => 1,
+            'channel' => 'manual',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertEquals('direct', Reservation::latest('id')->first()->channel);
     }
 
     public function test_invalid_channel_is_rejected(): void
@@ -77,9 +97,25 @@ class ReservationChannelTest extends TestCase
         $this->assertSame(0, Reservation::count());
     }
 
+    public function test_non_string_channel_is_rejected_without_server_error(): void
+    {
+        [$admin, $room, $guest] = $this->setupHotel();
+
+        $this->actingAs($admin)->post(route('reservations.store'), [
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'check_in_date' => now()->addDays(3)->toDateString(),
+            'check_out_date' => now()->addDays(5)->toDateString(),
+            'adults' => 1,
+            'channel' => ['manual'],
+        ])->assertSessionHasErrors('channel');
+
+        $this->assertSame(0, Reservation::count());
+    }
+
     public function test_website_booking_is_tagged_direct(): void
     {
-        [, $room, ] = $this->setupHotel();
+        [, $room] = $this->setupHotel();
 
         $this->post(route('website.book.submit'), [
             'room_id' => $room->id,
@@ -92,7 +128,9 @@ class ReservationChannelTest extends TestCase
             'adults' => 2,
         ])->assertRedirect();
 
-        $this->assertEquals('direct', Reservation::latest('id')->first()->channel);
+        $reservation = Reservation::latest('id')->first();
+        $this->assertEquals('direct', $reservation->channel);
+        $this->assertEquals(Reservation::CREATED_VIA_WEBSITE, $reservation->created_via);
     }
 
     public function test_show_exposes_channel_and_ref_to_the_detail_page(): void
@@ -130,6 +168,68 @@ class ReservationChannelTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Reservations/Index')
                 ->where('reservations.data.0.channel', 'airbnb')
+                ->where('reservations.data.0.created_via', Reservation::CREATED_VIA_STAFF)
             );
+    }
+
+    public function test_update_rejects_non_string_channel_without_server_error(): void
+    {
+        [$admin, $room, $guest] = $this->setupHotel();
+        $reservation = Reservation::create([
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'created_by' => $admin->id,
+            'check_in_date' => now()->addDays(3)->toDateString(),
+            'check_out_date' => now()->addDays(5)->toDateString(),
+            'status' => 'confirmed',
+            'total_amount' => 160,
+            'adults' => 2,
+        ]);
+
+        $this->actingAs($admin)->put(route('reservations.update', $reservation), [
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'check_in_date' => $reservation->check_in_date->toDateString(),
+            'check_out_date' => $reservation->check_out_date->toDateString(),
+            'status' => 'confirmed',
+            'adults' => 2,
+            'children' => 0,
+            'channel' => ['manual'],
+            'total_amount' => 160,
+        ])->assertSessionHasErrors('channel');
+
+        $this->assertSame('direct', $reservation->refresh()->channel);
+    }
+
+    public function test_synced_reservation_channel_cannot_be_changed_manually(): void
+    {
+        [$admin, $room, $guest] = $this->setupHotel();
+        $reservation = Reservation::create([
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'created_by' => $admin->id,
+            'created_via' => Reservation::CREATED_VIA_CHANNEL_MANAGER,
+            'check_in_date' => now()->addDays(3)->toDateString(),
+            'check_out_date' => now()->addDays(5)->toDateString(),
+            'status' => 'confirmed',
+            'total_amount' => 160,
+            'adults' => 2,
+            'channel' => 'booking.com',
+            'channel_ref' => 'OTA-123',
+        ]);
+
+        $this->actingAs($admin)->put(route('reservations.update', $reservation), [
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'check_in_date' => $reservation->check_in_date->toDateString(),
+            'check_out_date' => $reservation->check_out_date->toDateString(),
+            'status' => 'confirmed',
+            'adults' => 2,
+            'children' => 0,
+            'channel' => 'direct',
+            'total_amount' => 160,
+        ])->assertSessionHasErrors('channel');
+
+        $this->assertSame('booking.com', $reservation->refresh()->channel);
     }
 }

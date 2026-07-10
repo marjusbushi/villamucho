@@ -9,8 +9,8 @@ import { CHANNELS } from '@/channels';
 
 const props = defineProps({ settings: Object, toasts: Object });
 
-// OTA channels that charge a commission (manual + direct are always 0%).
-const feeChannels = CHANNELS.filter((c) => !['manual', 'direct'].includes(c.id));
+// OTA channels that charge a commission (Direct is always 0%).
+const feeChannels = CHANNELS.filter((c) => c.id !== 'direct');
 const savedFees = props.settings.channel_fees || {};
 const initialFees = {};
 feeChannels.forEach((c) => { initialFees[c.id] = savedFees[c.id] ?? ''; });
@@ -79,7 +79,7 @@ function submit() {
             <!-- Channel commissions: feed the auto-filled fee on each reservation -->
             <div>
                 <p class="text-label text-neutral-700 mb-1">Komisionet e Kanaleve (%)</p>
-                <p class="text-tiny text-neutral-400 mb-3">Komisioni qe mban secili kanal. Perdoret per te mbushur vete fee-ne te cdo rezervim (p.sh. Booking.com 12%). Lere bosh ose 0 nese nuk ka komision. Manual dhe Direkt jane gjithmone 0%.</p>
+                <p class="text-tiny text-neutral-400 mb-3">Komisioni qe mban secili kanal. Perdoret per te mbushur vete fee-ne te cdo rezervim (p.sh. Booking.com 12%). Lere bosh ose 0 nese nuk ka komision. Direkt eshte gjithmone 0%.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                     <div v-for="c in feeChannels" :key="c.id" class="flex items-center gap-3">
                         <span class="inline-flex items-center gap-2 text-body-sm text-neutral-700 w-32 shrink-0">

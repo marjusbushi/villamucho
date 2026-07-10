@@ -9,6 +9,14 @@ use Illuminate\Validation\Rule;
 
 class ReservationUpdateRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $channel = $this->input('channel');
+        if ($this->exists('channel') && (is_string($channel) || $channel === null)) {
+            $this->merge(['channel' => Reservation::normalizeChannel($channel)]);
+        }
+    }
+
     public function authorize(): bool
     {
         return $this->user()->can('update_reservations');
@@ -38,7 +46,7 @@ class ReservationUpdateRequest extends FormRequest
                 $room = Room::find($this->room_id);
                 if ($room && $room->status === 'maintenance') {
                     $validator->errors()->add('room_id', 'Kjo dhome eshte ne mirembajtje. Ndrysho statusin te Dhomat per ta perdorur.');
-                } elseif (!Reservation::isRoomAvailable($this->room_id, $this->check_in_date, $this->check_out_date, $excludeId)) {
+                } elseif (! Reservation::isRoomAvailable($this->room_id, $this->check_in_date, $this->check_out_date, $excludeId)) {
                     $validator->errors()->add('room_id', 'Kjo dhome eshte e zene per keto data (ka nje rezervim tjeter).');
                 }
             }

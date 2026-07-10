@@ -51,6 +51,7 @@ class DashboardController extends Controller
             $charges = (float) ($f->charges ?? 0);
             $discounts = (float) ($f->discounts ?? 0);
             $paid = (float) ($payMap[$r->id]->paid ?? 0);
+
             return round((float) $r->total_amount + $charges - $discounts - $paid, 2);
         };
         $owing = $activeStays->map($balanceOf)->filter(fn ($b) => $b > 0.009);
@@ -146,7 +147,7 @@ class DashboardController extends Controller
             ->where('over_short', '!=', 0)->sum('over_short');
         if (abs($shiftShort) > 0.009) {
             $alerts[] = ['type' => 'cash', 'level' => 'warning', 'count' => 1,
-                'message' => 'Mbyllja e turnit sot ka diferencë në arkë: ' . number_format($shiftShort, 2)];
+                'message' => 'Mbyllja e turnit sot ka diferencë në arkë: '.number_format($shiftShort, 2)];
         }
 
         return Inertia::render('Dashboard', [
@@ -237,6 +238,7 @@ class DashboardController extends Controller
                 'pos' => round((float) ($pos[$d] ?? 0), 2),
             ];
         }
+
         return $out;
     }
 
@@ -260,6 +262,7 @@ class DashboardController extends Controller
                 'rooms' => $rooms,
             ];
         }
+
         return $out;
     }
 
@@ -267,14 +270,16 @@ class DashboardController extends Controller
     private function channelMix(Carbon $today): array
     {
         $start = $today->copy()->subDays(29)->toDateString();
+
         return Reservation::whereBetween('check_in_date', [$start, $today->toDateString()])
             ->where('status', '!=', 'cancelled')
             ->select('channel', DB::raw('SUM(total_amount) as v'), DB::raw('COUNT(*) as c'))
             ->groupBy('channel')->get()
-            ->map(fn ($r) => [
-                'channel' => $r->channel ?: 'manual',
-                'revenue' => round((float) $r->v, 2),
-                'count' => (int) $r->c,
+            ->groupBy(fn ($r) => Reservation::normalizeChannel($r->channel))
+            ->map(fn ($rows, $channel) => [
+                'channel' => $channel,
+                'revenue' => round((float) $rows->sum('v'), 2),
+                'count' => (int) $rows->sum('c'),
             ])
             ->sortByDesc('revenue')->values()->all();
     }

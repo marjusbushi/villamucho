@@ -39,7 +39,7 @@ class ReservationController extends Controller
 
         $query = Reservation::select(
             'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
-            'status', 'total_amount', 'adults', 'children', 'channel', 'created_at'
+            'status', 'total_amount', 'adults', 'children', 'channel', 'created_via', 'created_at'
         )
             ->with(['room:id,room_number', 'room.roomType:id,name', 'guest:id,first_name,last_name']);
 
@@ -144,7 +144,7 @@ class ReservationController extends Controller
 
         $reservations = Reservation::select(
             'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status',
-            'total_amount', 'adults', 'children', 'channel', 'notes', 'booking_group_id'
+            'total_amount', 'adults', 'children', 'channel', 'created_via', 'notes', 'booking_group_id'
         )
             ->with('guest:id,first_name,last_name,phone,email')
             ->whereNotIn('status', ['cancelled'])
@@ -164,6 +164,7 @@ class ReservationController extends Controller
                 'adults' => $r->adults,
                 'children' => $r->children,
                 'channel' => $r->channel,
+                'created_via' => $r->created_via,
                 'notes' => $r->notes,
                 'booking_group_id' => $r->booking_group_id,
                 'guest' => $r->guest ? [
@@ -351,8 +352,9 @@ class ReservationController extends Controller
             ? round((float) $entered, 2)
             : RoomPricing::total($room->roomType, $checkIn, $checkOut);
         $data['created_by'] = auth()->id();
+        $data['created_via'] = Reservation::CREATED_VIA_STAFF;
         $data['status'] = $data['status'] ?? 'pending';
-        $data['channel'] = $data['channel'] ?? 'manual';
+        $data['channel'] = Reservation::normalizeChannel($data['channel'] ?? null);
         // Commission is ALWAYS derived server-side from the channel's configured % (locked).
         $data['commission_amount'] = $this->channelCommission($data['channel'], (float) $data['total_amount']);
 
@@ -383,6 +385,11 @@ class ReservationController extends Controller
      */
     public function storeMulti(Request $request): RedirectResponse
     {
+        $requestedChannel = $request->input('channel');
+        if ($request->exists('channel') && (is_string($requestedChannel) || $requestedChannel === null)) {
+            $request->merge(['channel' => Reservation::normalizeChannel($requestedChannel)]);
+        }
+
         // Staff may back-date a booking (walk-in that already arrived, historical
         // entry) — no after_or_equal:today here. The PUBLIC website stays future-only.
         $data = $request->validate([
@@ -416,7 +423,7 @@ class ReservationController extends Controller
         }
 
         $nights = now()->parse($data['check_in_date'])->diffInDays(now()->parse($data['check_out_date']));
-        $channel = $data['channel'] ?? 'manual';
+        $channel = Reservation::normalizeChannel($data['channel'] ?? null);
         $status = $data['status'] ?? 'pending';
         $multi = count($data['rooms']) > 1;
 
@@ -455,6 +462,7 @@ class ReservationController extends Controller
                         'room_id' => $room->id,
                         'guest_id' => $data['guest_id'],
                         'created_by' => auth()->id(),
+                        'created_via' => Reservation::CREATED_VIA_STAFF,
                         'check_in_date' => $data['check_in_date'],
                         'check_out_date' => $data['check_out_date'],
                         'status' => $status,
@@ -498,6 +506,15 @@ class ReservationController extends Controller
     public function update(ReservationUpdateRequest $request, Reservation $reservation): RedirectResponse
     {
         $data = $request->validated();
+
+        $requestedChannel = Reservation::normalizeChannel($data['channel'] ?? $reservation->channel);
+        if ($reservation->created_via !== Reservation::CREATED_VIA_STAFF
+            && $requestedChannel !== Reservation::normalizeChannel($reservation->channel)) {
+            throw ValidationException::withMessages([
+                'channel' => 'Burimi i nje rezervimi te sinkronizuar nuk mund te ndryshohet.',
+            ]);
+        }
+
         $room = Room::with('roomType')->findOrFail($data['room_id']);
 
         $checkIn = now()->parse($data['check_in_date']);
@@ -507,7 +524,7 @@ class ReservationController extends Controller
         $data['total_amount'] = is_numeric($entered) && (float) $entered > 0
             ? round((float) $entered, 2)
             : RoomPricing::total($room->roomType, $checkIn, $checkOut);
-        $data['channel'] = $data['channel'] ?? $reservation->channel ?? 'manual';
+        $data['channel'] = $requestedChannel;
         $data['commission_amount'] = $this->channelCommission($data['channel'], (float) $data['total_amount']);
 
         $reservation->update($data);
@@ -540,10 +557,15 @@ class ReservationController extends Controller
 
     /**
      * Commission a channel keeps on a booking, from the configured % (settings
-     * financial.channel_fees). manual/direct or any unconfigured channel = 0.
+     * financial.channel_fees). Direct or any unconfigured channel = 0.
      */
     private function channelCommission(?string $channel, float $total): float
     {
+        $channel = Reservation::normalizeChannel($channel);
+        if ($channel === 'direct') {
+            return 0.0;
+        }
+
         $fees = (array) Setting::get('financial.channel_fees', []);
         $pct = isset($fees[$channel]) && is_numeric($fees[$channel]) ? (float) $fees[$channel] : 0.0;
 

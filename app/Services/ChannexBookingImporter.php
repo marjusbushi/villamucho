@@ -107,22 +107,27 @@ class ChannexBookingImporter
                 $taken[] = $physical->id;
 
                 $existed = Reservation::where('channel', $channel)->where('channel_ref', $ref)->where('room_id', $physical->id)->exists();
+                $values = [
+                    'guest_id' => $guest->id,
+                    'created_by' => $creator,
+                    'check_in_date' => $room['checkin_date'] ?? null,
+                    'check_out_date' => $room['checkout_date'] ?? null,
+                    'status' => 'confirmed',
+                    'total_amount' => (float) ($room['amount'] ?? 0),
+                    'commission_amount' => $firstRoom ? (float) ($rev['ota_commission'] ?? 0) : 0,
+                    'adults' => max(1, min(255, (int) ($room['occupancy']['adults'] ?? 1))),
+                    'children' => max(0, min(255, (int) ($room['occupancy']['children'] ?? 0))),
+                    'booking_group_id' => $groupId,
+                    'payment_collect' => $paymentCollect,
+                    'notes' => trim(($rev['ota_name'] ?? 'OTA')." #{$ref}".($overbooked ? ' — MBI-BOOKIM (s\'ka dhomë të lirë)' : '')),
+                ];
+                if (! $existed) {
+                    $values['created_via'] = Reservation::CREATED_VIA_CHANNEL_MANAGER;
+                }
+
                 $res = Reservation::updateOrCreate(
                     ['channel' => $channel, 'channel_ref' => $ref, 'room_id' => $physical->id],
-                    [
-                        'guest_id' => $guest->id,
-                        'created_by' => $creator,
-                        'check_in_date' => $room['checkin_date'] ?? null,
-                        'check_out_date' => $room['checkout_date'] ?? null,
-                        'status' => 'confirmed',
-                        'total_amount' => (float) ($room['amount'] ?? 0),
-                        'commission_amount' => $firstRoom ? (float) ($rev['ota_commission'] ?? 0) : 0,
-                        'adults' => max(1, min(255, (int) ($room['occupancy']['adults'] ?? 1))),
-                        'children' => max(0, min(255, (int) ($room['occupancy']['children'] ?? 0))),
-                        'booking_group_id' => $groupId,
-                        'payment_collect' => $paymentCollect,
-                        'notes' => trim(($rev['ota_name'] ?? 'OTA')." #{$ref}".($overbooked ? ' — MBI-BOOKIM (s\'ka dhomë të lirë)' : '')),
-                    ],
+                    $values,
                 );
                 $existed ? $summary['updated']++ : $summary['created']++;
                 $firstRoom = false;
@@ -199,7 +204,7 @@ class ChannexBookingImporter
     }
 
     /**
-     * @return array{0: ?Room, 1: bool}  [room, wasOverbooked]
+     * @return array{0: ?Room, 1: bool} [room, wasOverbooked]
      */
     private function pickRoom(int $roomTypeId, string $channel, string $ref, ?string $in, ?string $out, array $taken): array
     {

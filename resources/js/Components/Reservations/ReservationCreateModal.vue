@@ -55,7 +55,7 @@ const form = useForm({
     check_in_date: '',
     check_out_date: '',
     status: 'confirmed',
-    channel: 'manual',
+    channel: 'direct',
     notes: '',
     rooms: [emptyRoom()],
 });
@@ -98,6 +98,7 @@ function suggestedFor(id) {
     return basePriceOf(id) * nights();
 }
 function feePct(channel) {
+    if (channel === 'direct') return 0;
     return Number(props.channelFees?.[channel]) || 0;
 }
 

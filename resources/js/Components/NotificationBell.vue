@@ -133,7 +133,7 @@ async function poll() {
 
         const fresh = all.filter((x) =>
             x.id > previousMax
-            && !(x.channel === 'manual' && Number(x.created_by) === currentUserId)
+            && x.should_notify
         );
         if (fresh.length) {
             fresh.forEach((x) => unreadIds.add(x.id));

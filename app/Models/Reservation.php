@@ -15,20 +15,28 @@ class Reservation extends Model
     use HasFactory, SoftDeletes;
 
     /**
-     * Booking channels (source of a reservation). Keep in sync with the frontend
-     * resources/js/channels.js. Lowercase/dotted ids match the channel-manager
-     * vocabulary (booking.com, airbnb, …). 'manual' = entered by staff, 'direct'
-     * = booked on villamucho.com.
+     * Commercial booking channels. How a reservation entered the PMS is stored
+     * separately in created_via, so staff and website bookings both use "direct".
+     * Keep in sync with resources/js/channels.js.
      */
     public const CHANNELS = [
-        'manual', 'direct', 'booking.com', 'expedia', 'airbnb', 'agoda',
+        'direct', 'booking.com', 'expedia', 'airbnb', 'agoda',
         'hotels.com', 'vrbo', 'trip.com', 'hostelworld', 'google', 'tripadvisor',
     ];
+
+    public const CREATED_VIA_STAFF = 'staff';
+
+    public const CREATED_VIA_WEBSITE = 'website';
+
+    public const CREATED_VIA_CHANNEL_MANAGER = 'channel_manager';
+
+    public const CREATED_VIA_IMPORT = 'import';
 
     protected $fillable = [
         'room_id',
         'guest_id',
         'created_by',
+        'created_via',
         'confirmation_token',
         'check_in_date',
         'check_out_date',
@@ -58,11 +66,27 @@ class Reservation extends Model
      */
     protected static function booted(): void
     {
+        static::saving(function (Reservation $reservation) {
+            $reservation->channel = static::normalizeChannel($reservation->channel);
+        });
+
         static::creating(function (Reservation $reservation) {
+            if (empty($reservation->created_via)) {
+                $reservation->created_via = static::CREATED_VIA_STAFF;
+            }
+
             if (empty($reservation->confirmation_token)) {
                 $reservation->confirmation_token = (string) Str::random(40);
             }
         });
+    }
+
+    /** Map legacy staff/null channels to the single user-facing Direct channel. */
+    public static function normalizeChannel(?string $channel): string
+    {
+        $channel = strtolower(trim((string) $channel));
+
+        return $channel === '' || $channel === 'manual' ? 'direct' : $channel;
     }
 
     protected function casts(): array
@@ -131,6 +155,6 @@ class Reservation extends Model
             $query->where('id', '!=', $excludeId);
         }
 
-        return !$query->exists();
+        return ! $query->exists();
     }
 }

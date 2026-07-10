@@ -48,6 +48,7 @@ class MultiRoomReservationTest extends TestCase
 
         $reservations = Reservation::all();
         $this->assertCount(2, $reservations);
+        $this->assertEquals(['direct'], $reservations->pluck('channel')->unique()->values()->all());
         // Same guest, NOT duplicated.
         $this->assertEquals([$guest->id, $guest->id], $reservations->pluck('guest_id')->all());
         $this->assertEquals($guestCountBefore, Guest::count());
@@ -111,6 +112,23 @@ class MultiRoomReservationTest extends TestCase
         $this->assertCount(0, Reservation::all());
     }
 
+    public function test_non_string_channel_is_rejected_without_server_error(): void
+    {
+        [$admin, $room1, , $guest] = $this->setupHotel();
+
+        $this->actingAs($admin)->post(route('reservations.store-multi'), [
+            'guest_id' => $guest->id,
+            'check_in_date' => now()->addDays(3)->toDateString(),
+            'check_out_date' => now()->addDays(5)->toDateString(),
+            'channel' => ['manual'],
+            'rooms' => [
+                ['room_id' => $room1->id, 'adults' => 1, 'children' => 0],
+            ],
+        ])->assertSessionHasErrors('channel');
+
+        $this->assertCount(0, Reservation::all());
+    }
+
     public function test_maintenance_room_gives_a_clear_reason(): void
     {
         [$admin, $room1, , $guest] = $this->setupHotel();
@@ -160,7 +178,7 @@ class MultiRoomReservationTest extends TestCase
     /** The quote endpoint prices server-side from RoomPricing and ignores any client-sent amount. */
     public function test_quote_endpoint_is_server_computed_and_ignores_client_price(): void
     {
-        [$admin, $room1, , ] = $this->setupHotel();
+        [$admin, $room1] = $this->setupHotel();
         $season = Season::create([
             'name' => 'High',
             'start_date' => now()->addDay()->toDateString(),

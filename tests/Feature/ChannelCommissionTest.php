@@ -37,12 +37,13 @@ class ChannelCommissionTest extends TestCase
             'tax_rate' => 20,
             'payment_methods' => ['cash'],
             'currency_symbol' => '€',
-            'channel_fees' => ['booking.com' => 12, 'airbnb' => 15, 'bogus' => 99],
+            'channel_fees' => ['booking.com' => 12, 'airbnb' => 15, 'direct' => 20, 'bogus' => 99],
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $fees = Setting::get('financial.channel_fees');
         $this->assertEquals(12.0, $fees['booking.com']);
         $this->assertEquals(15.0, $fees['airbnb']);
+        $this->assertArrayNotHasKey('direct', $fees);
         $this->assertArrayNotHasKey('bogus', $fees);
     }
 
@@ -67,7 +68,7 @@ class ChannelCommissionTest extends TestCase
         $this->assertEquals(12.0, (float) $res->commission_amount); // 12% of 100, server-computed
     }
 
-    public function test_manual_channel_zero_commission_and_default_price(): void
+    public function test_direct_channel_zero_commission_and_default_price(): void
     {
         [$admin, $room, $guest] = $this->setupHotel();
         Setting::set('financial.channel_fees', ['booking.com' => 12], 'json');
@@ -78,11 +79,11 @@ class ChannelCommissionTest extends TestCase
             'check_in_date' => now()->addDays(3)->toDateString(),
             'check_out_date' => now()->addDays(5)->toDateString(),
             'adults' => 1,
-            // no channel => manual; no total_amount => base_price * nights
+            // no channel => direct; no total_amount => base_price * nights
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $res = Reservation::latest('id')->first();
-        $this->assertEquals('manual', $res->channel);
+        $this->assertEquals('direct', $res->channel);
         $this->assertEquals(160.0, (float) $res->total_amount);   // 80 * 2 nights
         $this->assertEquals(0.0, (float) $res->commission_amount);
     }

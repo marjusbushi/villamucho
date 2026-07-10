@@ -46,6 +46,7 @@ class ReservationCalendarDetailTest extends TestCase
                     ->where('adults', 2)
                     ->where('children', 1)
                     ->where('channel', 'booking.com')
+                    ->where('created_via', Reservation::CREATED_VIA_STAFF)
                     ->where('notes', 'High floor please')
                     ->where('booking_group_id', null)
                     ->where('guest.phone', '+355691112222')

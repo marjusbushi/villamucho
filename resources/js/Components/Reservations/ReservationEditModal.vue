@@ -43,7 +43,7 @@ const form = useForm({
     adults: 1,
     children: 0,
     notes: '',
-    channel: 'manual',
+    channel: 'direct',
     total_amount: '',
 });
 
@@ -58,10 +58,12 @@ function nightsBetween(ci, co) {
     return d > 0 ? d : 0;
 }
 function feePct(channel) {
+    if (channel === 'direct') return 0;
     return Number(props.channelFees?.[channel]) || 0;
 }
 const commission = computed(() => Math.round((Number(form.total_amount) || 0) * feePct(form.channel)) / 100);
 const net = computed(() => (Number(form.total_amount) || 0) - commission.value);
+const sourceLocked = computed(() => Boolean(props.reservation?.created_via && props.reservation.created_via !== 'staff'));
 
 // Auto-fill price = rate × nights, but keep a manually-entered / OTA price.
 let lastSuggest = 0;
@@ -120,7 +122,7 @@ watch(
         form.adults = r.adults ?? 1;
         form.children = r.children ?? 0;
         form.notes = r.notes || '';
-        form.channel = r.channel || 'manual';
+        form.channel = !r.channel || r.channel === 'manual' ? 'direct' : r.channel;
         form.total_amount = r.total_amount ?? '';
         // Baseline so a custom (OTA) price is not overwritten by the auto-fill.
         lastSuggest = basePriceOf(form.room_id) * nightsBetween(form.check_in_date, form.check_out_date);
@@ -161,7 +163,8 @@ function submit() {
                     <Select v-model="form.children" :options="childrenOptions" placeholder="" :error="form.errors.children" />
                 </FormGroup>
                 <FormGroup label="Burimi" :error="form.errors.channel">
-                    <Select v-model="form.channel" :options="channelOptions" :error="form.errors.channel" />
+                    <Select v-model="form.channel" :options="channelOptions" :disabled="sourceLocked" :error="form.errors.channel" />
+                    <p v-if="sourceLocked" class="mt-1 text-tiny text-neutral-400">Burimi vendoset nga sinkronizimi dhe nuk ndryshohet.</p>
                 </FormGroup>
                 <FormGroup label="Cmimi (me fee)" :error="form.errors.total_amount">
                     <TextInput type="number" v-model="form.total_amount" min="0" step="0.01" placeholder="0.00" :error="form.errors.total_amount" />

@@ -112,13 +112,81 @@ class NotificationTest extends TestCase
         $admin->assignRole('admin');
 
         $reservation = $this->makeReservation('confirmed');
-        $reservation->update(['created_by' => $admin->id, 'channel' => 'booking.com']);
+        $reservation->forceFill([
+            'created_by' => $admin->id,
+            'channel' => 'booking.com',
+            'created_via' => Reservation::CREATED_VIA_CHANNEL_MANAGER,
+        ])->save();
 
         $this->actingAs($admin)
             ->getJson(route('notifications.reservations'))
             ->assertOk()
             ->assertJsonPath('count', 1)
             ->assertJsonPath('reservations.0.channel', 'booking.com')
-            ->assertJsonPath('reservations.0.created_by', $admin->id);
+            ->assertJsonPath('reservations.0.created_by', $admin->id)
+            ->assertJsonPath('reservations.0.should_notify', true);
+    }
+
+    public function test_bell_marks_own_staff_direct_entry_for_suppression(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $reservation = $this->makeReservation('confirmed');
+        $reservation->forceFill([
+            'created_by' => $admin->id,
+            'channel' => 'direct',
+            'created_via' => Reservation::CREATED_VIA_STAFF,
+        ])->save();
+
+        $this->actingAs($admin)
+            ->getJson(route('notifications.reservations'))
+            ->assertOk()
+            ->assertJsonPath('reservations.0.id', $reservation->id)
+            ->assertJsonPath('reservations.0.should_notify', false);
+    }
+
+    public function test_bell_keeps_website_direct_entry_for_staff_user(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $system = User::factory()->create([
+            'name' => 'Website Booking',
+            'email' => 'system@villamucho.local',
+        ]);
+
+        $reservation = $this->makeReservation('confirmed');
+        $reservation->forceFill([
+            'created_by' => $system->id,
+            'channel' => 'direct',
+            'created_via' => Reservation::CREATED_VIA_WEBSITE,
+        ])->save();
+
+        $this->actingAs($admin)
+            ->getJson(route('notifications.reservations'))
+            ->assertOk()
+            ->assertJsonPath('reservations.0.id', $reservation->id)
+            ->assertJsonPath('reservations.0.should_notify', true);
+    }
+
+    public function test_bell_silences_bulk_import_entries(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $reservation = $this->makeReservation('confirmed');
+        $reservation->forceFill([
+            'channel' => 'booking.com',
+            'created_via' => Reservation::CREATED_VIA_IMPORT,
+        ])->save();
+
+        $this->actingAs($admin)
+            ->getJson(route('notifications.reservations'))
+            ->assertOk()
+            ->assertJsonPath('reservations.0.id', $reservation->id)
+            ->assertJsonPath('reservations.0.should_notify', false);
     }
 }
