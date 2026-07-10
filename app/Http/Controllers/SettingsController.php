@@ -12,8 +12,10 @@ use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\RoomTypeImage;
 use App\Models\Setting;
+use App\Services\PricingRulesVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -304,8 +306,8 @@ class SettingsController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:room_types,name'],
             'description' => ['nullable', 'string', 'max:500'],
             'base_price' => ['required', 'numeric', 'min:0'],
-            'min_price' => ['nullable', 'numeric', 'min:0'],
-            'max_price' => ['nullable', 'numeric', 'min:0', function ($attr, $value, $fail) use ($request) {
+            'min_price' => ['nullable', 'numeric', 'min:0.01'],
+            'max_price' => ['nullable', 'numeric', 'min:0.01', function ($attr, $value, $fail) use ($request) {
                 $min = $request->input('min_price');
                 if ($value !== null && $value !== '' && $min !== null && $min !== '' && (float) $value < (float) $min) {
                     $fail('Çmimi maksimal duhet të jetë ≥ çmimit minimal.');
@@ -317,7 +319,11 @@ class SettingsController extends Controller
             'breakfast_included' => ['boolean'],
         ]);
 
-        RoomType::create($data);
+        DB::transaction(function () use ($data) {
+            $version = PricingRulesVersion::lock();
+            RoomType::create($data);
+            PricingRulesVersion::increment($version);
+        }, 3);
 
         return back()->with('success', 'Tipi i dhomes u shtua.');
     }
@@ -328,8 +334,8 @@ class SettingsController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:room_types,name,' . $roomType->id],
             'description' => ['nullable', 'string', 'max:500'],
             'base_price' => ['required', 'numeric', 'min:0'],
-            'min_price' => ['nullable', 'numeric', 'min:0'],
-            'max_price' => ['nullable', 'numeric', 'min:0', function ($attr, $value, $fail) use ($request) {
+            'min_price' => ['nullable', 'numeric', 'min:0.01'],
+            'max_price' => ['nullable', 'numeric', 'min:0.01', function ($attr, $value, $fail) use ($request) {
                 $min = $request->input('min_price');
                 if ($value !== null && $value !== '' && $min !== null && $min !== '' && (float) $value < (float) $min) {
                     $fail('Çmimi maksimal duhet të jetë ≥ çmimit minimal.');
@@ -341,7 +347,18 @@ class SettingsController extends Controller
             'breakfast_included' => ['boolean'],
         ]);
 
-        $roomType->update($data);
+        DB::transaction(function () use ($data, $roomType) {
+            $version = PricingRulesVersion::lock();
+            $lockedType = RoomType::query()->whereKey($roomType->id)->lockForUpdate()->firstOrFail();
+            $lockedType->fill($data);
+            $engineChanged = $lockedType->isDirty(['base_price', 'min_price', 'max_price']);
+            if ($lockedType->isDirty()) {
+                $lockedType->save();
+            }
+            if ($engineChanged) {
+                PricingRulesVersion::increment($version);
+            }
+        }, 3);
 
         return back()->with('success', 'Tipi i dhomes u perditesua.');
     }

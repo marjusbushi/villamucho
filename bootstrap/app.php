@@ -44,7 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Free abandoned holds: cancel pending direct bookings whose POK payment never completed.
         $schedule->command('pok:release-unpaid')->everyFiveMinutes()->withoutOverlapping();
         // Guarded auto-pricing (owner-enabled only), between snapshot and ARI push.
-        $schedule->command('pricing:autopilot')->dailyAt('03:45');
+        $schedule->command('pricing:autopilot')->dailyAt('03:45')->withoutOverlapping()->onOneServer();
         // Monday-morning pricing narrative for the owner (skips if Gemini unset).
         $schedule->command('pricing:weekly-report')->weeklyOn(1, '07:00');
         // Midnight: archive inspected cleaning tasks so the board shows only the day's live work.
