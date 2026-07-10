@@ -1,6 +1,23 @@
 <script setup>
-import { ref, computed } from 'vue';
-import { useForm, router, usePage } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
+import { router, useForm, usePage } from '@inertiajs/vue3';
+import {
+    BedDouble,
+    BrushCleaning,
+    CalendarDays,
+    DoorOpen,
+    LayoutGrid,
+    List,
+    LogIn,
+    LogOut,
+    Pencil,
+    Plus,
+    Search,
+    Settings2,
+    Trash2,
+    UserRound,
+    Wrench,
+} from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
@@ -12,126 +29,541 @@ import Select from '@/Components/UI/Select.vue';
 import Textarea from '@/Components/UI/Textarea.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import ActionMenu from '@/Components/UI/ActionMenu.vue';
+import ReservationCreateModal from '@/Components/Reservations/ReservationCreateModal.vue';
 
 const props = defineProps({
-    rooms: Object,
-    roomTypes: Array,
+    // The operational endpoint returns an array. The object fallback keeps the
+    // page compatible with the previous paginated payload during deployment.
+    rooms: { type: [Array, Object], default: () => [] },
+    roomTypes: { type: Array, default: () => [] },
+    guests: { type: Array, default: () => [] },
+    channelFees: { type: Object, default: () => ({}) },
     floors: { type: Array, default: () => [] },
-    filters: Object,
-    stats: Object,
+    filters: { type: Object, default: () => ({}) },
+    stats: { type: Object, default: () => ({}) },
 });
 
 const toasts = ref(null);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
+const showReservationModal = ref(false);
+const reservationPrefill = ref(null);
 const selectedRoom = ref(null);
-const viewMode = ref('grid');
+const savedViewMode = typeof window !== 'undefined' ? window.localStorage.getItem('roomsViewMode') : null;
+const savedGroupMode = typeof window !== 'undefined' ? window.localStorage.getItem('roomsGroupMode') : null;
+const viewMode = ref(['grid', 'table'].includes(savedViewMode) ? savedViewMode : 'grid');
+const managementMode = ref(false);
+const searchQuery = ref(props.filters?.search || '');
+const filterFloor = ref(props.filters?.floor || '');
+const filterType = ref(props.filters?.room_type_id || '');
+const activeKpi = ref('total');
+const groupMode = ref(['floor', 'type'].includes(savedGroupMode) ? savedGroupMode : 'floor');
+
+watch(viewMode, (value) => {
+    if (typeof window !== 'undefined') window.localStorage.setItem('roomsViewMode', value);
+});
+watch(groupMode, (value) => {
+    if (typeof window !== 'undefined') window.localStorage.setItem('roomsGroupMode', value);
+});
 
 const page = usePage();
 const userPerms = computed(() => page.props.auth.user?.permissions || []);
 const canCreate = computed(() => userPerms.value.includes('create_rooms'));
 const canUpdate = computed(() => userPerms.value.includes('update_rooms'));
 const canDelete = computed(() => userPerms.value.includes('delete_rooms'));
+const canManage = computed(() => canCreate.value || canUpdate.value || canDelete.value);
+const canViewReservations = computed(() => userPerms.value.includes('view_reservations'));
+const canCreateReservation = computed(() => userPerms.value.includes('create_reservations'));
+const canViewGuests = computed(() => userPerms.value.includes('view_guests'));
+const canStartReservation = computed(() => (
+    canViewReservations.value && canCreateReservation.value && canViewGuests.value
+));
+const canUpdateReservation = computed(() => userPerms.value.includes('update_reservations'));
+const canViewHousekeeping = computed(() => userPerms.value.includes('view_housekeeping'));
 
-const roomTypeOptions = props.roomTypes.map((t) => ({ value: t.id, label: `${t.name} (€${t.base_price})` }));
-const statusOptions = [
-    { value: 'available', label: 'E lire' },
-    { value: 'occupied', label: 'E zene' },
-    { value: 'cleaning', label: 'Pastrim' },
-    { value: 'maintenance', label: 'Mirembajtje' },
-];
-// Floors come from Settings → Katet; fall back to 1-5 if none configured yet.
-const floorOptions = (props.floors && props.floors.length)
-    ? props.floors.map((f) => ({ value: f.number, label: f.name }))
-    : [1, 2, 3, 4, 5].map((f) => ({ value: f, label: `Kati ${f}` }));
-const floorNameMap = Object.fromEntries((props.floors || []).map((f) => [f.number, f.name]));
-const floorName = (number) => floorNameMap[number] || `Kati ${number}`;
+const menuItemClass = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-body-sm text-neutral-700 transition-colors hover:bg-neutral-50';
 
-// Hotel-standard room-rack colour code: green=vacant clean, yellow=vacant dirty,
-// red=occupied, grey=out of order. (Cloudbeds / Oracle Opera convention.)
-const statusBadge = {
-    available: { variant: 'success', label: 'E lire' },
-    occupied: { variant: 'error', label: 'E zene' },
-    cleaning: { variant: 'warning', label: 'Pastrim' },
-    maintenance: { variant: 'neutral', label: 'Mirembajtje' },
-};
-// Only the dot is coloured — everything else stays calm/neutral.
-const dotColor = {
-    available: 'bg-success-500',
-    occupied: 'bg-error-500',
-    cleaning: 'bg-warning-500',
-    maintenance: 'bg-neutral-400',
-};
-const labelColor = {
-    available: 'text-success-700',
-    occupied: 'text-error-700',
-    cleaning: 'text-warning-700',
-    maintenance: 'text-neutral-600',
-};
+const roomList = computed(() => (
+    Array.isArray(props.rooms) ? props.rooms : (props.rooms?.data || [])
+));
 
-const roomsByFloor = computed(() => {
-    const groups = {};
-    for (const room of props.rooms.data || []) {
-        (groups[room.floor] ??= []).push(room);
-    }
-    return Object.keys(groups)
-        .sort((a, b) => Number(a) - Number(b))
-        .map((floor) => ({ floor, rooms: groups[floor] }));
+const roomTypeOptions = computed(() => props.roomTypes.map((type) => ({
+    value: type.id,
+    label: `${type.name} (€${type.base_price})`,
+})));
+const roomTypeFilterOptions = computed(() => [
+    { value: '', label: 'Të gjitha' },
+    ...props.roomTypes.map((type) => ({ value: type.id, label: type.name })),
+]);
+
+const fallbackFloorNumbers = computed(() => {
+    const numbers = roomList.value.map((room) => room.floor).filter((floor) => floor !== null && floor !== undefined);
+    return [...new Set(numbers)].sort((a, b) => Number(a) - Number(b));
 });
+const roomFloorOptions = computed(() => (
+    props.floors.length
+        ? props.floors.map((floor) => ({ value: floor.number, label: floor.name }))
+        : (fallbackFloorNumbers.value.length ? fallbackFloorNumbers.value : [1, 2, 3, 4, 5])
+            .map((floor) => ({ value: floor, label: `Kati ${floor}` }))
+));
+const floorFilterOptions = computed(() => [
+    { value: '', label: 'Të gjitha' },
+    ...roomFloorOptions.value,
+]);
+const floorNameMap = computed(() => Object.fromEntries(roomFloorOptions.value.map((floor) => [String(floor.value), floor.label])));
+const floorName = (number) => floorNameMap.value[String(number)] || `Kati ${number}`;
+
+const statusOptions = [
+    { value: 'available', label: 'E lirë' },
+    { value: 'occupied', label: 'E zënë' },
+    { value: 'cleaning', label: 'Për pastrim' },
+    { value: 'maintenance', label: 'Mirëmbajtje' },
+];
+
+const occupancyBadge = {
+    vacant: { variant: 'neutral', label: 'Bosh' },
+    occupied: { variant: 'info', label: 'E zënë' },
+    maintenance: { variant: 'neutral', label: 'Mirëmbajtje' },
+};
+const housekeepingBadge = {
+    clean: { variant: 'success', label: 'E pastër' },
+    dirty: { variant: 'warning', label: 'Për pastrim' },
+    cleaning: { variant: 'warning', label: 'Në pastrim' },
+    maintenance: { variant: 'neutral', label: 'Mirëmbajtje' },
+};
 
 const createForm = useForm({ room_type_id: '', room_number: '', floor: '', status: 'available', notes: '' });
 const editForm = useForm({ room_type_id: '', room_number: '', floor: '', status: '', notes: '' });
 
-const filterStatus = ref(props.filters?.status || '');
-const filterFloor = ref(props.filters?.floor || '');
-const filterType = ref(props.filters?.room_type_id || '');
-
-function applyFilters() {
-    const params = {};
-    if (filterStatus.value) params.status = filterStatus.value;
-    if (filterFloor.value) params.floor = filterFloor.value;
-    if (filterType.value) params.room_type_id = filterType.value;
-    router.get(route('rooms.index'), params, { preserveState: true });
+function asRecord(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
 }
+
+function normalizeKey(value) {
+    return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function guestName(guest) {
+    if (!guest) return '';
+    if (typeof guest === 'string') return guest;
+    return guest.full_name
+        || guest.name
+        || [guest.first_name, guest.last_name].filter(Boolean).join(' ')
+        || '';
+}
+
+function formatDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('sq-AL', { day: '2-digit', month: 'short' });
+}
+
+function formatTime(value) {
+    if (!value) return '';
+    const match = String(value).match(/(?:T|\s)?(\d{2}:\d{2})/);
+    return match?.[1] || '';
+}
+
+function money(value) {
+    const amount = Number(value || 0);
+    return new Intl.NumberFormat('sq-AL', { style: 'currency', currency: 'EUR' }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function reservationIdOf(...candidates) {
+    for (const candidate of candidates) {
+        const record = asRecord(candidate);
+        const id = record?.reservation_id ?? record?.id;
+        if (id !== undefined && id !== null) return id;
+    }
+    return null;
+}
+
+function roomPresentation(room) {
+    const operational = asRecord(room.operational) || {};
+    const active = asRecord(operational.active_stay);
+    const arrival = asRecord(operational.arrival_today);
+    const departure = asRecord(operational.departure_today);
+    const next = asRecord(operational.next_reservation);
+    const hasActive = Boolean(operational.active_stay);
+    const hasArrival = Boolean(operational.arrival_today);
+    const hasDeparture = Boolean(operational.departure_today);
+    const roomType = room.room_type || room.roomType || {};
+    const fallbackStatus = normalizeKey(room.status);
+    const rawOccupancy = normalizeKey(operational.occupancy_status || operational.occupancy);
+    const rawHousekeeping = normalizeKey(
+        operational.housekeeping_status
+        || asRecord(operational.housekeeping)?.status
+        || room.housekeeping_status,
+    );
+    const rawService = normalizeKey(operational.service_status || operational.room_status);
+    const isMaintenance = operational.out_of_order === true
+        || ['maintenance', 'out_of_order', 'ooo'].includes(rawService)
+        || (!rawService && !rawHousekeeping && fallbackStatus === 'maintenance');
+
+    let occupancyKey = 'vacant';
+    if (isMaintenance) occupancyKey = 'maintenance';
+    else if (hasActive || ['occupied', 'checked_in', 'in_house'].includes(rawOccupancy)) occupancyKey = 'occupied';
+    else if (!rawOccupancy && fallbackStatus === 'occupied') occupancyKey = 'occupied';
+
+    let housekeepingKey = 'clean';
+    if (isMaintenance || ['maintenance', 'out_of_order', 'ooo'].includes(rawHousekeeping)) housekeepingKey = 'maintenance';
+    else if (['cleaning', 'in_progress'].includes(rawHousekeeping)) housekeepingKey = 'cleaning';
+    else if (['dirty', 'pending', 'needs_cleaning'].includes(rawHousekeeping)) housekeepingKey = 'dirty';
+    else if (!rawHousekeeping && fallbackStatus === 'cleaning') housekeepingKey = 'dirty';
+
+    const focusReservation = active || departure || arrival || next;
+    const guest = operational.guest
+        || active?.guest
+        || departure?.guest
+        || arrival?.guest
+        || next?.guest
+        || focusReservation?.guest;
+    const outstandingRaw = operational.outstanding
+        ?? active?.outstanding
+        ?? departure?.outstanding
+        ?? focusReservation?.outstanding
+        ?? focusReservation?.balance_due
+        ?? 0;
+    const outstanding = Number(outstandingRaw || 0);
+    const reservationId = operational.reservation_id
+        ?? reservationIdOf(active, departure, arrival, focusReservation);
+
+    let activity = 'Pa rezervim sot';
+    if (hasDeparture) {
+        const time = formatTime(departure?.etd || departure?.check_out_time || departure?.check_out_at || operational.departure_time);
+        activity = `Largohet sot${time ? ` · ${time}` : ''}`;
+    } else if (hasArrival && !hasActive) {
+        const time = formatTime(arrival?.eta || arrival?.check_in_time || arrival?.check_in_at || operational.arrival_time);
+        activity = `Mbërrin sot${time ? ` · ${time}` : ''}`;
+    } else if (hasActive) {
+        const until = formatDate(active?.check_out_date || active?.check_out || operational.check_out_date);
+        activity = until ? `Deri më ${until}` : 'Qëndrim aktiv';
+    } else if (next) {
+        const arrivalDate = formatDate(next.check_in_date || next.check_in || next.arrival_date);
+        activity = arrivalDate ? `Mbërrin më ${arrivalDate}` : 'Rezervim i ardhshëm';
+    } else if (housekeepingKey === 'dirty') {
+        activity = 'Check-out përfunduar';
+    }
+
+    const arrivalStatus = normalizeKey(arrival?.status || operational.arrival_status);
+    const rawAction = operational.primary_action;
+
+    return {
+        raw: room,
+        operational,
+        active,
+        arrival,
+        departure,
+        next,
+        hasActive,
+        hasArrival,
+        hasDeparture,
+        confirmedArrival: hasArrival && (
+            arrivalStatus === 'confirmed'
+            || operational.arrival_confirmed === true
+            || asRecord(rawAction)?.confirmed === true
+        ),
+        reservationId,
+        roomNumber: room.room_number,
+        floor: room.floor,
+        typeId: room.room_type_id ?? roomType.id,
+        typeName: roomType.name || 'Pa tipologji',
+        occupancyKey,
+        housekeepingKey,
+        guestName: guestName(guest),
+        activity,
+        outstanding: Number.isFinite(outstanding) ? outstanding : 0,
+        rawAction,
+    };
+}
+
+const roomViews = computed(() => roomList.value.map(roomPresentation));
+
+function explicitAction(view) {
+    const raw = view.rawAction;
+    if (!raw) return null;
+    const record = asRecord(raw);
+    const rawKind = record?.key || record?.action || record?.type || record?.name || (typeof raw === 'string' ? raw : '');
+    const kind = normalizeKey(rawKind);
+    const labelByKind = {
+        check_in: 'Check-in',
+        check_out: 'Check-out',
+        open_stay: 'Hap qëndrimin',
+        view_stay: 'Hap qëndrimin',
+        view_reservation: 'Shiko rezervimin',
+        reserve: '+ Rezervim',
+        new_reservation: '+ Rezervim',
+        cleaning: 'Shiko pastrimin',
+        housekeeping: 'Shiko pastrimin',
+        maintenance: 'Shiko problemin',
+    };
+    const label = record?.label || labelByKind[kind] || (typeof raw === 'string' ? raw : 'Hap');
+    const href = record?.href || record?.url || null;
+    return { kind, label, href };
+}
+
+function primaryAction(view) {
+    const explicit = explicitAction(view);
+    const reservationId = view.reservationId;
+
+    // Checkout always opens the reservation/folio first; it is never a one-click
+    // state change because an outstanding balance may need settlement details.
+    if ((explicit?.kind === 'check_out' || (view.hasActive && view.hasDeparture)) && reservationId && canViewReservations.value) {
+        return { kind: 'check_out', label: explicit?.label || 'Check-out', href: route('reservations.show', reservationId), mode: 'visit' };
+    }
+
+    // The only direct state-changing action on the rack is a confirmed arrival.
+    if (explicit?.kind === 'check_in' && view.confirmedArrival && reservationId && canUpdateReservation.value) {
+        return { kind: 'check_in', label: explicit.label || 'Check-in', href: route('reservations.check-in', reservationId), mode: 'check_in' };
+    }
+
+    if (explicit?.kind === 'check_in' && reservationId && canViewReservations.value) {
+        return { kind: 'view_reservation', label: 'Shiko rezervimin', href: route('reservations.show', reservationId), mode: 'visit' };
+    }
+
+    if (['open_stay', 'view_stay', 'view_reservation'].includes(explicit?.kind) && reservationId && canViewReservations.value) {
+        return { kind: explicit.kind, label: explicit.label, href: route('reservations.show', reservationId), mode: 'visit' };
+    }
+
+    if (['cleaning', 'housekeeping'].includes(explicit?.kind) && canViewHousekeeping.value) {
+        return { kind: 'cleaning', label: explicit.label, href: explicit.href || route('housekeeping.index'), mode: 'visit' };
+    }
+
+    if (explicit?.kind === 'maintenance' && canViewHousekeeping.value) {
+        return { kind: 'maintenance', label: explicit.label, href: explicit.href || route('housekeeping.index'), mode: 'visit' };
+    }
+
+    if (['reserve', 'new_reservation'].includes(explicit?.kind) && canStartReservation.value) {
+        return { kind: 'reserve', label: explicit.label || '+ Rezervim', href: route('reservations.calendar'), mode: 'create' };
+    }
+
+    if (view.hasArrival && reservationId && canViewReservations.value) {
+        if (view.confirmedArrival && canUpdateReservation.value) {
+            return { kind: 'check_in', label: 'Check-in', href: route('reservations.check-in', reservationId), mode: 'check_in' };
+        }
+        return { kind: 'view_reservation', label: 'Shiko rezervimin', href: route('reservations.show', reservationId), mode: 'visit' };
+    }
+
+    if (view.hasActive && reservationId && canViewReservations.value) {
+        return { kind: 'open_stay', label: 'Hap qëndrimin', href: route('reservations.show', reservationId), mode: 'visit' };
+    }
+
+    if (view.housekeepingKey === 'dirty' || view.housekeepingKey === 'cleaning') {
+        return canViewHousekeeping.value
+            ? { kind: 'cleaning', label: view.housekeepingKey === 'dirty' ? 'Dërgo në pastrim' : 'Shiko pastrimin', href: route('housekeeping.index'), mode: 'visit' }
+            : null;
+    }
+
+    if (view.housekeepingKey === 'maintenance' || view.occupancyKey === 'maintenance') {
+        return canViewHousekeeping.value
+            ? { kind: 'maintenance', label: 'Shiko problemin', href: route('housekeeping.index'), mode: 'visit' }
+            : null;
+    }
+
+    if (view.next && reservationId && canViewReservations.value) {
+        return { kind: 'view_reservation', label: 'Shiko rezervimin', href: route('reservations.show', reservationId), mode: 'visit' };
+    }
+
+    return canStartReservation.value
+        ? { kind: 'reserve', label: '+ Rezervim', href: route('reservations.calendar'), mode: 'visit' }
+        : null;
+}
+
+function primaryActionClass(action) {
+    if (!action) return '';
+    if (['check_out', 'open_stay', 'view_stay'].includes(action.kind)) {
+        return 'border-info-500 text-info-700 hover:bg-info-50 focus:ring-info-500/30';
+    }
+    if (action.kind === 'cleaning') {
+        return 'border-warning-500 text-warning-700 hover:bg-warning-50 focus:ring-warning-500/30';
+    }
+    if (action.kind === 'maintenance') {
+        return 'border-neutral-400 text-neutral-700 hover:bg-neutral-50 focus:ring-neutral-400/30';
+    }
+    return 'border-success-600 text-success-700 hover:bg-success-50 focus:ring-success-500/30';
+}
+
+function handlePrimary(view) {
+    const action = primaryAction(view);
+    if (!action) return;
+
+    if (action.mode === 'create' || action.kind === 'reserve') {
+        openReservationCreate(view.raw);
+        return;
+    }
+
+    if (action.mode === 'check_in') {
+        router.post(action.href, {}, {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                const error = page.props.flash?.error;
+                if (error) {
+                    toasts.value?.error(error);
+                    return;
+                }
+                toasts.value?.success(`Check-in: ${view.guestName || `Dhoma ${view.roomNumber}`}`);
+            },
+            onError: (errors) => toasts.value?.error(errors.status || errors.room_id || 'Check-in dështoi.'),
+        });
+        return;
+    }
+
+    router.visit(action.href);
+}
+
+function localDate(daysFromToday = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + daysFromToday);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function openReservationCreate(room = null) {
+    if (!canStartReservation.value) return;
+
+    reservationPrefill.value = room
+        ? { room_id: room.id, check_in_date: localDate(), check_out_date: localDate(1) }
+        : null;
+    showReservationModal.value = true;
+}
+
+function matchesKpi(view, key) {
+    if (key === 'arrivals_today') return view.hasArrival;
+    if (key === 'departures_today') return view.hasDeparture;
+    if (key === 'occupied') return view.occupancyKey === 'occupied';
+    if (key === 'cleaning') return ['dirty', 'cleaning'].includes(view.housekeepingKey);
+    if (key === 'maintenance') return view.housekeepingKey === 'maintenance' || view.occupancyKey === 'maintenance';
+    return true;
+}
+
+const filteredRooms = computed(() => {
+    const query = searchQuery.value.trim().toLocaleLowerCase('sq-AL');
+    const rooms = roomViews.value.filter((view) => {
+        if (filterFloor.value !== '' && String(view.floor) !== String(filterFloor.value)) return false;
+        if (filterType.value !== '' && String(view.typeId) !== String(filterType.value)) return false;
+        if (!matchesKpi(view, activeKpi.value)) return false;
+        if (!query) return true;
+        return [view.roomNumber, view.typeName, view.guestName, view.activity]
+            .filter(Boolean)
+            .some((value) => String(value).toLocaleLowerCase('sq-AL').includes(query));
+    });
+
+    return rooms.sort((a, b) => {
+        if (groupMode.value === 'type') {
+            const typeCompare = a.typeName.localeCompare(b.typeName, 'sq-AL', { numeric: true });
+            if (typeCompare !== 0) return typeCompare;
+        } else {
+            const floorCompare = Number(a.floor || 0) - Number(b.floor || 0);
+            if (floorCompare !== 0) return floorCompare;
+        }
+        return String(a.roomNumber).localeCompare(String(b.roomNumber), 'sq-AL', { numeric: true });
+    });
+});
+
+const roomGroups = computed(() => {
+    const groups = new Map();
+    for (const view of filteredRooms.value) {
+        const key = groupMode.value === 'type' ? `type:${view.typeId || view.typeName}` : `floor:${view.floor}`;
+        const label = groupMode.value === 'type' ? view.typeName : floorName(view.floor);
+        if (!groups.has(key)) groups.set(key, { key, label, rooms: [] });
+        groups.get(key).rooms.push(view);
+    }
+    return [...groups.values()];
+});
+
+function statValue(key, fallback) {
+    return props.stats?.[key] ?? fallback;
+}
+
+const kpiItems = computed(() => {
+    const items = [
+        { key: 'total', label: 'Gjithsej', value: statValue('total', roomViews.value.length), icon: BedDouble },
+    ];
+
+    if (canViewReservations.value) {
+        items.push(
+            { key: 'arrivals_today', label: 'Mbërrijnë sot', value: statValue('arrivals_today', roomViews.value.filter((room) => room.hasArrival).length), icon: LogIn },
+            { key: 'departures_today', label: 'Largohen sot', value: statValue('departures_today', roomViews.value.filter((room) => room.hasDeparture).length), icon: LogOut },
+        );
+    }
+
+    items.push(
+        { key: 'occupied', label: 'Të zëna', value: statValue('occupied', roomViews.value.filter((room) => room.occupancyKey === 'occupied').length), icon: DoorOpen },
+        { key: 'cleaning', label: 'Për pastrim', value: statValue('cleaning', roomViews.value.filter((room) => ['dirty', 'cleaning'].includes(room.housekeepingKey)).length), icon: BrushCleaning },
+        { key: 'maintenance', label: 'Mirëmbajtje', value: statValue('maintenance', roomViews.value.filter((room) => room.housekeepingKey === 'maintenance').length), icon: Wrench },
+    );
+
+    return items;
+});
+
+const filtersActive = computed(() => (
+    Boolean(searchQuery.value.trim())
+    || filterFloor.value !== ''
+    || filterType.value !== ''
+    || activeKpi.value !== 'total'
+));
+
+function selectKpi(key) {
+    activeKpi.value = key === 'total' || activeKpi.value === key ? 'total' : key;
+}
+
 function clearFilters() {
-    filterStatus.value = '';
+    searchQuery.value = '';
     filterFloor.value = '';
     filterType.value = '';
-    router.get(route('rooms.index'), {}, { preserveState: true });
+    activeKpi.value = 'total';
 }
+
 function openEdit(room) {
     selectedRoom.value = room;
     editForm.room_type_id = room.room_type_id;
     editForm.room_number = room.room_number;
     editForm.floor = room.floor;
-    editForm.status = room.status;
+    editForm.status = room.status || 'available';
     editForm.notes = room.notes || '';
     showEditModal.value = true;
 }
+
 function openDelete(room) {
     selectedRoom.value = room;
     showDeleteModal.value = true;
 }
+
 function submitCreate() {
     createForm.post(route('rooms.store'), {
-        onSuccess: () => { showCreateModal.value = false; createForm.reset(); toasts.value?.success('Dhoma u shtua.'); },
-    });
-}
-function submitEdit() {
-    editForm.put(route('rooms.update', selectedRoom.value.id), {
-        onSuccess: () => { showEditModal.value = false; toasts.value?.success('Dhoma u perditesua.'); },
-    });
-}
-function submitDelete() {
-    router.delete(route('rooms.destroy', selectedRoom.value.id), {
-        onSuccess: () => { showDeleteModal.value = false; toasts.value?.success('Dhoma u fshi.'); },
-    });
-}
-function quickStatus(room, status) {
-    router.patch(route('rooms.status', room.id), { status }, {
         preserveScroll: true,
-        onSuccess: () => toasts.value?.success(`Dhoma ${room.room_number}: ${statusBadge[status].label}`),
+        onSuccess: () => {
+            showCreateModal.value = false;
+            createForm.reset();
+            toasts.value?.success('Dhoma u shtua.');
+        },
+    });
+}
+
+function submitEdit() {
+    if (!selectedRoom.value) return;
+    editForm.put(route('rooms.update', selectedRoom.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showEditModal.value = false;
+            toasts.value?.success('Dhoma u përditësua.');
+        },
+    });
+}
+
+function submitDelete() {
+    if (!selectedRoom.value) return;
+    router.delete(route('rooms.destroy', selectedRoom.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showDeleteModal.value = false;
+            toasts.value?.success('Dhoma u fshi.');
+        },
     });
 }
 </script>
@@ -145,128 +577,235 @@ function quickStatus(room, status) {
             <template #actions>
                 <div class="inline-flex rounded-lg border border-neutral-200 bg-white p-0.5">
                     <button
-                        :class="['px-3 py-1.5 rounded-md text-body-sm font-medium transition-colors', viewMode === 'grid' ? 'bg-primary-900 text-white' : 'text-neutral-500 hover:text-neutral-800']"
+                        type="button"
+                        :class="['inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-body-sm font-medium transition-colors', viewMode === 'grid' ? 'bg-accent-50 text-accent-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800']"
                         @click="viewMode = 'grid'"
-                    >Rrjete</button>
+                    >
+                        <LayoutGrid class="h-4 w-4" :stroke-width="1.8" />
+                        Rrjetë
+                    </button>
                     <button
-                        :class="['px-3 py-1.5 rounded-md text-body-sm font-medium transition-colors', viewMode === 'table' ? 'bg-primary-900 text-white' : 'text-neutral-500 hover:text-neutral-800']"
+                        type="button"
+                        :class="['inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-body-sm font-medium transition-colors', viewMode === 'table' ? 'bg-accent-50 text-accent-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800']"
                         @click="viewMode = 'table'"
-                    >Tabele</button>
+                    >
+                        <List class="h-4 w-4" :stroke-width="1.8" />
+                        Tabelë
+                    </button>
                 </div>
-                <Button v-if="canCreate" variant="primary" @click="showCreateModal = true">+ Shto dhome</Button>
+                <Button
+                    v-if="canManage"
+                    :variant="managementMode ? 'secondary' : 'outline'"
+                    :aria-pressed="managementMode"
+                    @click="managementMode = !managementMode"
+                >
+                    <template #icon-left><Settings2 class="h-4 w-4" :stroke-width="1.8" /></template>
+                    Menaxho dhomat
+                </Button>
+                <Button v-if="canStartReservation" variant="primary" @click="openReservationCreate()">
+                    <template #icon-left><Plus class="h-4 w-4" :stroke-width="2" /></template>
+                    Rezervim
+                </Button>
             </template>
         </PageHeader>
 
-        <!-- Stats (calm: neutral numbers, a small status dot) -->
-        <div class="mt-6 grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <Card v-for="(count, key) in stats" :key="key">
-                <div class="flex items-center gap-2.5">
-                    <span v-if="key !== 'total'" class="h-2 w-2 rounded-full shrink-0" :class="dotColor[key]"></span>
-                    <div>
-                        <p class="text-h3 text-primary-900 leading-none">{{ count }}</p>
-                        <p class="text-tiny text-neutral-500 uppercase tracking-wider mt-1">
-                            {{ key === 'total' ? 'Gjithsej' : statusBadge[key]?.label || key }}
-                        </p>
-                    </div>
-                </div>
-            </Card>
+        <!-- Search + operational KPIs -->
+        <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
+            <div class="relative col-span-2 sm:col-span-3 lg:col-span-2">
+                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" :stroke-width="1.8" />
+                <input
+                    v-model="searchQuery"
+                    type="search"
+                    class="h-full min-h-16 w-full rounded-lg border border-neutral-200 bg-white py-3 pl-10 pr-3 text-body-sm text-neutral-900 shadow-card placeholder:text-neutral-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
+                    placeholder="Kërko dhomë ose mysafir..."
+                    aria-label="Kërko dhomë ose mysafir"
+                />
+            </div>
+
+            <button
+                v-for="item in kpiItems"
+                :key="item.key"
+                type="button"
+                :aria-pressed="activeKpi === item.key"
+                :class="[
+                    'flex min-h-16 items-center gap-3 rounded-lg border bg-white px-3 py-2 text-left shadow-card transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500/30',
+                    activeKpi === item.key ? 'border-accent-500 bg-accent-50/40' : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50',
+                ]"
+                @click="selectKpi(item.key)"
+            >
+                <component :is="item.icon" class="h-5 w-5 shrink-0 text-neutral-600" :stroke-width="1.6" />
+                <span class="min-w-0">
+                    <span class="block truncate text-tiny text-neutral-500">{{ item.label }}</span>
+                    <span class="mt-0.5 block text-h4 leading-none text-primary-900">{{ item.value }}</span>
+                </span>
+            </button>
         </div>
 
-        <!-- Filters -->
-        <div class="mt-6 flex flex-wrap items-end gap-3">
-            <div class="w-40">
-                <Select v-model="filterStatus" :options="statusOptions" placeholder="Statusi..." @change="applyFilters" />
+        <!-- Filters + grouping -->
+        <div class="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-2.5 shadow-card sm:flex-row sm:items-center">
+                <label class="flex items-center gap-2 text-small text-neutral-600">
+                    <span class="w-20 shrink-0 sm:w-auto">Kati</span>
+                    <span class="min-w-44 flex-1">
+                        <Select v-model="filterFloor" :options="floorFilterOptions" placeholder="" />
+                    </span>
+                </label>
+                <label class="flex items-center gap-2 text-small text-neutral-600">
+                    <span class="w-20 shrink-0 sm:w-auto">Tipologjia</span>
+                    <span class="min-w-52 flex-1">
+                        <Select v-model="filterType" :options="roomTypeFilterOptions" placeholder="" />
+                    </span>
+                </label>
+                <Button v-if="filtersActive" variant="ghost" size="sm" @click="clearFilters">Pastro</Button>
             </div>
-            <div class="w-36">
-                <Select v-model="filterFloor" :options="floorOptions" placeholder="Kati..." @change="applyFilters" />
+
+            <div class="inline-flex self-start rounded-lg border border-neutral-200 bg-white p-0.5 shadow-card lg:self-auto">
+                <button
+                    type="button"
+                    :class="['rounded-md px-4 py-2 text-body-sm font-medium transition-colors', groupMode === 'floor' ? 'bg-accent-50 text-accent-700' : 'text-neutral-500 hover:text-neutral-800']"
+                    @click="groupMode = 'floor'"
+                >Sipas katit</button>
+                <button
+                    type="button"
+                    :class="['rounded-md px-4 py-2 text-body-sm font-medium transition-colors', groupMode === 'type' ? 'bg-accent-50 text-accent-700' : 'text-neutral-500 hover:text-neutral-800']"
+                    @click="groupMode = 'type'"
+                >Sipas tipologjisë</button>
             </div>
-            <div class="w-48">
-                <Select v-model="filterType" :options="roomTypeOptions" placeholder="Tipi..." @change="applyFilters" />
+        </div>
+
+        <div v-if="managementMode" class="mt-3 flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-body-sm font-medium text-neutral-800">Menaxhimi i dhomave</p>
+                <p class="text-small text-neutral-500">Përdor menunë ⋮ për të edituar ose fshirë një dhomë.</p>
             </div>
-            <Button v-if="filterStatus || filterFloor || filterType" variant="ghost" size="sm" @click="clearFilters">
-                Pastro filtrat
+            <Button v-if="canCreate" variant="outline" size="sm" @click="showCreateModal = true">
+                <template #icon-left><Plus class="h-4 w-4" /></template>
+                Shto dhomë
             </Button>
         </div>
 
-        <!-- GRID view: calm white cards grouped by floor -->
-        <div v-if="viewMode === 'grid'" class="mt-6 space-y-8">
-            <section v-for="group in roomsByFloor" :key="group.floor">
-                <div class="flex items-center gap-3 mb-3">
-                    <h3 class="text-label text-neutral-600 uppercase tracking-wider">{{ floorName(group.floor) }}</h3>
-                    <span class="h-px flex-1 bg-neutral-200"></span>
+        <!-- Operational room rack -->
+        <div v-if="viewMode === 'grid' && filteredRooms.length" class="mt-4 space-y-5">
+            <section v-for="group in roomGroups" :key="group.key">
+                <div class="mb-2.5 flex items-center gap-3 px-1">
+                    <h2 class="text-body-sm font-semibold text-neutral-800">{{ group.label }}</h2>
+                    <span class="h-px flex-1 bg-neutral-200" />
                     <span class="text-tiny text-neutral-400">{{ group.rooms.length }} dhoma</span>
                 </div>
 
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                    <div
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                    <article
                         v-for="room in group.rooms"
-                        :key="room.id"
-                        class="group relative rounded-lg border border-neutral-200 bg-white shadow-card hover:shadow-md transition-shadow duration-150 p-4"
+                        :key="room.raw.id"
+                        class="flex min-h-48 flex-col rounded-lg border border-neutral-200 bg-white p-3 shadow-card transition-shadow hover:shadow-md"
                     >
-                        <div class="flex items-start justify-between">
-                            <p class="text-h3 text-primary-900 leading-none">{{ room.room_number }}</p>
-                            <span class="h-2.5 w-2.5 rounded-full mt-1 shrink-0" :class="dotColor[room.status]" :title="statusBadge[room.status]?.label"></span>
-                        </div>
-                        <p class="text-small text-neutral-500 mt-2 truncate">{{ room.room_type?.name }}</p>
-                        <div class="flex items-center justify-between mt-1">
-                            <span class="text-tiny font-medium" :class="labelColor[room.status]">{{ statusBadge[room.status]?.label }}</span>
-                            <span v-if="room.room_type" class="text-small text-neutral-400">€{{ room.room_type.base_price }}</span>
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-h3 leading-none text-primary-900">{{ room.roomNumber }}</p>
+                                <p class="mt-1 truncate text-small text-neutral-500">{{ room.typeName }}</p>
+                            </div>
+                            <ActionMenu v-if="managementMode && (canUpdate || canDelete)">
+                                <button v-if="canUpdate" type="button" :class="menuItemClass" @click="openEdit(room.raw)">
+                                    <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.8" />
+                                    Edito
+                                </button>
+                                <button v-if="canDelete" type="button" :class="[menuItemClass, 'text-error-600']" @click="openDelete(room.raw)">
+                                    <Trash2 class="h-4 w-4 text-error-500" :stroke-width="1.8" />
+                                    Fshi
+                                </button>
+                            </ActionMenu>
                         </div>
 
-                        <!-- Controls (always visible, calm): quick status dots + edit/delete -->
-                        <div v-if="canUpdate || canDelete" class="mt-3 pt-3 border-t border-neutral-100 flex items-center justify-between">
-                            <div v-if="canUpdate" class="flex gap-2">
-                                <button
-                                    v-for="opt in statusOptions"
-                                    :key="opt.value"
-                                    :disabled="room.status === opt.value"
-                                    :title="opt.label"
-                                    class="h-4 w-4 rounded-full transition-transform hover:scale-110 disabled:cursor-default"
-                                    :class="[dotColor[opt.value], room.status === opt.value ? 'ring-2 ring-offset-1 ring-neutral-400' : 'opacity-40 hover:opacity-100']"
-                                    @click="quickStatus(room, opt.value)"
-                                />
-                            </div>
-                            <div class="flex gap-1">
-                                <button v-if="canUpdate" class="text-neutral-400 hover:text-neutral-800" title="Edito" @click="openEdit(room)">
-                                    <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M2.695 14.762l-1.262 3.155a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.886L17.5 5.501a2.121 2.121 0 00-3-3L3.58 13.419a4 4 0 00-.885 1.343z"/></svg>
-                                </button>
-                                <button v-if="canDelete" class="text-neutral-400 hover:text-error-600" title="Fshi" @click="openDelete(room)">
-                                    <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4z" clip-rule="evenodd"/></svg>
-                                </button>
-                            </div>
+                        <div class="mt-2 flex flex-wrap items-center gap-2">
+                            <Badge :variant="occupancyBadge[room.occupancyKey]?.variant || 'neutral'">
+                                {{ occupancyBadge[room.occupancyKey]?.label || 'Bosh' }}
+                            </Badge>
+                            <Badge :variant="housekeepingBadge[room.housekeepingKey]?.variant || 'neutral'">
+                                {{ housekeepingBadge[room.housekeepingKey]?.label || '—' }}
+                            </Badge>
                         </div>
-                    </div>
+
+                        <div class="mt-2.5 flex-1 space-y-1.5">
+                            <p v-if="room.guestName" class="flex items-center gap-2 text-small font-medium text-neutral-800">
+                                <UserRound class="h-4 w-4 shrink-0 text-neutral-500" :stroke-width="1.7" />
+                                <span class="truncate">{{ room.guestName }}</span>
+                            </p>
+                            <p class="flex items-center gap-2 text-small text-neutral-500">
+                                <CalendarDays class="h-4 w-4 shrink-0" :stroke-width="1.7" />
+                                <span class="truncate">{{ room.activity }}</span>
+                            </p>
+                            <p v-if="room.outstanding > 0" class="text-small font-medium text-error-600">
+                                Për t’u paguar {{ money(room.outstanding) }}
+                            </p>
+                        </div>
+
+                        <button
+                            v-if="primaryAction(room)"
+                            type="button"
+                            :class="[
+                                'mt-3 inline-flex min-h-9 w-full items-center justify-center rounded-md border px-3 py-1.5 text-body-sm font-medium transition-colors focus:outline-none focus:ring-2',
+                                primaryActionClass(primaryAction(room)),
+                            ]"
+                            @click="handlePrimary(room)"
+                        >
+                            {{ primaryAction(room).label }}
+                        </button>
+                    </article>
                 </div>
             </section>
         </div>
 
-        <!-- TABLE view -->
-        <div v-else class="mt-6">
+        <!-- Dense operational table -->
+        <div v-if="viewMode === 'table' && filteredRooms.length" class="mt-4">
             <Card :padding="false">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200">
                         <thead class="bg-neutral-50">
                             <tr>
                                 <th class="px-5 py-3 text-left text-label text-neutral-600">Dhoma</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Tipi</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Kati</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Statusi</th>
-                                <th class="px-5 py-3 text-right text-label text-neutral-600">Cmimi</th>
-                                <th class="px-5 py-3 text-right text-label text-neutral-600">Veprime</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">Gjendja</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">Mysafiri</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">Qëndrimi</th>
+                                <th class="px-5 py-3 text-right text-label text-neutral-600">Për t’u paguar</th>
+                                <th class="px-5 py-3 text-right text-label text-neutral-600">Veprimi</th>
+                                <th v-if="managementMode && (canUpdate || canDelete)" class="w-12 px-3 py-3"><span class="sr-only">Menaxho</span></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-100">
-                            <tr v-for="room in rooms.data" :key="room.id" class="hover:bg-neutral-50">
-                                <td class="px-5 py-3 text-body-sm text-primary-900 font-medium">{{ room.room_number }}</td>
-                                <td class="px-5 py-3 text-body-sm text-neutral-600">{{ room.room_type?.name }}</td>
-                                <td class="px-5 py-3 text-body-sm text-neutral-600">{{ floorName(room.floor) }}</td>
-                                <td class="px-5 py-3"><Badge :variant="statusBadge[room.status]?.variant" dot>{{ statusBadge[room.status]?.label }}</Badge></td>
-                                <td class="px-5 py-3 text-right text-body-sm text-neutral-500">€{{ room.room_type?.base_price }}</td>
-                                <td class="px-5 py-3 text-right">
-                                    <div class="flex items-center justify-end gap-1.5">
-                                        <Button v-if="canUpdate" size="sm" variant="ghost" @click="openEdit(room)">Edito</Button>
-                                        <Button v-if="canDelete" size="sm" variant="ghost" class="text-error-600" @click="openDelete(room)">Fshi</Button>
+                            <tr v-for="room in filteredRooms" :key="room.raw.id" class="transition-colors hover:bg-neutral-50">
+                                <td class="whitespace-nowrap px-5 py-3">
+                                    <p class="text-body-sm font-semibold text-primary-900">{{ room.roomNumber }}</p>
+                                    <p class="text-small text-neutral-500">{{ room.typeName }} · {{ floorName(room.floor) }}</p>
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-3">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <Badge :variant="occupancyBadge[room.occupancyKey]?.variant || 'neutral'">{{ occupancyBadge[room.occupancyKey]?.label || 'Bosh' }}</Badge>
+                                        <Badge :variant="housekeepingBadge[room.housekeepingKey]?.variant || 'neutral'">{{ housekeepingBadge[room.housekeepingKey]?.label || '—' }}</Badge>
                                     </div>
+                                </td>
+                                <td class="px-5 py-3 text-body-sm text-neutral-700">{{ room.guestName || '—' }}</td>
+                                <td class="whitespace-nowrap px-5 py-3 text-small text-neutral-500">{{ room.activity }}</td>
+                                <td class="whitespace-nowrap px-5 py-3 text-right text-body-sm" :class="room.outstanding > 0 ? 'font-medium text-error-600' : 'text-neutral-400'">
+                                    {{ room.outstanding > 0 ? money(room.outstanding) : '—' }}
+                                </td>
+                                <td class="px-5 py-3 text-right">
+                                    <button
+                                        v-if="primaryAction(room)"
+                                        type="button"
+                                        :class="['inline-flex min-h-8 items-center justify-center rounded-md border px-3 py-1 text-body-sm font-medium transition-colors focus:outline-none focus:ring-2', primaryActionClass(primaryAction(room))]"
+                                        @click="handlePrimary(room)"
+                                    >{{ primaryAction(room).label }}</button>
+                                    <span v-else class="text-neutral-400">—</span>
+                                </td>
+                                <td v-if="managementMode && (canUpdate || canDelete)" class="px-3 py-3 text-right">
+                                    <ActionMenu>
+                                        <button v-if="canUpdate" type="button" :class="menuItemClass" @click="openEdit(room.raw)">
+                                            <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.8" /> Edito
+                                        </button>
+                                        <button v-if="canDelete" type="button" :class="[menuItemClass, 'text-error-600']" @click="openDelete(room.raw)">
+                                            <Trash2 class="h-4 w-4 text-error-500" :stroke-width="1.8" /> Fshi
+                                        </button>
+                                    </ActionMenu>
                                 </td>
                             </tr>
                         </tbody>
@@ -276,29 +815,31 @@ function quickStatus(room, status) {
         </div>
 
         <!-- Empty state -->
-        <div v-if="!rooms.data?.length" class="mt-6">
+        <div v-if="!filteredRooms.length" class="mt-4">
             <Card>
                 <div class="text-center py-12">
-                    <p class="text-body-sm text-neutral-500">Nuk ka dhoma qe perputhen me filtrat.</p>
-                    <Button v-if="canCreate" variant="outline" size="sm" class="mt-3" @click="showCreateModal = true">+ Shto dhome</Button>
+                    <BedDouble class="mx-auto h-8 w-8 text-neutral-300" :stroke-width="1.5" />
+                    <p class="mt-3 text-body-sm text-neutral-600">Nuk ka dhoma që përputhen me filtrat.</p>
+                    <Button v-if="filtersActive" variant="outline" size="sm" class="mt-3" @click="clearFilters">Pastro filtrat</Button>
+                    <Button v-else-if="canCreate" variant="outline" size="sm" class="mt-3" @click="showCreateModal = true">+ Shto dhomë</Button>
                 </div>
             </Card>
         </div>
 
         <!-- Create Modal -->
-        <Modal :show="showCreateModal" title="Shto dhome te re" @close="showCreateModal = false">
+        <Modal :show="showCreateModal" title="Shto dhomë të re" @close="showCreateModal = false">
             <form @submit.prevent="submitCreate" class="space-y-4">
-                <FormGroup label="Numri i dhomes" :error="createForm.errors.room_number" required>
+                <FormGroup label="Numri i dhomës" :error="createForm.errors.room_number" required>
                     <TextInput v-model="createForm.room_number" placeholder="psh. 106" :error="createForm.errors.room_number" />
                 </FormGroup>
                 <FormGroup label="Tipi" :error="createForm.errors.room_type_id" required>
                     <Select v-model="createForm.room_type_id" :options="roomTypeOptions" :error="createForm.errors.room_type_id" />
                 </FormGroup>
                 <FormGroup label="Kati" :error="createForm.errors.floor" required>
-                    <Select v-model="createForm.floor" :options="floorOptions" :error="createForm.errors.floor" />
+                    <Select v-model="createForm.floor" :options="roomFloorOptions" :error="createForm.errors.floor" />
                 </FormGroup>
-                <FormGroup label="Shenime">
-                    <Textarea v-model="createForm.notes" placeholder="Shenime opsionale..." :rows="2" />
+                <FormGroup label="Shënime">
+                    <Textarea v-model="createForm.notes" placeholder="Shënime opsionale..." :rows="2" />
                 </FormGroup>
             </form>
             <template #footer>
@@ -308,9 +849,9 @@ function quickStatus(room, status) {
         </Modal>
 
         <!-- Edit Modal -->
-        <Modal :show="showEditModal" title="Edito dhomen" @close="showEditModal = false">
+        <Modal :show="showEditModal" title="Edito dhomën" @close="showEditModal = false">
             <form @submit.prevent="submitEdit" class="space-y-4">
-                <FormGroup label="Numri i dhomes" :error="editForm.errors.room_number" required>
+                <FormGroup label="Numri i dhomës" :error="editForm.errors.room_number" required>
                     <TextInput v-model="editForm.room_number" :error="editForm.errors.room_number" />
                 </FormGroup>
                 <FormGroup label="Tipi" :error="editForm.errors.room_type_id" required>
@@ -318,13 +859,13 @@ function quickStatus(room, status) {
                 </FormGroup>
                 <div class="grid grid-cols-2 gap-4">
                     <FormGroup label="Kati" :error="editForm.errors.floor" required>
-                        <Select v-model="editForm.floor" :options="floorOptions" :error="editForm.errors.floor" />
+                        <Select v-model="editForm.floor" :options="roomFloorOptions" :error="editForm.errors.floor" />
                     </FormGroup>
                     <FormGroup label="Statusi" :error="editForm.errors.status" required>
                         <Select v-model="editForm.status" :options="statusOptions" :error="editForm.errors.status" />
                     </FormGroup>
                 </div>
-                <FormGroup label="Shenime">
+                <FormGroup label="Shënime">
                     <Textarea v-model="editForm.notes" :rows="2" />
                 </FormGroup>
             </form>
@@ -335,15 +876,27 @@ function quickStatus(room, status) {
         </Modal>
 
         <!-- Delete Confirmation -->
-        <Modal :show="showDeleteModal" title="Fshi dhomen" max-width="sm" @close="showDeleteModal = false">
+        <Modal :show="showDeleteModal" title="Fshi dhomën" max-width="sm" @close="showDeleteModal = false">
             <p class="text-body-sm text-neutral-600">
-                Je i sigurt qe deshiron te fshish dhomen <strong>{{ selectedRoom?.room_number }}</strong>?
+                Je i sigurt që dëshiron të fshish dhomën <strong>{{ selectedRoom?.room_number }}</strong>?
             </p>
             <template #footer>
                 <Button variant="outline" @click="showDeleteModal = false">Anulo</Button>
                 <Button variant="danger" @click="submitDelete">Fshi</Button>
             </template>
         </Modal>
+
+        <ReservationCreateModal
+            v-if="canStartReservation"
+            :show="showReservationModal"
+            :rooms="roomList"
+            :guests="guests"
+            :channel-fees="channelFees"
+            :prefill="reservationPrefill"
+            @close="showReservationModal = false"
+            @created="toasts?.success('Rezervimi u krijua.')"
+            @guest-created="toasts?.success('Mysafiri u shtua.')"
+        />
 
         <ToastContainer ref="toasts" />
     </AppLayout>
