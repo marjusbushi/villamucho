@@ -258,7 +258,13 @@ class CleaningChecklistTest extends TestCase
             ->assertForbidden();
 
         // The assigned housekeeper and a supervisor (admin) may open it.
-        $this->actingAs($hk1)->get(route('housekeeping.clean', $t->id))->assertOk();
+        $this->actingAs($hk1)->get(route('housekeeping.clean', $t->id))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Housekeeping/Clean')
+                ->where('task.assigned_to', $hk1->name)
+                ->where('task.started_by', null)
+                ->where('task.room.room_number', '101'));
         $this->actingAs($this->admin())->get(route('housekeeping.clean', $t->id))->assertOk();
     }
 }

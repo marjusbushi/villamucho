@@ -36,7 +36,7 @@ class CleaningTaskController extends Controller
         }
 
         if ($request->filled('floor')) {
-            $query->whereHas('room', fn($q) => $q->where('floor', $request->floor));
+            $query->whereHas('room', fn ($q) => $q->where('floor', $request->floor));
         }
 
         $housekeepers = User::role('housekeeping')->select('id', 'name')->get();
@@ -151,6 +151,7 @@ class CleaningTaskController extends Controller
 
         $checklist = collect($cleaningTask->checklist ?? [])->map(function ($item, $idx) use ($clientDone) {
             $done = (bool) ($clientDone[$idx] ?? ($item['done'] ?? false));
+
             return [
                 'label' => $item['label'],
                 'done' => $done,
@@ -171,7 +172,12 @@ class CleaningTaskController extends Controller
     {
         $this->authorizeTask($request, $cleaningTask);
 
-        $cleaningTask->load(['room:id,room_number,floor', 'room.roomType:id,name']);
+        $cleaningTask->load([
+            'room:id,room_number,floor',
+            'room.roomType:id,name',
+            'assignedUser:id,name',
+            'startedBy:id,name',
+        ]);
 
         return Inertia::render('Housekeeping/Clean', [
             'task' => [
@@ -182,6 +188,8 @@ class CleaningTaskController extends Controller
                 'checklist' => $cleaningTask->checklist ?? [],
                 'started_at' => optional($cleaningTask->started_at)->toIso8601String(),
                 'issue_reported' => $cleaningTask->issue_reported,
+                'assigned_to' => $cleaningTask->assignedUser?->name,
+                'started_by' => $cleaningTask->startedBy?->name,
                 'room' => $cleaningTask->room ? [
                     'room_number' => $cleaningTask->room->room_number,
                     'floor' => $cleaningTask->room->floor,
