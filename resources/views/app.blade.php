@@ -4,17 +4,21 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 
+        @php($isLoraMarketing = ($page['component'] ?? null) === 'Marketing/Home')
         @php($brand = \Illuminate\Support\Facades\Cache::get('app.settings', []))
-        <title inertia>{{ $brand['hotel_name'] ?? 'Villa Mucho' }}</title>
+        <title inertia>{{ $isLoraMarketing ? 'Lora PMS — Menaxho hotelin. Jo kaosin.' : ($brand['hotel_name'] ?? 'Villa Mucho') }}</title>
 
-        {{-- Favicon: the Villa Mucho "V" mark. It carries its own green background, so it
-             stays legible at tab size on any background — unlike the uploaded wordmark logo
-             (wide + white-on-transparent), which belongs in the site header, not a 16px tab. --}}
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
-        <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png?v=3">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
-        <link rel="alternate icon" href="/favicon.ico?v=3">
-        <meta name="theme-color" content="#2d6a4f">
+        @if ($isLoraMarketing)
+            <link rel="icon" type="image/svg+xml" href="/lora-favicon.svg?v=1">
+            <meta name="theme-color" content="#123d32">
+        @else
+            {{-- Hotel booking websites retain their own established favicon. --}}
+            <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
+            <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png?v=3">
+            <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
+            <link rel="alternate icon" href="/favicon.ico?v=3">
+            <meta name="theme-color" content="#2d6a4f">
+        @endif
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">

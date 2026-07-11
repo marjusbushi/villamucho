@@ -25,9 +25,13 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 // ===== PUBLIC WEBSITE =====
-// Root is host-aware: the admin subdomain (admin.villamucho.com) goes straight
-// to the back-office; every other host (apex, www, localhost) gets the public site.
+// Root is host-aware: Lora product hosts get the marketing site, the admin
+// subdomain goes to the back-office, and hotel domains keep their booking site.
 Route::get('/', function (Request $request) {
+    if (in_array(strtolower($request->getHost()), config('lora.marketing_hosts', []), true)) {
+        return Inertia::render('Marketing/Home');
+    }
+
     if (str_starts_with($request->getHost(), 'admin.')) {
         return redirect()->route('dashboard');
     }
