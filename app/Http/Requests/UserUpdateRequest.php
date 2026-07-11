@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class UserUpdateRequest extends FormRequest
@@ -14,12 +16,25 @@ class UserUpdateRequest extends FormRequest
 
     public function rules(): array
     {
+        $tenantId = app(TenantContext::class)->id();
+
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $this->route('user')->id],
+            'email' => [
+                'required', 'email', 'max:255',
+                Rule::unique('users', 'email')->ignore($this->route('user')->id),
+            ],
             'password' => ['nullable', Password::min(8)],
-            'role' => ['required', 'string', 'exists:roles,name'],
+            'role' => [
+                'required', 'string',
+                Rule::exists('roles', 'name')->where('team_id', $tenantId)->where('guard_name', 'web'),
+            ],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['email' => strtolower(trim((string) $this->input('email')))]);
     }
 
     public function messages(): array

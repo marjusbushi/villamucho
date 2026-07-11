@@ -183,13 +183,13 @@ function submitRole() {
                                     </Badge>
                                 </td>
                                 <td class="px-5 py-3">
-                                    <Badge :variant="user.deleted_at ? 'error' : 'success'" dot>
-                                        {{ user.deleted_at ? 'Joaktiv' : 'Aktiv' }}
+                                    <Badge :variant="!user.membership_active ? 'error' : 'success'" dot>
+                                        {{ !user.membership_active ? 'Joaktiv' : 'Aktiv' }}
                                     </Badge>
                                 </td>
                                 <td class="px-5 py-3 text-right">
                                     <div class="flex items-center justify-end gap-2">
-                                        <template v-if="!user.deleted_at">
+                                        <template v-if="user.membership_active">
                                             <Button size="sm" variant="ghost" @click="openEdit(user)">Edito</Button>
                                             <Button size="sm" variant="ghost" class="text-error-600 hover:text-error-700" @click="openDelete(user)">Fshi</Button>
                                         </template>
@@ -278,9 +278,10 @@ function submitRole() {
                 <FormGroup label="Email" html-for="create-email" :error="createForm.errors.email" required>
                     <TextInput id="create-email" type="email" v-model="createForm.email" placeholder="email@hotel.com" :error="createForm.errors.email" />
                 </FormGroup>
-                <FormGroup label="Password" html-for="create-password" :error="createForm.errors.password" required>
+                <FormGroup label="Password (vetëm për llogari të re)" html-for="create-password" :error="createForm.errors.password">
                     <TextInput id="create-password" type="password" v-model="createForm.password" placeholder="Min. 8 karaktere" :error="createForm.errors.password" />
                 </FormGroup>
+                <p class="text-tiny text-neutral-500 -mt-2">Nëse emaili ekziston në një hotel tjetër, lëre bosh: lidhim të njëjtën llogari me këtë hotel.</p>
                 <FormGroup label="Roli" html-for="create-role" :error="createForm.errors.role" required>
                     <Select id="create-role" v-model="createForm.role" :options="roleOptions" placeholder="Zgjidh rolin..." :error="createForm.errors.role" />
                 </FormGroup>
@@ -316,7 +317,7 @@ function submitRole() {
         <!-- Delete Confirmation -->
         <Modal :show="showDeleteModal" title="Deaktivizo perdoruesin" max-width="sm" @close="showDeleteModal = false">
             <p class="text-body-sm text-neutral-600">
-                Je i sigurt qe deshiron te deaktivizosh <strong>{{ selectedUser?.name }}</strong>? Perdoruesi nuk do mund te hyje me ne sistem.
+                Je i sigurt qe deshiron te deaktivizosh <strong>{{ selectedUser?.name }}</strong> në këtë hotel? Aksesi i tij në hotelet e tjera nuk ndryshon.
             </p>
             <template #footer>
                 <Button variant="outline" @click="showDeleteModal = false">Anulo</Button>

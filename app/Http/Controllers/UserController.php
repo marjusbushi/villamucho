@@ -6,29 +6,47 @@ use App\Http\Requests\UserStoreRequest;
 use App\Http\Requests\UserUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class UserController extends Controller
 {
     public function index(): Response
     {
-        $users = User::select('id', 'name', 'email', 'created_at', 'deleted_at')
+        $tenantId = app(TenantContext::class)->id();
+        $users = User::withoutGlobalScope('tenant_membership')
             ->withTrashed()
+            ->join('tenant_user', function ($join) use ($tenantId) {
+                $join->on('tenant_user.user_id', '=', 'users.id')
+                    ->where('tenant_user.tenant_id', $tenantId);
+            })
+            ->select(
+                'users.id', 'users.name', 'users.email', 'users.created_at', 'users.deleted_at',
+                'tenant_user.is_active as membership_active',
+            )
             ->with('roles:id,name')
-            ->orderBy('name')
+            ->orderByDesc('tenant_user.is_active')
+            ->orderBy('users.name')
             ->paginate(15);
+
+        $roles = Role::query()
+            ->where('team_id', $tenantId)
+            ->orderBy('name');
 
         return Inertia::render('Users/Index', [
             'users' => $users,
-            'roles' => Role::pluck('name'),
+            'roles' => (clone $roles)->pluck('name'),
             'permissionModules' => $this->permissionModules(),
-            'rolesDetailed' => Role::with('permissions:id,name')->orderBy('name')->get()->map(fn ($r) => [
+            'rolesDetailed' => (clone $roles)->with('permissions:id,name')->get()->map(fn ($r) => [
                 'id' => $r->id,
                 'name' => $r->name,
                 'permissions' => $r->permissions->pluck('name'),
@@ -56,6 +74,8 @@ class UserController extends Controller
 
     public function updateRolePermissions(Request $request, Role $role): RedirectResponse
     {
+        $this->ensureCurrentTenantRole($role);
+
         if ($role->name === 'admin') {
             return back()->with('error', 'Roli admin ka gjithmone akses te plote dhe nuk kufizohet.');
         }
@@ -66,7 +86,7 @@ class UserController extends Controller
         ]);
 
         $role->syncPermissions($data['permissions'] ?? []);
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         AuditLog::record('role.permissions.update', null, ['role' => $role->name, 'count' => count($data['permissions'] ?? [])]);
 
@@ -75,12 +95,16 @@ class UserController extends Controller
 
     public function storeRole(Request $request): RedirectResponse
     {
+        $tenantId = app(TenantContext::class)->id();
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:40', 'regex:/^[a-z][a-z0-9_]*$/', 'unique:roles,name'],
+            'name' => [
+                'required', 'string', 'max:40', 'regex:/^[a-z][a-z0-9_]*$/',
+                Rule::unique('roles', 'name')->where('team_id', $tenantId)->where('guard_name', 'web'),
+            ],
         ]);
 
-        Role::create(['name' => $data['name'], 'guard_name' => 'web']);
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        Role::create(['team_id' => $tenantId, 'name' => $data['name'], 'guard_name' => 'web']);
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         AuditLog::record('role.create', null, ['role' => $data['name']]);
 
@@ -89,21 +113,70 @@ class UserController extends Controller
 
     public function store(UserStoreRequest $request): RedirectResponse
     {
-        $user = User::create([
-            'name' => $request->validated('name'),
-            'email' => $request->validated('email'),
-            'password' => bcrypt($request->validated('password')),
-        ]);
+        $tenantId = app(TenantContext::class)->id();
+        $existing = User::withoutGlobalScopes()
+            ->withTrashed()
+            ->where('email', $request->validated('email'))
+            ->first();
 
+        if ($existing) {
+            $user = $existing;
+            if ($user->trashed()) {
+                $user->restore();
+            }
+            $user->tenants()->syncWithoutDetaching([
+                $tenantId => ['is_owner' => false, 'is_active' => true],
+            ]);
+        } else {
+            $user = User::create([
+                'name' => $request->validated('name'),
+                'email' => $request->validated('email'),
+                'password' => bcrypt($request->validated('password')),
+            ]);
+        }
+
+        $user->unsetRelation('roles');
         $user->assignRole($request->validated('role'));
 
         AuditLog::record('user.create', $user, ['role' => $request->validated('role')]);
 
-        return back()->with('success', 'Perdoruesi u krijua me sukses.');
+        return back()->with('success', $existing
+            ? 'Llogaria ekzistuese u lidh me kete hotel.'
+            : 'Perdoruesi u krijua me sukses.');
     }
 
     public function update(UserUpdateRequest $request, User $user): RedirectResponse
     {
+        $tenantId = app(TenantContext::class)->id();
+        $isOwner = DB::table('tenant_user')
+            ->where('tenant_id', $tenantId)
+            ->where('user_id', $user->id)
+            ->where('is_owner', true)
+            ->exists();
+
+        if (($isOwner || $user->id === auth()->id()) && $request->validated('role') !== 'admin') {
+            return back()->withErrors([
+                'role' => $isOwner
+                    ? 'Pronari i hotelit duhet te mbetet admin.'
+                    : 'Nuk mund t\'i heqesh vetes rolin admin.',
+            ]);
+        }
+
+        $sharedAccount = DB::table('tenant_user')
+            ->where('user_id', $user->id)
+            ->where('is_active', true)
+            ->count() > 1;
+
+        if ($sharedAccount && (
+            $request->validated('name') !== $user->name
+            || $request->validated('email') !== $user->email
+            || filled($request->validated('password'))
+        )) {
+            throw ValidationException::withMessages([
+                'email' => 'Kjo llogari perdoret ne disa hotele. Ketu mund te ndryshosh vetem rolin.',
+            ]);
+        }
+
         $data = [
             'name' => $request->validated('name'),
             'email' => $request->validated('email'),
@@ -134,18 +207,65 @@ class UserController extends Controller
             return back()->with('error', 'Ky eshte perdoruesi i sistemit per rezervimet online — nuk mund te fshihet.');
         }
 
-        $user->delete();
+        $tenantId = app(TenantContext::class)->id();
+        $isOwner = DB::table('tenant_user')
+            ->where('tenant_id', $tenantId)
+            ->where('user_id', $user->id)
+            ->where('is_owner', true)
+            ->exists();
+        if ($isOwner) {
+            return back()->with('error', 'Pronari i hotelit nuk mund te çaktivizohet.');
+        }
 
-        AuditLog::record('user.delete', $user);
+        DB::transaction(function () use ($tenantId, $user) {
+            DB::table('tenant_user')
+                ->where('tenant_id', $tenantId)
+                ->where('user_id', $user->id)
+                ->update(['is_active' => false, 'updated_at' => now()]);
+
+            $stillActive = DB::table('tenant_user')
+                ->where('user_id', $user->id)
+                ->where('is_active', true)
+                ->exists();
+
+            if (! $stillActive) {
+                $user->delete();
+            }
+        });
+
+        AuditLog::record('user.deactivate', $user, ['tenant_id' => $tenantId]);
 
         return back()->with('success', 'Perdoruesi u deaktivizua.');
     }
 
     public function restore(int $id): RedirectResponse
     {
-        $user = User::withTrashed()->findOrFail($id);
-        $user->restore();
+        $tenantId = app(TenantContext::class)->id();
+        $user = User::withoutGlobalScopes()
+            ->withTrashed()
+            ->whereKey($id)
+            ->whereHas('tenants', fn ($query) => $query->whereKey($tenantId))
+            ->firstOrFail();
+
+        DB::transaction(function () use ($tenantId, $user) {
+            $user->restore();
+            $user->forceFill(['current_tenant_id' => $tenantId])->save();
+            DB::table('tenant_user')
+                ->where('tenant_id', $tenantId)
+                ->where('user_id', $user->id)
+                ->update(['is_active' => true, 'updated_at' => now()]);
+        });
+
+        AuditLog::record('user.reactivate', $user, ['tenant_id' => $tenantId]);
 
         return back()->with('success', 'Perdoruesi u riaktivizua.');
+    }
+
+    private function ensureCurrentTenantRole(Role $role): void
+    {
+        abort_unless(
+            (int) $role->team_id === app(TenantContext::class)->id(),
+            404,
+        );
     }
 }

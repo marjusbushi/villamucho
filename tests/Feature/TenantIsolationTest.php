@@ -15,6 +15,7 @@ use App\Services\ChannexConfiguration;
 use App\Tenancy\TenantContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class TenantIsolationTest extends TestCase
@@ -120,6 +121,11 @@ class TenantIsolationTest extends TestCase
             'user_id' => $superAdmin->id,
             'is_owner' => true,
         ]);
+
+        app(TenantContext::class)->set($tenant);
+        $this->assertSame(5, Role::query()->where('team_id', $tenant->id)->count());
+        $this->assertTrue($superAdmin->unsetRelation('roles')->hasRole('admin'));
+        app(TenantContext::class)->clear();
 
         $this->actingAs($superAdmin)
             ->post(route('super-admin.tenants.switch', $tenant))

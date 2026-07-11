@@ -38,7 +38,8 @@ class Tenant extends Model
     {
         return $this->belongsToMany(User::class)
             ->withoutGlobalScopes()
-            ->withPivot('is_owner')
+            ->withPivot(['is_owner', 'is_active'])
+            ->wherePivot('is_active', true)
             ->withTimestamps();
     }
 

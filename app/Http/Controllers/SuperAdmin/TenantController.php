@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Tenant;
 use App\Models\TenantDomain;
+use App\Services\TenantRoleService;
 use App\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,7 +43,7 @@ class TenantController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, TenantRoleService $tenantRoles): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -58,7 +59,7 @@ class TenantController extends Controller
             return back()->withErrors(['primary_domain' => 'Ky domain perdoret nga nje hotel tjeter.']);
         }
 
-        $tenant = DB::transaction(function () use ($data, $domain, $request) {
+        $tenant = DB::transaction(function () use ($data, $domain, $request, $tenantRoles) {
             $tenant = Tenant::create([
                 'uuid' => (string) Str::uuid(),
                 'name' => $data['name'],
@@ -76,7 +77,7 @@ class TenantController extends Controller
             }
 
             $tenant->users()->syncWithoutDetaching([
-                $request->user()->id => ['is_owner' => true],
+                $request->user()->id => ['is_owner' => true, 'is_active' => true],
             ]);
 
             DB::table('settings')->insert([
@@ -108,6 +109,8 @@ class TenantController extends Controller
                     'updated_at' => now(),
                 ],
             ]);
+
+            $tenantRoles->provision($tenant, $request->user());
 
             return $tenant;
         });
