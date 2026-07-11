@@ -163,7 +163,12 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Build current staging database
-        run: php artisan migrate:fresh --seed --force
+        run: php artisan migrate:fresh --force
+
+      - name: Seed current roles and assignments
+        run: |
+          php artisan db:seed --class='Database\Seeders\RolePermissionSeeder' --force
+          php artisan tinker --execute="\$user = \App\Models\User::factory()->create(); \$user->assignRole('admin');"
 
       - name: Checkout candidate code
         uses: actions/checkout@v5
