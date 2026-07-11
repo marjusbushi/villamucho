@@ -11,6 +11,7 @@ import AmenitiesTab from './Tabs/AmenitiesTab.vue';
 import MenuTab from './Tabs/MenuTab.vue';
 import HousekeepingTab from './Tabs/HousekeepingTab.vue';
 import FinancialTab from './Tabs/FinancialTab.vue';
+import PricingProgramsTab from './Tabs/PricingProgramsTab.vue';
 import AiTab from './Tabs/AiTab.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 
@@ -36,6 +37,7 @@ const tabs = [
     { id: 'menu', label: 'Menu POS' },
     { id: 'housekeeping', label: 'Housekeeping' },
     { id: 'financial', label: 'Financiare' },
+    { id: 'pricing-programs', label: 'Çmimet & OTA' },
     { id: 'ai', label: 'Asistenti AI' },
 ];
 </script>
@@ -78,6 +80,7 @@ const tabs = [
                 <MenuTab v-else-if="activeTab === 'menu'" :categories="menuCategories" :toasts="toasts" />
                 <HousekeepingTab v-else-if="activeTab === 'housekeeping'" :settings="settings.housekeeping || {}" :checklist-defaults="checklistDefaults" :toasts="toasts" />
                 <FinancialTab v-else-if="activeTab === 'financial'" :settings="settings.financial || {}" :toasts="toasts" />
+                <PricingProgramsTab v-else-if="activeTab === 'pricing-programs'" :settings="settings.pricing_programs || {}" :financial="settings.financial || {}" :toasts="toasts" />
                 <AiTab v-else-if="activeTab === 'ai'" :settings="settings.ai || {}" :toasts="toasts" />
             </div>
         </div>

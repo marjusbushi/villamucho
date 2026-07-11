@@ -13,6 +13,7 @@ use App\Models\RateOverride;
 use App\Models\RoomType;
 use App\Models\Setting;
 use App\Services\AiPricing;
+use App\Services\OtaPricingPrograms;
 use App\Services\PricingEngine;
 use App\Services\PricingRulesVersion;
 use App\Services\RoomPricing;
@@ -66,6 +67,7 @@ class SmartPricingController extends Controller
             ])->values(),
             'strategy' => PricingEngine::strategy(),
             'currency' => Setting::get('financial.default_currency_symbol', '€'),
+            'otaPrograms' => OtaPricingPrograms::settings(),
             'aiConfigured' => AiPricing::configured(),
             // Page-level OTA sync pulse (pushes are per-type full-window, so a
             // per-date pushed/pending status does not exist in the data model).

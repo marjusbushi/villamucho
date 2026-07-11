@@ -228,6 +228,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/settings/website', [SettingsController::class, 'updateWebsite'])->name('settings.website');
         Route::post('/settings/about', [SettingsController::class, 'updateAbout'])->name('settings.about');
         Route::put('/settings/financial', [SettingsController::class, 'updateFinancial'])->name('settings.financial');
+        Route::put('/settings/pricing-programs', [SettingsController::class, 'updatePricingPrograms'])->name('settings.pricing-programs');
         Route::put('/settings/housekeeping', [SettingsController::class, 'updateHousekeeping'])->name('settings.housekeeping');
         Route::put('/settings/ai', [SettingsController::class, 'updateAi'])->name('settings.ai');
 

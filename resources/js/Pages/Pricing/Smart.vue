@@ -22,6 +22,7 @@ const props = defineProps({
     upcomingEvents: { type: Array, default: () => [] },
     latestReport: { type: Object, default: null },
     autopilot: { type: Object, default: () => ({ enabled: false, logs: [] }) },
+    otaPrograms: { type: Object, default: () => ({}) },
 });
 
 const toasts = ref(null);
@@ -504,6 +505,20 @@ function syncLabel(ts) {
                     </span>
                 </div>
 
+                <div v-if="otaPrograms.booking || otaPrograms.expedia" class="grid sm:grid-cols-2 gap-3 mb-5">
+                    <div v-for="(program, key) in otaPrograms" :key="key" class="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-body-sm font-bold text-primary-900">{{ key === 'booking' ? 'Booking.com' : 'Expedia' }}</span>
+                            <span class="text-tiny font-bold text-info-700">Modifier +{{ program.required_modifier_pct }}%</span>
+                        </div>
+                        <p class="text-tiny text-neutral-500 mt-1">
+                            <template v-if="program.discounts.length">{{ program.discounts.map((d) => d.label + ' ' + d.pct + '%').join(' · ') }}</template>
+                            <template v-else>Pa promocione aktive</template>
+                            <template v-if="program.preferred_partner"> · Preferred Partner</template>
+                        </p>
+                    </div>
+                </div>
+
                 <div v-if="!roomTypes.length" class="py-16 text-center text-body-sm text-neutral-500">
                     Shto fillimisht tipet e dhomave te "Dhomat".
                 </div>
@@ -596,6 +611,17 @@ function syncLabel(ts) {
                                     <Button v-if="selected.actionable" variant="primary" :loading="applySaving" :disabled="removeSaving" @click="apply(selected, null, true)">Apliko {{ currency }}{{ fmtPrice(selected.suggested_price) }}</Button>
                                     <Button variant="outline" size="sm" :disabled="applySaving || removeSaving" @click="askBulkWeek">Apliko javën</Button>
                                     <Button v-if="selected.has_override" variant="ghost" :loading="removeSaving" :disabled="applySaving" @click="remove(selected)">Hiq</Button>
+                                </div>
+                            </div>
+
+                            <div v-if="selected.ota_prices" class="grid sm:grid-cols-2 gap-3">
+                                <div v-for="(ota, key) in selected.ota_prices" :key="key" class="rounded-xl border border-info-100 bg-info-50/50 p-3">
+                                    <p class="text-tiny font-bold uppercase tracking-wide text-info-700">{{ key === 'booking' ? 'Booking.com' : 'Expedia' }}</p>
+                                    <div class="mt-2 space-y-1 text-body-sm">
+                                        <div class="flex justify-between gap-3"><span class="text-neutral-500">Çmimi final i synuar</span><b class="tabular-nums">{{ currency }}{{ fmtPrice(ota.target_price) }}</b></div>
+                                        <div class="flex justify-between gap-3"><span class="text-neutral-500">Dërgo te kanali</span><b class="tabular-nums text-info-700">{{ currency }}{{ fmtPrice(ota.published_price) }}</b></div>
+                                        <div class="flex justify-between gap-3"><span class="text-neutral-500">Neto pas komisionit</span><b class="tabular-nums">{{ currency }}{{ fmtPrice(ota.estimated_net) }}</b></div>
+                                    </div>
                                 </div>
                             </div>
 

@@ -244,6 +244,36 @@ class SettingsController extends Controller
         return back()->with('success', 'Konfigurimet financiare u ruajten.');
     }
 
+    // --- OTA pricing programs (Booking.com / Expedia) ---
+    public function updatePricingPrograms(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'booking_genius_enabled' => ['required', 'boolean'],
+            'booking_genius_pct' => ['required', 'numeric', 'min:0', 'max:50'],
+            'booking_mobile_enabled' => ['required', 'boolean'],
+            'booking_mobile_pct' => ['required', 'numeric', 'min:0', 'max:50'],
+            'booking_preferred_enabled' => ['required', 'boolean'],
+            'expedia_member_enabled' => ['required', 'boolean'],
+            'expedia_member_pct' => ['required', 'numeric', 'min:0', 'max:50'],
+            'expedia_mobile_enabled' => ['required', 'boolean'],
+            'expedia_mobile_pct' => ['required', 'numeric', 'min:0', 'max:50'],
+        ]);
+
+        DB::transaction(function () use ($data) {
+            $version = PricingRulesVersion::lock();
+            foreach ($data as $key => $value) {
+                Setting::set(
+                    "pricing_programs.{$key}",
+                    is_bool($value) ? ($value ? '1' : '0') : round((float) $value, 2),
+                    is_bool($value) ? 'boolean' : 'number',
+                );
+            }
+            PricingRulesVersion::increment($version);
+        });
+
+        return back()->with('success', 'Programet OTA u ruajtën. Përditëso modifier-at e kanaleve në Channex sipas vlerave të shfaqura.');
+    }
+
     // --- Housekeeping ---
     public function updateHousekeeping(Request $request): RedirectResponse
     {
