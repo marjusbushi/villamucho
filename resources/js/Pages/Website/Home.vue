@@ -21,6 +21,9 @@ const featured = computed(() => {
         || null;
 });
 const standardRooms = computed(() => (props.roomTypes || []).filter(r => r.id !== featured.value?.id));
+const hasFromPrice = (room) => room?.from_price !== null
+    && room?.from_price !== undefined
+    && Number(room.from_price) > 0;
 
 const specRow = (room) => {
     const parts = [t('home.rooms.maxOccupancy', { count: room.max_occupancy }), ...(room.amenities || []).slice(0, 2)];
@@ -141,7 +144,12 @@ const features = computed(() => [
                             <Coffee class="h-5 w-5" :stroke-width="1.75" /> {{ $t('home.rooms.breakfastIncluded') }}
                         </div>
                         <div class="flex items-center justify-between mt-8 pt-6 border-t border-driftwood/15">
-                            <p class="text-body-sm text-ink/55">{{ $t('home.rooms.priceFrom') }} <span class="text-brass text-lg">€{{ featured.base_price }}</span> {{ $t('home.rooms.perNight') }}</p>
+                            <p class="text-body-sm text-ink/55" :title="$t('home.rooms.fromPriceHint')">
+                                <template v-if="hasFromPrice(featured)">
+                                    {{ $t('home.rooms.priceFrom') }} <span class="text-brass text-lg">€{{ featured.from_price }}</span> {{ $t('home.rooms.perNight') }}
+                                </template>
+                                <span v-else>{{ $t('home.rooms.checkDates') }}</span>
+                            </p>
                             <Link :href="`/book?room_type=${featured.id}`" class="btn-reserve">{{ $t('home.rooms.reserve') }}</Link>
                         </div>
                     </div>
@@ -154,7 +162,12 @@ const features = computed(() => [
                         <div class="p-6 flex flex-col flex-1">
                             <div class="flex items-baseline justify-between gap-3">
                                 <h3 class="text-2xl text-ink">{{ room.name }}</h3>
-                                <p class="text-body-sm text-ink/55 whitespace-nowrap">{{ $t('home.rooms.priceFrom') }} <span class="text-brass">€{{ room.base_price }}</span></p>
+                                <p class="text-body-sm text-ink/55 whitespace-nowrap" :title="$t('home.rooms.fromPriceHint')">
+                                    <template v-if="hasFromPrice(room)">
+                                        {{ $t('home.rooms.priceFrom') }} <span class="text-brass">€{{ room.from_price }}</span>
+                                    </template>
+                                    <span v-else>{{ $t('home.rooms.checkDates') }}</span>
+                                </p>
                             </div>
                             <p class="text-body-sm text-ink/55 mt-2 line-clamp-2">{{ room.description }}</p>
                             <p class="eyebrow text-driftwood mt-4">{{ $t('home.rooms.maxOccupancy', { count: room.max_occupancy }) }}</p>

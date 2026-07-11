@@ -11,9 +11,11 @@ use App\Models\User;
 use App\Models\WebsiteSearchLog;
 use App\Services\PokClient;
 use App\Services\PokPayments;
+use App\Services\PublicRoomPricing;
 use App\Services\RoomPricing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,6 +25,8 @@ use Inertia\Response;
 
 class WebsiteController extends Controller
 {
+    public function __construct(private readonly PublicRoomPricing $publicRoomPricing) {}
+
     public function home(): Response
     {
         $roomTypes = RoomType::select('id', 'name', 'description', 'base_price', 'max_occupancy', 'amenities', 'breakfast_included')
@@ -30,8 +34,7 @@ class WebsiteController extends Controller
             ->with('images')
             ->get();
 
-        // Public "Nga €X" = the lowest price a guest could pay (base or any season rate).
-        $roomTypes->each(fn ($rt) => $rt->base_price = RoomPricing::fromPrice($rt));
+        $this->attachPublicFromPrices($roomTypes);
 
         return Inertia::render('Website/Home', [
             'roomTypes' => $roomTypes,
@@ -46,7 +49,7 @@ class WebsiteController extends Controller
             ->with('images')
             ->get();
 
-        $roomTypes->each(fn ($rt) => $rt->base_price = RoomPricing::fromPrice($rt));
+        $this->attachPublicFromPrices($roomTypes);
 
         return Inertia::render('Website/Rooms', [
             'roomTypes' => $roomTypes,
@@ -58,10 +61,9 @@ class WebsiteController extends Controller
         $roomTypes = RoomType::select('id', 'name', 'base_price', 'max_occupancy')
             ->get();
 
-        // Show the same lowest "Nga €X" figure the homepage/rooms cards show, so a room
-        // type never shows two different headline prices across pages. The binding price
-        // is still computed per-night by checkAvailability (RoomPricing::total).
-        $roomTypes->each(fn ($rt) => $rt->base_price = RoomPricing::fromPrice($rt));
+        // Keep base_price intact and expose a separate public headline derived
+        // from the same effective date prices sent to OTAs.
+        $this->attachPublicFromPrices($roomTypes);
 
         return Inertia::render('Website/Book', [
             'roomTypes' => $roomTypes,
@@ -71,6 +73,16 @@ class WebsiteController extends Controller
             // instead of "Konfirmo", so the money step is never a surprise.
             'paymentRequired' => app(PokClient::class)->configured(),
         ]);
+    }
+
+    /** @param Collection<int, RoomType> $roomTypes */
+    private function attachPublicFromPrices($roomTypes): void
+    {
+        $fromPrices = $this->publicRoomPricing->fromPrices($roomTypes);
+        $roomTypes->each(fn (RoomType $roomType) => $roomType->setAttribute(
+            'from_price',
+            $fromPrices[$roomType->id] ?? null,
+        ));
     }
 
     public function checkAvailability(Request $request)

@@ -9,6 +9,10 @@ import { amenityIcon } from '@/Components/Website/amenities';
 const { t } = useI18n();
 
 defineProps({ roomTypes: Array });
+
+const hasFromPrice = (room) => room?.from_price !== null
+    && room?.from_price !== undefined
+    && Number(room.from_price) > 0;
 </script>
 
 <template>
@@ -38,9 +42,12 @@ defineProps({ roomTypes: Array });
                                     <div class="flex items-start justify-between gap-4">
                                         <h2 class="text-display-sm text-ink">{{ room.name }}</h2>
                                         <div class="text-right shrink-0">
-                                            <p class="text-tiny text-ink/40 uppercase tracking-wider">{{ $t('rooms.card.priceFrom') }}</p>
-                                            <p class="text-2xl text-brass leading-none">€{{ room.base_price }}</p>
-                                            <p class="text-tiny text-ink/40 uppercase tracking-wider mt-1">{{ $t('rooms.card.perNight') }}</p>
+                                            <template v-if="hasFromPrice(room)">
+                                                <p class="text-tiny text-ink/40 uppercase tracking-wider" :title="$t('rooms.card.fromPriceHint')">{{ $t('rooms.card.priceFrom') }}</p>
+                                                <p class="text-2xl text-brass leading-none">€{{ room.from_price }}</p>
+                                                <p class="text-tiny text-ink/40 uppercase tracking-wider mt-1">{{ $t('rooms.card.perNight') }}</p>
+                                            </template>
+                                            <p v-else class="max-w-28 text-body-sm font-medium text-ionian">{{ $t('rooms.card.checkDates') }}</p>
                                         </div>
                                     </div>
                                     <p class="text-body text-ink/60 mt-4 leading-relaxed">{{ room.description }}</p>

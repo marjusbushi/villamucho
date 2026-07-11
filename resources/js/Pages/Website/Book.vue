@@ -57,6 +57,9 @@ const otherCountries = countryOptions.filter((c) => !PRIORITY_COUNTRIES.includes
 
 // Selected room type → show its "from" price nicely + size the guest dropdowns.
 const selectedType = computed(() => props.roomTypes.find(rt => String(rt.id) === String(searchForm.value.room_type_id)) || null);
+const selectedTypeHasFromPrice = computed(() => selectedType.value?.from_price !== null
+    && selectedType.value?.from_price !== undefined
+    && Number(selectedType.value.from_price) > 0);
 const maxOcc = computed(() => selectedType.value?.max_occupancy || 8);
 const adultsOptions = computed(() => Array.from({ length: maxOcc.value }, (_, i) => i + 1));      // 1..max
 const childrenOptions = computed(() => Array.from({ length: maxOcc.value }, (_, i) => i));         // 0..max-1
@@ -228,7 +231,15 @@ watch(step, (s) => {
                                 <option value="">{{ $t('book.search.allTypes') }}</option>
                                 <option v-for="t in roomTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
                             </select>
-                            <p v-if="selectedType" class="mt-1.5 text-body-sm text-ionian font-medium">{{ $t('home.rooms.priceFrom') }} €{{ selectedType.base_price }} / {{ $t('book.search.perNight') }}</p>
+                            <div v-if="selectedType" class="mt-1.5">
+                                <p class="text-body-sm text-ionian font-medium">
+                                    <template v-if="selectedTypeHasFromPrice">
+                                        {{ $t('book.search.priceFrom') }} €{{ selectedType.from_price }} / {{ $t('book.search.perNight') }}
+                                    </template>
+                                    <span v-else>{{ $t('book.search.checkDatesForPrice') }}</span>
+                                </p>
+                                <p class="mt-0.5 text-tiny text-neutral-400">{{ $t('book.search.priceHint') }}</p>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
