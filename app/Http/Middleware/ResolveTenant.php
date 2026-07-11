@@ -15,6 +15,17 @@ class ResolveTenant
 
     public function handle(Request $request, Closure $next): Response
     {
+        // The Lora PMS product website is deliberately tenantless. Exact host
+        // allow-listing prevents an unknown hotel domain from bypassing tenant
+        // resolution while keeping the product homepage independent from hotel
+        // data. Other routes on the same host (login/PMS) still resolve tenant.
+        $tenantlessProductRoute = $request->routeIs('website.home')
+            || $request->routeIs('login', 'password.*');
+
+        if ($tenantlessProductRoute && $this->isMarketingHost($request)) {
+            return $next($request);
+        }
+
         $tenant = $this->resolve($request);
 
         abort_unless($tenant, 404, 'Hotel not found.');
@@ -28,6 +39,15 @@ class ResolveTenant
             // into the next request/job.
             $this->context->clear();
         }
+    }
+
+    private function isMarketingHost(Request $request): bool
+    {
+        return in_array(
+            strtolower($request->getHost()),
+            config('lora.marketing_hosts', []),
+            true,
+        );
     }
 
     private function resolve(Request $request): ?Tenant
