@@ -37,7 +37,7 @@ class ResolveTenant
 
         if ($user && $requestedTenantId) {
             $allowed = $user->is_super_admin
-                || $user->tenants()->whereKey($requestedTenantId)->exists();
+                || $user->activeTenants()->whereKey($requestedTenantId)->exists();
 
             if ($allowed) {
                 return Tenant::query()->active()->find($requestedTenantId);
@@ -46,7 +46,7 @@ class ResolveTenant
 
         if ($user?->current_tenant_id) {
             $allowed = $user->is_super_admin
-                || $user->tenants()->whereKey($user->current_tenant_id)->exists();
+                || $user->activeTenants()->whereKey($user->current_tenant_id)->exists();
 
             if ($allowed) {
                 $tenant = Tenant::query()->active()->find($user->current_tenant_id);
@@ -62,13 +62,13 @@ class ResolveTenant
             ->first()?->tenant;
 
         if ($domainTenant?->status === 'active') {
-            if (! $user || $user->is_super_admin || $user->tenants()->whereKey($domainTenant->id)->exists()) {
+            if (! $user || $user->is_super_admin || $user->activeTenants()->whereKey($domainTenant->id)->exists()) {
                 return $domainTenant;
             }
         }
 
         if ($user) {
-            return $user->tenants()->active()->orderBy('tenants.id')->first();
+            return $user->activeTenants()->active()->orderBy('tenants.id')->first();
         }
 
         return null;

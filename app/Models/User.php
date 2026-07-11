@@ -34,7 +34,8 @@ class User extends Authenticatable
                     $query->selectRaw('1')
                         ->from('tenant_user')
                         ->whereColumn('tenant_user.user_id', 'users.id')
-                        ->where('tenant_user.tenant_id', $tenantId);
+                        ->where('tenant_user.tenant_id', $tenantId)
+                        ->where('tenant_user.is_active', true);
                 });
             }
         });
@@ -48,7 +49,7 @@ class User extends Authenticatable
 
             if ($tenantId !== null) {
                 $user->tenants()->syncWithoutDetaching([
-                    $tenantId => ['is_owner' => false],
+                    $tenantId => ['is_owner' => false, 'is_active' => true],
                 ]);
             }
         });
@@ -82,8 +83,13 @@ class User extends Authenticatable
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenant::class)
-            ->withPivot('is_owner')
+            ->withPivot(['is_owner', 'is_active'])
             ->withTimestamps();
+    }
+
+    public function activeTenants(): BelongsToMany
+    {
+        return $this->tenants()->wherePivot('is_active', true);
     }
 
     public function currentTenant(): BelongsTo
@@ -105,7 +111,9 @@ class User extends Authenticatable
 
         $tenantId = app(TenantContext::class)->id() ?? $user->current_tenant_id;
         if ($tenantId) {
-            $user->tenants()->syncWithoutDetaching([$tenantId => ['is_owner' => false]]);
+            $user->tenants()->syncWithoutDetaching([
+                $tenantId => ['is_owner' => false, 'is_active' => true],
+            ]);
         }
 
         return $user;

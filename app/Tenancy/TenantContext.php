@@ -4,6 +4,7 @@ namespace App\Tenancy;
 
 use App\Models\Tenant;
 use Closure;
+use Spatie\Permission\PermissionRegistrar;
 
 class TenantContext
 {
@@ -12,6 +13,7 @@ class TenantContext
     public function set(?Tenant $tenant): void
     {
         $this->tenant = $tenant;
+        app(PermissionRegistrar::class)->setPermissionsTeamId($tenant?->getKey());
     }
 
     public function tenant(): ?Tenant
@@ -33,18 +35,18 @@ class TenantContext
 
     public function clear(): void
     {
-        $this->tenant = null;
+        $this->set(null);
     }
 
     public function run(Tenant $tenant, Closure $callback): mixed
     {
         $previous = $this->tenant;
-        $this->tenant = $tenant;
+        $this->set($tenant);
 
         try {
             return $callback($tenant);
         } finally {
-            $this->tenant = $previous;
+            $this->set($previous);
         }
     }
 }

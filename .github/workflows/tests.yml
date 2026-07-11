@@ -111,3 +111,71 @@ jobs:
 
       - name: Verify MySQL migrations
         run: php artisan migrate:fresh --force
+
+  mysql-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: testing_upgrade
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:4Cq6c8e+3Yi8oFv3NgTQ8zrThm3nZI2uv8Y4OUYHiRw=
+      APP_URL: http://localhost
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3307
+      DB_DATABASE: testing_upgrade
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+
+    steps:
+      - name: Checkout current staging schema
+        uses: actions/checkout@v5
+        with:
+          ref: staging
+          fetch-depth: 0
+
+      - name: PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_mysql
+          coverage: none
+
+      - name: Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Build current staging database
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Checkout candidate code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: false
+
+      - name: Verify upgrade from staging
+        run: php artisan migrate --force
+
+      - name: Verify role backfill
+        run: |
+          php artisan tinker --execute="throw_unless(\Illuminate\Support\Facades\DB::table('roles')->whereNull('team_id')->doesntExist());"
+          php artisan tinker --execute="throw_unless(\Illuminate\Support\Facades\DB::table('model_has_roles')->whereNull('team_id')->doesntExist());"
+          php artisan tinker --execute="throw_unless(\Illuminate\Support\Facades\DB::table('tenant_user')->where('is_active', false)->doesntExist());"
