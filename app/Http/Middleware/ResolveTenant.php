@@ -15,6 +15,13 @@ class ResolveTenant
 
     public function handle(Request $request, Closure $next): Response
     {
+        if (str_starts_with(strtolower($request->getHost()), 'www.')) {
+            $canonicalHost = substr($request->getHost(), 4);
+            $canonicalUrl = $request->getScheme().'://'.$canonicalHost.$request->getRequestUri();
+
+            return redirect()->away($canonicalUrl, Response::HTTP_PERMANENTLY_REDIRECT);
+        }
+
         $tenant = $this->resolve($request);
 
         abort_unless($tenant, 404, 'Hotel not found.');
