@@ -12,6 +12,8 @@ const props = defineProps({
     roomTypes: { type: Array, default: () => [] },       // {id, name, min_price, max_price}
     selectedTypeId: { type: [Number, String], default: null },
     days: { type: Array, default: () => [] },            // engine rows + dow/is_weekend/holiday
+    market: { type: Object, default: () => ({}) },       // rate shopping: date => {median,min,max,count}
+    marketEnabled: { type: Boolean, default: false },
     month: { type: String, default: '' },
     prevMonth: { type: String, default: '' },
     nextMonth: { type: String, default: '' },
@@ -557,6 +559,11 @@ function syncLabel(ts) {
                                 {{ d.adjustment_pct > 0 ? '▲' : '▼' }} {{ currency }}{{ fmtPrice(d.suggested_price) }}<span v-if="d.clamped" :title="'I ndalur te kufiri ' + (d.clamped === 'max' ? 'maksimal' : 'minimal')"> 🔒</span>
                             </div>
 
+                            <!-- rate shopping: market median for the date (display only) -->
+                            <div v-if="market[d.date]" class="mt-0.5 text-[10px] text-neutral-500 tabular-nums leading-none" :title="'Tregu: ' + market[d.date].count + ' konkurrentë, ' + currency + market[d.date].min + '–' + currency + market[d.date].max">
+                                ⌂ {{ currency }}{{ fmtPrice(market[d.date].median) }}
+                            </div>
+
                             <span v-if="d.total > 0 && d.booked >= d.total" class="absolute bottom-1.5 left-2 text-[10px] font-bold text-white bg-primary-900 rounded px-1.5 py-0.5 leading-none">plot</span>
                             <span v-if="d.has_override" class="absolute bottom-2 right-2 w-2 h-2 rounded-full bg-info-500" title="Çmim i vendosur nga ti" />
                         </div>
@@ -570,6 +577,7 @@ function syncLabel(ts) {
                         <span><i class="inline-block w-2.5 h-2.5 rounded-sm bg-warning-100 border border-warning-200 mr-1.5 align-[-1px]" />Po mbushet</span>
                         <span><i class="inline-block w-2.5 h-2.5 rounded-sm bg-error-100 border border-error-200 mr-1.5 align-[-1px]" />Plot</span>
                         <span><span class="text-error-600 font-bold mr-1">⚑</span>Festë</span>
+                        <span v-if="marketEnabled"><span class="font-bold mr-1">⌂</span>Tregu (mediana e konkurrentëve)</span>
                         <span><i class="inline-block w-2 h-2 rounded-full bg-info-500 mr-1.5 align-[0px]" />Çmim i vendosur nga ti</span>
                     </div>
 

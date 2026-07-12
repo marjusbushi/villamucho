@@ -36,6 +36,17 @@ class SettingsController extends Controller
             'gemini_from_env' => empty($aiKey) && ! empty(config('services.gemini.key')),
         ];
 
+        // Rate shopping (market_rates): same rule — never ship the raw key.
+        $marketKey = trim((string) ($settings['market_rates']['api_key'] ?? ''));
+        $settings['market_rates'] = [
+            'enabled' => (bool) ($settings['market_rates']['enabled'] ?? false),
+            'configured' => $marketKey !== '',
+            'api_key_hint' => $marketKey !== '' ? str_repeat('•', 6).substr($marketKey, -4) : null,
+            'competitors' => \App\Services\MarketRates::competitors(),
+            'frequency' => \App\Services\MarketRates::frequency(),
+            'search_query' => \App\Services\MarketRates::searchQuery(),
+        ];
+
         return Inertia::render('Settings/Index', [
             'settings' => $settings,
             'checklistDefaults' => CleaningTask::DEFAULT_CHECKLISTS,
@@ -335,6 +346,45 @@ class SettingsController extends Controller
         Setting::set('ai.gemini_key', $key, 'text');
 
         return back()->with('success', 'Çelësi AI u ruajt. Asistenti i çmimeve tani është aktiv.');
+    }
+
+    // --- Market rates (rate shopping — competitor prices, Phase 1) ---
+    public function updateMarketRates(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'api_key' => ['nullable', 'string', 'max:200'],
+            'clear_key' => ['nullable', 'boolean'],
+            'competitors' => ['required', 'array', 'min:1', 'max:30'],
+            // nullable: blank rows become null via ConvertEmptyStringsToNull —
+            // the sanitize step below drops them rather than failing the save.
+            'competitors.*' => ['nullable', 'string', 'max:120'],
+            'frequency' => ['required', 'in:daily,3x_week'],
+            'search_query' => ['required', 'string', 'max:120'],
+        ]);
+
+        // Trim + drop blank rows server-side (don't trust the client list).
+        $competitors = collect($data['competitors'])
+            ->map(fn ($c) => trim((string) $c))
+            ->filter(fn ($c) => $c !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        Setting::set('market_rates.enabled', $data['enabled'] ? '1' : '0', 'boolean');
+        Setting::set('market_rates.competitors', $competitors, 'json');
+        Setting::set('market_rates.frequency', $data['frequency'], 'text');
+        Setting::set('market_rates.search_query', trim($data['search_query']), 'text');
+
+        if ($request->boolean('clear_key')) {
+            Setting::set('market_rates.api_key', '', 'text');
+        } elseif (trim((string) ($data['api_key'] ?? '')) !== '') {
+            // An empty field means "keep the stored key" — the form never
+            // receives the real key back, only a masked hint.
+            Setting::set('market_rates.api_key', trim($data['api_key']), 'text');
+        }
+
+        return back()->with('success', 'Çmimet e tregut u ruajtën.');
     }
 
     // --- Room Types CRUD ---
