@@ -13,6 +13,7 @@ use App\Models\RateOverride;
 use App\Models\RoomType;
 use App\Models\Setting;
 use App\Services\AiPricing;
+use App\Services\MarketRates;
 use App\Services\OtaPricingPrograms;
 use App\Services\PricingEngine;
 use App\Services\PricingRulesVersion;
@@ -131,6 +132,10 @@ class SmartPricingController extends Controller
             'prevMonth' => $from->copy()->subMonth()->toDateString(),
             'nextMonth' => $from->copy()->addMonth()->toDateString(),
             'days' => SmartPricing::calendar($selected, $from, $to),
+            // Rate shopping (Phase 1): market median/min/max per date, DISPLAY
+            // only — the engine's suggestions are computed without it.
+            'market' => MarketRates::summaryForRange($from, $to),
+            'marketEnabled' => MarketRates::enabled(),
         ]));
     }
 
