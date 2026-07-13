@@ -6,6 +6,8 @@ use App\Models\Bill;
 use App\Models\FinanceAccount;
 use App\Models\FinancePayment;
 use App\Models\Invoice;
+use App\Models\Payment;
+use App\Models\PosShift;
 use App\Models\Reservation;
 use App\Models\Setting;
 use App\Models\Supplier;
@@ -147,7 +149,7 @@ class FinanceController extends Controller
             ],
             'cashflow' => $cashflow,
             'alerts' => $alerts,
-            'latest' => $this->paymentRows(FinancePayment::with(['account:id,name', 'counterAccount:id,name'])
+            'latest' => $this->paymentRows(FinancePayment::with($this->paymentRelations())
                 ->latest('paid_at')->latest('id')->limit(8)->get()),
         ]));
     }
@@ -166,7 +168,7 @@ class FinanceController extends Controller
         }
 
         // Ledger with a running balance, computed oldest-first then shown newest-first.
-        $rows = FinancePayment::with(['account:id,name', 'counterAccount:id,name'])
+        $rows = FinancePayment::with($this->paymentRelations())
             ->where(fn ($q) => $q->where('account_id', $selectedId)->orWhere('counter_account_id', $selectedId))
             ->orderBy('paid_at')->orderBy('id')
             ->get();
@@ -264,7 +266,7 @@ class FinanceController extends Controller
         ];
 
         $payments = $this->filteredPaymentsQuery($request, $filters)
-            ->with(['account:id,name', 'counterAccount:id,name'])
+            ->with($this->paymentRelations())
             ->latest('paid_at')->latest('id')
             ->paginate($filters['per_page'])->withQueryString()
             ->through(fn ($p) => $this->paymentRow($p));
@@ -283,7 +285,7 @@ class FinanceController extends Controller
         $accounts = $this->visibleAccounts($request);
         $filters = $this->paymentFilters($request, $accounts->pluck('id')->all());
         $query = $this->filteredPaymentsQuery($request, $filters)
-            ->with(['account:id,name', 'counterAccount:id,name'])
+            ->with($this->paymentRelations())
             ->latest('paid_at')->latest('id');
 
         return response()->streamDownload(function () use ($query) {
@@ -403,6 +405,7 @@ class FinanceController extends Controller
         $filter = $request->input('filter');
         $category = $request->input('category');
         $search = trim((string) $request->input('search', ''));
+        $billId = $request->integer('bill_id') ?: null;
         $today = CarbonImmutable::today();
 
         // This month's spend per category (paid or not — commitment view),
@@ -460,7 +463,7 @@ class FinanceController extends Controller
             'accounts' => $this->visibleAccounts($request),
             'suppliers' => Supplier::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'categories' => Bill::categories(),
-            'filters' => ['filter' => $filter, 'category' => $category, 'search' => $search],
+            'filters' => ['filter' => $filter, 'category' => $category, 'search' => $search, 'bill_id' => $billId],
             'byCategory' => $byCategory,
             'summary' => $summary,
             'priorities' => $priorities,
@@ -469,6 +472,7 @@ class FinanceController extends Controller
                 ->when($filter === 'unpaid', fn ($qq) => $qq->where('status', '!=', 'paid'))
                 ->when(in_array($filter, ['due', 'overdue'], true), fn ($qq) => $qq->where('status', '!=', 'paid')->whereDate('due_date', '<', $today->toDateString()))
                 ->when($filter === 'paid', fn ($qq) => $qq->where('status', 'paid'))
+                ->when($billId, fn ($qq) => $qq->whereKey($billId))
                 ->when($category, fn ($qq) => $qq->where('category', $category))
                 ->when($search !== '', fn ($qq) => $qq->where(function ($searchQuery) use ($search) {
                     $searchQuery->where('number', 'like', "%{$search}%")
@@ -495,6 +499,27 @@ class FinanceController extends Controller
         Bill::create($data + ['status' => 'open']);
 
         return back()->with('success', 'Fatura e blerjes u regjistrua.');
+    }
+
+    public function storeBillCategory(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:60', function (string $attribute, mixed $value, \Closure $fail) {
+                $normalized = mb_strtolower(trim((string) $value));
+                $exists = collect(Bill::categories())
+                    ->contains(fn (string $category) => mb_strtolower(trim($category)) === $normalized);
+
+                if ($exists) {
+                    $fail('Kjo kategori ekziston tashmë.');
+                }
+            }],
+        ]);
+
+        $categories = Bill::categories();
+        $categories[] = trim($data['name']);
+        Setting::set('financial.expense_categories', array_values($categories), 'json');
+
+        return back()->with('success', 'Kategoria u shtua.');
     }
 
     /** Pay a bill (fully or partially) from a visible account — atomic. */
@@ -618,6 +643,7 @@ class FinanceController extends Controller
 
         return Inertia::render('Finance/Suppliers', array_merge($this->shared($request), [
             'suppliers' => $suppliers,
+            'focusSupplierId' => $request->integer('supplier_id') ?: null,
             'summary' => $summary,
             'categories' => Bill::categories(),
         ]));
@@ -878,10 +904,23 @@ class FinanceController extends Controller
 
     protected function paymentRow(FinancePayment $p): array
     {
+        $source = $p->sourceable;
+        $reservationId = match (true) {
+            $source instanceof Payment => $source->reservation_id,
+            (bool) $p->invoice?->reservation_id => $p->invoice->reservation_id,
+            default => null,
+        };
+        $canViewReservations = request()->user()?->can('view_reservations') ?? false;
+        $canViewReports = request()->user()?->can('view_reports') ?? false;
+        $bill = $p->bill;
+        $supplier = $bill?->supplier;
+
         return [
             'id' => $p->id,
             'direction' => $p->direction,
+            'account_id' => $p->account_id,
             'account' => $p->account?->name,
+            'counter_account_id' => $p->counter_account_id,
             'counter_account' => $p->counterAccount?->name,
             'amount' => (float) $p->amount,
             'currency' => $p->currency,
@@ -890,6 +929,50 @@ class FinanceController extends Controller
             'source' => $p->source,
             'description' => $p->description,
             'paid_at' => $p->paid_at->toDateTimeString(),
+            'created_by' => $p->createdBy?->name,
+            'related' => [
+                'reservation' => $reservationId ? [
+                    'id' => $reservationId,
+                    'label' => 'Rezervimi #'.$reservationId,
+                    'href' => $canViewReservations ? route('reservations.show', $reservationId) : null,
+                ] : null,
+                'bill' => $bill ? [
+                    'id' => $bill->id,
+                    'label' => 'Fatura '.($bill->number ?: '#'.$bill->id).' · '.$bill->category,
+                    'href' => route('finance.bills', ['bill_id' => $bill->id]),
+                ] : null,
+                'supplier' => $supplier ? [
+                    'id' => $supplier->id,
+                    'label' => $supplier->name,
+                    'href' => route('finance.suppliers', ['supplier_id' => $supplier->id]),
+                ] : null,
+                'invoice' => $p->invoice ? [
+                    'id' => $p->invoice->id,
+                    'label' => 'Fatura '.$p->invoice->number,
+                    'href' => $reservationId && $canViewReservations ? route('reservations.show', $reservationId) : null,
+                ] : null,
+                'source' => match (true) {
+                    $source instanceof PosShift => [
+                        'id' => $source->id,
+                        'label' => 'Turni POS #'.$source->id,
+                        'href' => $canViewReports ? route('reports.shifts') : null,
+                    ],
+                    default => null,
+                },
+            ],
+        ];
+    }
+
+    /** Relationships required to build stable, ID-based navigation links. */
+    protected function paymentRelations(): array
+    {
+        return [
+            'account:id,name',
+            'counterAccount:id,name',
+            'bill.supplier:id,name',
+            'invoice:id,number,reservation_id',
+            'sourceable',
+            'createdBy:id,name',
         ];
     }
 }

@@ -233,82 +233,80 @@ function submit() {
 </script>
 
 <template>
-    <Modal :show="show" title="Rezervim i ri" max-width="lg" @close="emit('close')">
+    <Modal :show="show" :title="$t('admin.generated.k_cea379e779d3')" max-width="lg" @close="emit('close')">
         <form class="space-y-4" @submit.prevent="submit">
             <!-- Shared: guest + dates + channel -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="Mysafiri" :error="form.errors.guest_id" required>
-                    <SearchableSelect v-model="form.guest_id" :options="guestOptions" placeholder="Zgjidh mysafirin..." search-placeholder="Kërko mysafir…" :error="form.errors.guest_id" />
+                <FormGroup :label="$t('admin.generated.k_fd3481133d25')" :error="form.errors.guest_id" required>
+                    <SearchableSelect v-model="form.guest_id" :options="guestOptions" :placeholder="$t('admin.generated.k_738e39ddf7e3')" :search-placeholder="$t('admin.generated.k_d9965f809f66')" :error="form.errors.guest_id" />
                     <button v-if="canCreateGuest" type="button" class="mt-1.5 text-tiny text-accent-700 hover:text-accent-800" @click="showNewGuest = !showNewGuest">
-                        {{ showNewGuest ? '− Mbyll' : '+ Mysafir i ri' }}
+                        {{ showNewGuest ? $t('admin.generated.k_343301bf2715') : $t('admin.generated.k_857d0eeb0c90') }}
                     </button>
                 </FormGroup>
-                <FormGroup label="Burimi" :error="form.errors.channel">
+                <FormGroup :label="$t('admin.generated.k_fdfb0b54ae04')" :error="form.errors.channel">
                     <Select v-model="form.channel" :options="channelOptions" :error="form.errors.channel" />
                 </FormGroup>
-                <FormGroup label="Check-in" :error="form.errors.check_in_date" required>
+                <FormGroup :label="$t('admin.generated.k_7eb4cdcb93e4')" :error="form.errors.check_in_date" required>
                     <DatePicker v-model="form.check_in_date" :error="form.errors.check_in_date" />
                 </FormGroup>
-                <FormGroup label="Check-out" :error="form.errors.check_out_date" required>
+                <FormGroup :label="$t('admin.generated.k_7f8bf0962d79')" :error="form.errors.check_out_date" required>
                     <DatePicker v-model="form.check_out_date" :error="form.errors.check_out_date" />
                 </FormGroup>
             </div>
 
             <!-- Inline new-guest panel (stays inside this modal) -->
             <div v-if="showNewGuest" class="rounded-lg border border-accent-200 bg-accent-50/40 p-4 space-y-3">
-                <p class="text-label text-neutral-700">Shto nje mysafir te ri</p>
+                <p class="text-label text-neutral-700">{{ $t('admin.generated.k_a9f4d1906bfa') }}</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FormGroup label="Emri" :error="guestForm.errors.first_name" required>
-                        <TextInput v-model="guestForm.first_name" placeholder="Emri" :error="guestForm.errors.first_name" />
+                    <FormGroup :label="$t('admin.generated.k_5aad3192c3c3')" :error="guestForm.errors.first_name" required>
+                        <TextInput v-model="guestForm.first_name" :placeholder="$t('admin.generated.k_5aad3192c3c3')" :error="guestForm.errors.first_name" />
                     </FormGroup>
-                    <FormGroup label="Mbiemri" :error="guestForm.errors.last_name" required>
-                        <TextInput v-model="guestForm.last_name" placeholder="Mbiemri" :error="guestForm.errors.last_name" />
+                    <FormGroup :label="$t('admin.generated.k_1487093f2402')" :error="guestForm.errors.last_name" required>
+                        <TextInput v-model="guestForm.last_name" :placeholder="$t('admin.generated.k_1487093f2402')" :error="guestForm.errors.last_name" />
                     </FormGroup>
-                    <FormGroup label="Email" :error="guestForm.errors.email">
-                        <TextInput type="email" v-model="guestForm.email" placeholder="email (opsional)" :error="guestForm.errors.email" />
+                    <FormGroup :label="$t('admin.generated.k_8c2719d64940')" :error="guestForm.errors.email">
+                        <TextInput type="email" v-model="guestForm.email" :placeholder="$t('admin.generated.k_fbb06aa6a63d')" :error="guestForm.errors.email" />
                     </FormGroup>
-                    <FormGroup label="Telefon" :error="guestForm.errors.phone">
+                    <FormGroup :label="$t('admin.generated.k_7f0c2a42b868')" :error="guestForm.errors.phone">
                         <TextInput v-model="guestForm.phone" placeholder="+355..." :error="guestForm.errors.phone" />
                     </FormGroup>
-                    <FormGroup label="Kombesia" :error="guestForm.errors.nationality">
-                        <Select v-model="guestForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin..." :error="guestForm.errors.nationality" />
+                    <FormGroup :label="$t('admin.generated.k_fff375ddc834')" :error="guestForm.errors.nationality">
+                        <Select v-model="guestForm.nationality" :options="countryOptions" :placeholder="$t('admin.generated.k_08ef11bb4742')" :error="guestForm.errors.nationality" />
                     </FormGroup>
                 </div>
                 <div class="flex justify-end gap-2">
-                    <Button variant="outline" type="button" @click="showNewGuest = false">Anulo</Button>
-                    <Button variant="primary" type="button" :loading="guestForm.processing" @click="saveNewGuest">Ruaj mysafirin</Button>
+                    <Button variant="outline" type="button" @click="showNewGuest = false">{{ $t('admin.generated.k_37bf3ada5d70') }}</Button>
+                    <Button variant="primary" type="button" :loading="guestForm.processing" @click="saveNewGuest">{{ $t('admin.generated.k_2b2b0b52468a') }}</Button>
                 </div>
             </div>
 
             <!-- Rooms (one reservation each) -->
             <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                    <p class="text-label text-neutral-700">Dhomat</p>
+                    <p class="text-label text-neutral-700">{{ $t('admin.generated.k_4af5b1381793') }}</p>
                     <Button variant="outline" size="sm" type="button" @click="addRoom">
-                        <Plus class="h-4 w-4 mr-1" :stroke-width="2" /> Shto dhome
-                    </Button>
+                        <Plus class="h-4 w-4 mr-1" :stroke-width="2" /> {{ $t('admin.generated.k_caf24c510534') }} </Button>
                 </div>
 
                 <div v-for="(row, i) in form.rooms" :key="row.uid" class="rounded-lg border border-neutral-200 p-3">
                     <div class="flex items-start gap-3">
                         <div class="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            <FormGroup label="Dhoma" :error="form.errors[`rooms.${i}.room_id`]" required class="col-span-2">
-                                <Select :model-value="row.room_id" :options="roomOptions" placeholder="Zgjidh dhomen..." :error="form.errors[`rooms.${i}.room_id`]" @update:model-value="(v) => onRoomChange(i, v)" />
+                            <FormGroup :label="$t('admin.generated.k_8619d7a60df6')" :error="form.errors[`rooms.${i}.room_id`]" required class="col-span-2">
+                                <Select :model-value="row.room_id" :options="roomOptions" :placeholder="$t('admin.generated.k_d48d734ab86c')" :error="form.errors[`rooms.${i}.room_id`]" @update:model-value="(v) => onRoomChange(i, v)" />
                             </FormGroup>
-                            <FormGroup label="Te rritur">
+                            <FormGroup :label="$t('admin.generated.k_daa5d0d601e1')">
                                 <Select :model-value="row.adults" :options="adultsOptionsFor(row.room_id)" placeholder="" @update:model-value="(v) => onAdultsChange(i, v)" />
                             </FormGroup>
-                            <FormGroup label="Femije">
+                            <FormGroup :label="$t('admin.generated.k_2d2922dbc74e')">
                                 <Select v-model="row.children" :options="childrenOptionsFor(row)" placeholder="" />
                             </FormGroup>
-                            <FormGroup label="Cmimi (me fee)" :error="form.errors[`rooms.${i}.total_amount`]" class="col-span-2">
+                            <FormGroup :label="$t('admin.generated.k_cabb7b3cad73')" :error="form.errors[`rooms.${i}.total_amount`]" class="col-span-2">
                                 <TextInput type="number" :model-value="row.total_amount" min="0" step="0.01" placeholder="0.00" @update:model-value="(v) => onPriceInput(i, v)" />
                             </FormGroup>
                             <p v-if="maxOccFor(row.room_id)" class="col-span-2 self-end pb-2 text-tiny text-neutral-500">
-                                Kapaciteti: {{ maxOccFor(row.room_id) }} persona
-                            </p>
+{{ $t('admin.generated.k_20f2bb97613f') }} {{ maxOccFor(row.room_id) }} {{ $t('admin.generated.k_c9b289316ea6') }} </p>
                         </div>
-                        <button v-if="form.rooms.length > 1" type="button" class="mt-7 text-neutral-400 hover:text-error-600" title="Hiq dhomen" @click="removeRoom(i)">
+                        <button v-if="form.rooms.length > 1" type="button" class="mt-7 text-neutral-400 hover:text-error-600" :title="$t('admin.generated.k_5492d4e2fe2c')" @click="removeRoom(i)">
                             <X class="h-4 w-4" :stroke-width="2" />
                         </button>
                     </div>
@@ -319,18 +317,18 @@ function submit() {
 
             <!-- Totals -->
             <div class="rounded-lg bg-neutral-50 border border-neutral-100 px-4 py-2.5 flex items-center gap-x-6 gap-y-1 flex-wrap text-body-sm">
-                <span class="text-neutral-500">Total: <span class="text-neutral-900 font-medium">€{{ totalAmount.toFixed(2) }}</span></span>
-                <span class="text-neutral-500">Komisioni <span class="text-neutral-400">{{ feePct(form.channel) }}%</span>: <span class="text-neutral-900 font-medium">€{{ commission.toFixed(2) }}</span></span>
-                <span class="text-neutral-500">Neto: <span class="text-accent-700 font-semibold">€{{ net.toFixed(2) }}</span></span>
+                <span class="text-neutral-500">{{ $t('admin.generated.k_1e69e5ea1627') }} <span class="text-neutral-900 font-medium">€{{ totalAmount.toFixed(2) }}</span></span>
+                <span class="text-neutral-500">{{ $t('admin.generated.k_f2167a394c1f') }} <span class="text-neutral-400">{{ feePct(form.channel) }}%</span>: <span class="text-neutral-900 font-medium">€{{ commission.toFixed(2) }}</span></span>
+                <span class="text-neutral-500">{{ $t('admin.generated.k_fc689ff2a9a7') }} <span class="text-accent-700 font-semibold">€{{ net.toFixed(2) }}</span></span>
             </div>
 
-            <FormGroup label="Shenime">
-                <Textarea v-model="form.notes" placeholder="Kerkesa speciale..." :rows="2" />
+            <FormGroup :label="$t('admin.generated.k_2c38f71a5f9b')">
+                <Textarea v-model="form.notes" :placeholder="$t('admin.generated.k_ac6bf44f81ce')" :rows="2" />
             </FormGroup>
         </form>
         <template #footer>
-            <Button variant="outline" @click="emit('close')">Anulo</Button>
-            <Button variant="primary" :loading="form.processing" @click="submit">Krijo rezervim</Button>
+            <Button variant="outline" @click="emit('close')">{{ $t('admin.generated.k_37bf3ada5d70') }}</Button>
+            <Button variant="primary" :loading="form.processing" @click="submit">{{ $t('admin.generated.k_a200aa0ff0bb') }}</Button>
         </template>
     </Modal>
 </template>

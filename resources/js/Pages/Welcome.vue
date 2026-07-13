@@ -27,7 +27,7 @@ function handleImageError() {
 </script>
 
 <template>
-    <Head title="Welcome" />
+    <Head :title="$t('admin.generated.k_263a8769ed09')" />
     <div class="bg-gray-50 text-black/50 dark:bg-black dark:text-white/50">
         <img
             id="background"
@@ -60,24 +60,21 @@ function handleImageError() {
                             :href="route('dashboard')"
                             class="rounded-md px-3 py-2 text-black ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] dark:text-white dark:hover:text-white/80 dark:focus-visible:ring-white"
                         >
-                            Dashboard
-                        </Link>
+{{ $t('admin.generated.k_767da7b4c503') }} </Link>
 
                         <template v-else>
                             <Link
                                 :href="route('login')"
                                 class="rounded-md px-3 py-2 text-black ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] dark:text-white dark:hover:text-white/80 dark:focus-visible:ring-white"
                             >
-                                Log in
-                            </Link>
+{{ $t('admin.generated.k_93040c8046bb') }} </Link>
 
                             <Link
                                 v-if="canRegister"
                                 :href="route('register')"
                                 class="rounded-md px-3 py-2 text-black ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] dark:text-white dark:hover:text-white/80 dark:focus-visible:ring-white"
                             >
-                                Register
-                            </Link>
+{{ $t('admin.generated.k_68ae92d0435e') }} </Link>
                         </template>
                     </nav>
                 </header>
@@ -95,13 +92,13 @@ function handleImageError() {
                             >
                                 <img
                                     src="https://laravel.com/assets/img/welcome/docs-light.svg"
-                                    alt="Laravel documentation screenshot"
+                                    :alt="$t('admin.generated.k_388827188910')"
                                     class="aspect-video h-full w-full flex-1 rounded-[10px] object-cover object-top drop-shadow-[0px_4px_34px_rgba(0,0,0,0.06)] dark:hidden"
                                     @error="handleImageError"
                                 />
                                 <img
                                     src="https://laravel.com/assets/img/welcome/docs-dark.svg"
-                                    alt="Laravel documentation screenshot"
+                                    :alt="$t('admin.generated.k_388827188910')"
                                     class="hidden aspect-video h-full w-full flex-1 rounded-[10px] object-cover object-top drop-shadow-[0px_4px_34px_rgba(0,0,0,0.25)] dark:block"
                                 />
                                 <div
@@ -140,18 +137,10 @@ function handleImageError() {
                                         <h2
                                             class="text-xl font-semibold text-black dark:text-white"
                                         >
-                                            Documentation
-                                        </h2>
+{{ $t('admin.generated.k_f23eac7bd676') }} </h2>
 
                                         <p class="mt-4 text-sm/relaxed">
-                                            Laravel has wonderful documentation
-                                            covering every aspect of the
-                                            framework. Whether you are a
-                                            newcomer or have prior experience
-                                            with Laravel, we recommend reading
-                                            our documentation from beginning to
-                                            end.
-                                        </p>
+{{ $t('admin.generated.k_135cf97ca9b2') }} </p>
                                     </div>
                                 </div>
 
@@ -196,16 +185,10 @@ function handleImageError() {
                                 <h2
                                     class="text-xl font-semibold text-black dark:text-white"
                                 >
-                                    Laracasts
-                                </h2>
+{{ $t('admin.generated.k_fabd74f29fab') }} </h2>
 
                                 <p class="mt-4 text-sm/relaxed">
-                                    Laracasts offers thousands of video
-                                    tutorials on Laravel, PHP, and JavaScript
-                                    development. Check them out, see for
-                                    yourself, and massively level up your
-                                    development skills in the process.
-                                </p>
+{{ $t('admin.generated.k_c318e622bbeb') }} </p>
                             </div>
 
                             <svg
@@ -254,16 +237,10 @@ function handleImageError() {
                                 <h2
                                     class="text-xl font-semibold text-black dark:text-white"
                                 >
-                                    Laravel News
-                                </h2>
+{{ $t('admin.generated.k_fadb212a82ab') }} </h2>
 
                                 <p class="mt-4 text-sm/relaxed">
-                                    Laravel News is a community driven portal
-                                    and newsletter aggregating all of the latest
-                                    and most important news in the Laravel
-                                    ecosystem, including new package releases
-                                    and tutorials.
-                                </p>
+{{ $t('admin.generated.k_3a4f1d647164') }} </p>
                             </div>
 
                             <svg
@@ -305,71 +282,63 @@ function handleImageError() {
                                 <h2
                                     class="text-xl font-semibold text-black dark:text-white"
                                 >
-                                    Vibrant Ecosystem
-                                </h2>
+{{ $t('admin.generated.k_1ecc3596a52c') }} </h2>
 
                                 <p class="mt-4 text-sm/relaxed">
-                                    Laravel's robust library of first-party
-                                    tools and libraries, such as
-                                    <a
+{{ $t('admin.generated.k_21edcc944577') }} <a
                                         href="https://forge.laravel.com"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white dark:focus-visible:ring-[#FF2D20]"
-                                        >Forge</a
+                                        >{{ $t('admin.generated.k_9e9753e8be05') }}</a
                                     >,
                                     <a
                                         href="https://vapor.laravel.com"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Vapor</a
+                                        >{{ $t('admin.generated.k_7975f9bc73d7') }}</a
                                     >,
                                     <a
                                         href="https://nova.laravel.com"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Nova</a
+                                        >{{ $t('admin.generated.k_85ee6923c497') }}</a
                                     >,
                                     <a
                                         href="https://envoyer.io"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Envoyer</a
-                                    >, and
-                                    <a
+                                        >{{ $t('admin.generated.k_cc03fbeab38e') }}</a
+                                    >{{ $t('admin.generated.k_a5bb74bdb6c5') }} <a
                                         href="https://herd.laravel.com"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Herd</a
+                                        >{{ $t('admin.generated.k_acc64fa3debd') }}</a
                                     >
-                                    help you take your projects to the next
-                                    level. Pair them with powerful open source
-                                    libraries like
-                                    <a
+{{ $t('admin.generated.k_4a616581a1cd') }} <a
                                         href="https://laravel.com/docs/billing"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Cashier</a
+                                        >{{ $t('admin.generated.k_e73297e51c35') }}</a
                                     >,
                                     <a
                                         href="https://laravel.com/docs/dusk"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Dusk</a
+                                        >{{ $t('admin.generated.k_fcb3372f5476') }}</a
                                     >,
                                     <a
                                         href="https://laravel.com/docs/broadcasting"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Echo</a
+                                        >{{ $t('admin.generated.k_68bd274c7c37') }}</a
                                     >,
                                     <a
                                         href="https://laravel.com/docs/horizon"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Horizon</a
+                                        >{{ $t('admin.generated.k_7a3caf19879a') }}</a
                                     >,
                                     <a
                                         href="https://laravel.com/docs/sanctum"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Sanctum</a
+                                        >{{ $t('admin.generated.k_ec97396b877e') }}</a
                                     >,
                                     <a
                                         href="https://laravel.com/docs/telescope"
                                         class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Telescope</a
-                                    >, and more.
-                                </p>
+                                        >{{ $t('admin.generated.k_532b91dc584b') }}</a
+                                    >{{ $t('admin.generated.k_0e5497fba167') }} </p>
                             </div>
                         </div>
                     </div>
@@ -378,7 +347,7 @@ function handleImageError() {
                 <footer
                     class="py-16 text-center text-sm text-black dark:text-white/70"
                 >
-                    Laravel v{{ laravelVersion }} (PHP v{{ phpVersion }})
+{{ $t('admin.generated.k_34813e62909f') }}{{ laravelVersion }} {{ $t('admin.generated.k_610c8cf21773') }}{{ phpVersion }})
                 </footer>
             </div>
         </div>

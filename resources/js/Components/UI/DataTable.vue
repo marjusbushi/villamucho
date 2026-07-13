@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
@@ -17,7 +18,7 @@ const props = defineProps({
     },
     emptyText: {
         type: String,
-        default: 'Nuk ka te dhena.',
+        default: translate('admin.generated.k_6963d5f9628a'),
     },
     clickableRows: {
         type: Boolean,
@@ -179,7 +180,7 @@ function goToPage(page) {
         >
             <p class="text-small text-neutral-500">
                 {{ (currentPage - 1) * perPage + 1 }}–{{ Math.min(currentPage * perPage, data.length) }}
-                nga {{ data.length }}
+{{ $t('admin.generated.k_5c3c6feccd8c') }} {{ data.length }}
             </p>
             <nav class="flex items-center gap-1">
                 <button

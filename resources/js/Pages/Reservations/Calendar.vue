@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -34,7 +35,7 @@ const canUpdate = perms.includes('update_reservations');
 
 const savedRoomSort = typeof window !== 'undefined' ? window.localStorage.getItem('calendarRoomSort') : null;
 const roomSort = ref(['number', 'type'].includes(savedRoomSort) ? savedRoomSort : 'number');
-const roomCollator = new Intl.Collator('sq-AL', { numeric: true, sensitivity: 'base' });
+const roomCollator = new Intl.Collator(getIntlLocale(), { numeric: true, sensitivity: 'base' });
 
 watch(roomSort, (value) => {
     if (typeof window !== 'undefined') window.localStorage.setItem('calendarRoomSort', value);
@@ -71,7 +72,7 @@ const days = computed(() => {
         result.push({
             date: d.toISOString().split('T')[0],
             day: d.getDate(),
-            weekday: d.toLocaleDateString('sq-AL', { weekday: 'short' }),
+            weekday: d.toLocaleDateString(getIntlLocale(), { weekday: 'short' }),
             isToday: d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0],
             isWeekend: d.getDay() === 0 || d.getDay() === 6,
         });
@@ -82,9 +83,9 @@ const days = computed(() => {
 const monthLabel = computed(() => {
     const start = new Date(props.startDate);
     const end = new Date(props.endDate);
-    const startMonth = start.toLocaleDateString('sq-AL', { month: 'long', year: 'numeric' });
-    const endMonth = end.toLocaleDateString('sq-AL', { month: 'long', year: 'numeric' });
-    return startMonth === endMonth ? startMonth : `${start.toLocaleDateString('sq-AL', { month: 'short' })} — ${end.toLocaleDateString('sq-AL', { month: 'short', year: 'numeric' })}`;
+    const startMonth = start.toLocaleDateString(getIntlLocale(), { month: 'long', year: 'numeric' });
+    const endMonth = end.toLocaleDateString(getIntlLocale(), { month: 'long', year: 'numeric' });
+    return startMonth === endMonth ? startMonth : `${start.toLocaleDateString(getIntlLocale(), { month: 'short' })} — ${end.toLocaleDateString(getIntlLocale(), { month: 'short', year: 'numeric' })}`;
 });
 
 const statusColors = {
@@ -150,7 +151,7 @@ function openDetail(reservation) {
 // --- Detail popup helpers ---
 const statusLabel = {
     pending: 'Ne pritje',
-    confirmed: 'Konfirmuar',
+    confirmed: translate('admin.generated.k_bdfb4b3a4083'),
     checked_in: 'Brenda',
     checked_out: 'Larguar',
     cancelled: 'Anulluar',
@@ -250,7 +251,7 @@ onMounted(() => window.addEventListener('mouseup', endDrag));
 onBeforeUnmount(() => window.removeEventListener('mouseup', endDrag));
 
 function onReservationCreated() {
-    toasts.value?.success('Rezervimi u krijua.');
+    toasts.value?.success(translate('admin.generated.k_a53fb600f6f3'));
 }
 
 function openMove() {
@@ -258,7 +259,7 @@ function openMove() {
     showMoveModal.value = true;
 }
 function onRoomMoved() {
-    toasts.value?.success('Mysafiri u zhvendos.');
+    toasts.value?.success(translate('admin.generated.k_282bd8c71f67'));
 }
 
 function openEdit() {
@@ -266,16 +267,16 @@ function openEdit() {
     showEditModal.value = true;
 }
 function onReservationUpdated() {
-    toasts.value?.success('Rezervimi u perditesua.');
+    toasts.value?.success(translate('admin.generated.k_500a172395d3'));
 }
 function doCancel(res) {
     if (!res) return;
     const room = roomOf(res)?.room_number;
-    const extra = groupSiblings(res).length ? ' (anulon vetëm këtë dhomë, jo gjithë booking-un)' : '';
+    const extra = groupSiblings(res).length ? translate('admin.generated.k_d42546aba21b') : '';
     if (!confirm(`Anulo rezervimin e ${res.guest?.first_name} ${res.guest?.last_name} — dhoma ${room}?${extra}`)) return;
     router.post(route('reservations.cancel', res.id), {}, {
         preserveScroll: true,
-        onSuccess: () => { showDetailModal.value = false; toasts.value?.success('Rezervimi u anulua.'); },
+        onSuccess: () => { showDetailModal.value = false; toasts.value?.success(translate('admin.generated.k_bae1d5058ac1')); },
     });
 }
 
@@ -292,14 +293,14 @@ function netOfRes(res) {
 function doCheckIn(res) {
     router.post(route('reservations.check-in', res.id), {}, {
         preserveScroll: true,
-        onSuccess: () => { showDetailModal.value = false; toasts.value?.success('Check-in OK'); },
+        onSuccess: () => { showDetailModal.value = false; toasts.value?.success(translate('admin.generated.k_1515c2ebac05')); },
     });
 }
 
 function doCheckOut(res) {
     router.post(route('reservations.check-out', res.id), {}, {
         preserveScroll: true,
-        onSuccess: () => { showDetailModal.value = false; toasts.value?.success('Check-out OK'); },
+        onSuccess: () => { showDetailModal.value = false; toasts.value?.success(translate('admin.generated.k_80056aa4666f')); },
         // A guest who still owes is blocked server-side — keep the modal open and show why.
         onError: (errors) => toasts.value?.error(errors.settle_method || 'Check-out deshtoi.'),
     });
@@ -351,17 +352,17 @@ function getRoomCalendarCells(room) {
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
             <div>
                 <div class="flex items-center gap-3">
-                    <h1 class="text-h2 text-primary-900">Kalendari i Rezervimeve</h1>
+                    <h1 class="text-h2 text-primary-900">{{ $t('admin.generated.k_eb3d197bf264') }}</h1>
                 </div>
             </div>
             <div class="flex items-center gap-2">
                 <Link :href="route('reservations.index')" class="no-underline">
-                    <Button variant="outline" size="sm">📋 Lista</Button>
+                    <Button variant="outline" size="sm">{{ $t('admin.generated.k_8ad6f4281da4') }}</Button>
                 </Link>
-                <Button variant="outline" size="sm" @click="navigate(-1)">← Para</Button>
-                <Button variant="ghost" size="sm" @click="goToToday">Sot</Button>
-                <Button variant="outline" size="sm" @click="navigate(1)">Pas →</Button>
-                <Button v-if="canCreate" variant="primary" size="sm" @click="openCreate(null, new Date().toISOString().split('T')[0])">+ Rezervim</Button>
+                <Button variant="outline" size="sm" @click="navigate(-1)">{{ $t('admin.generated.k_fe085fc2cb10') }}</Button>
+                <Button variant="ghost" size="sm" @click="goToToday">{{ $t('admin.generated.k_6538d1136795') }}</Button>
+                <Button variant="outline" size="sm" @click="navigate(1)">{{ $t('admin.generated.k_b46636dde7af') }}</Button>
+                <Button v-if="canCreate" variant="primary" size="sm" @click="openCreate(null, new Date().toISOString().split('T')[0])">{{ $t('admin.generated.k_fb45801b58c0') }}</Button>
             </div>
         </div>
 
@@ -369,20 +370,20 @@ function getRoomCalendarCells(room) {
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <p class="text-label text-neutral-500 uppercase tracking-wider">{{ monthLabel }}</p>
             <div class="flex items-center gap-2">
-                <span class="whitespace-nowrap text-small text-neutral-500">Rendit dhomat</span>
-                <div class="inline-flex rounded-lg border border-neutral-200 bg-white p-0.5" role="group" aria-label="Rendit dhomat">
+                <span class="whitespace-nowrap text-small text-neutral-500">{{ $t('admin.generated.k_d27e193601ff') }}</span>
+                <div class="inline-flex rounded-lg border border-neutral-200 bg-white p-0.5" role="group" :aria-label="$t('admin.generated.k_96f31a0be77c')">
                     <button
                         type="button"
                         :aria-pressed="roomSort === 'number'"
                         :class="['rounded-md px-3 py-1.5 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/50', roomSort === 'number' ? 'bg-primary-900 text-white' : 'text-neutral-500 hover:text-neutral-800']"
                         @click="roomSort = 'number'"
-                    >Numri</button>
+                    >{{ $t('admin.generated.k_fa144b375912') }}</button>
                     <button
                         type="button"
                         :aria-pressed="roomSort === 'type'"
                         :class="['rounded-md px-3 py-1.5 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/50', roomSort === 'type' ? 'bg-primary-900 text-white' : 'text-neutral-500 hover:text-neutral-800']"
                         @click="roomSort = 'type'"
-                    >Tipologjia</button>
+                    >{{ $t('admin.generated.k_e129e8dfc500') }}</button>
                 </div>
             </div>
         </div>
@@ -395,7 +396,7 @@ function getRoomCalendarCells(room) {
                 <!-- Day headers -->
                 <thead>
                     <tr>
-                        <th class="sticky top-0 left-0 z-30 bg-neutral-50 border-b border-r border-neutral-200 px-3 py-2 text-left text-label text-neutral-600 w-28">Dhoma</th>
+                        <th class="sticky top-0 left-0 z-30 bg-neutral-50 border-b border-r border-neutral-200 px-3 py-2 text-left text-label text-neutral-600 w-28">{{ $t('admin.generated.k_a1206af0984a') }}</th>
                         <th
                             v-for="day in days"
                             :key="day.date"
@@ -420,7 +421,7 @@ function getRoomCalendarCells(room) {
                         <td class="sticky left-0 z-10 bg-white border-b border-r border-neutral-200 px-3 py-2 group-hover:bg-neutral-50 transition-colors">
                             <p class="text-body-sm text-primary-900 font-medium">{{ room.room_number }}</p>
                             <p class="text-tiny text-neutral-400">{{ room.room_type?.name }}</p>
-                            <span v-if="room.status === 'maintenance'" class="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-tiny bg-warning-100 text-warning-800" title="Kjo dhome nuk rezervohet dot derisa te ndryshosh statusin te Dhomat">🔧 Mirëmbajtje</span>
+                            <span v-if="room.status === 'maintenance'" class="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-tiny bg-warning-100 text-warning-800" :title="$t('admin.generated.k_d00b57c2ba36')">{{ $t('admin.generated.k_b751d73e5e72') }}</span>
                         </td>
 
                         <!-- Calendar cells -->
@@ -467,19 +468,19 @@ function getRoomCalendarCells(room) {
         <div class="mt-4 flex flex-wrap gap-4">
             <div class="flex items-center gap-1.5">
                 <div class="h-3 w-6 rounded-sm bg-warning-200 border border-warning-400"></div>
-                <span class="text-tiny text-neutral-500">Ne pritje</span>
+                <span class="text-tiny text-neutral-500">{{ $t('admin.generated.k_61e9368aebf5') }}</span>
             </div>
             <div class="flex items-center gap-1.5">
                 <div class="h-3 w-6 rounded-sm bg-info-200 border border-info-400"></div>
-                <span class="text-tiny text-neutral-500">Konfirmuar</span>
+                <span class="text-tiny text-neutral-500">{{ $t('admin.generated.k_8285dafa3dd1') }}</span>
             </div>
             <div class="flex items-center gap-1.5">
                 <div class="h-3 w-6 rounded-sm bg-accent-200 border border-accent-500"></div>
-                <span class="text-tiny text-neutral-500">Brenda</span>
+                <span class="text-tiny text-neutral-500">{{ $t('admin.generated.k_d7c217631347') }}</span>
             </div>
             <div class="flex items-center gap-1.5">
                 <div class="h-3 w-6 rounded-sm bg-neutral-200 border border-neutral-400"></div>
-                <span class="text-tiny text-neutral-500">Larguar</span>
+                <span class="text-tiny text-neutral-500">{{ $t('admin.generated.k_75cbe57f73eb') }}</span>
             </div>
         </div>
 
@@ -498,44 +499,43 @@ function getRoomCalendarCells(room) {
                 </div>
 
                 <div v-if="selectedReservation.status === 'cancelled'" class="rounded-lg bg-error-50 border border-error-100 px-3 py-2 text-body-sm text-error-700">
-                    Ky rezervim është anuluar — vetëm për shikim.
-                </div>
+{{ $t('admin.generated.k_395c04c74090') }} </div>
 
                 <!-- Key facts -->
                 <div class="grid grid-cols-2 gap-x-4 gap-y-3">
                     <div>
-                        <p class="text-tiny text-neutral-400 uppercase">Dhoma</p>
+                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_a1206af0984a') }}</p>
                         <p class="text-body-sm text-primary-900 font-medium">
                             {{ roomOf(selectedReservation)?.room_number }}
                             <span class="text-neutral-400 font-normal">{{ roomOf(selectedReservation)?.room_type?.name }}</span>
                         </p>
                     </div>
                     <div>
-                        <p class="text-tiny text-neutral-400 uppercase">Persona</p>
+                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_3bb0578308d9') }}</p>
                         <p class="text-body-sm text-primary-900">
-                            {{ selectedReservation.adults }} te rritur<span v-if="selectedReservation.children"> · {{ selectedReservation.children }} femije</span>
+                            {{ selectedReservation.adults }} {{ $t('admin.generated.k_eed99c8d0cff') }}<span v-if="selectedReservation.children"> · {{ selectedReservation.children }} {{ $t('admin.generated.k_4ecd4d812403') }}</span>
                         </p>
                     </div>
                     <div>
-                        <p class="text-tiny text-neutral-400 uppercase">Check-in</p>
+                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_cdcd4da54b15') }}</p>
                         <p class="text-body-sm text-primary-900">{{ selectedReservation.check_in_date }}</p>
                     </div>
                     <div>
-                        <p class="text-tiny text-neutral-400 uppercase">Check-out</p>
+                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_21e6813ac89c') }}</p>
                         <p class="text-body-sm text-primary-900">
                             {{ selectedReservation.check_out_date }}
-                            <span class="text-neutral-400">· {{ nightsOf(selectedReservation) }} net</span>
+                            <span class="text-neutral-400">· {{ nightsOf(selectedReservation) }} {{ $t('admin.generated.k_28e534d2bcc3') }}</span>
                         </p>
                     </div>
                     <div>
-                        <p class="text-tiny text-neutral-400 uppercase">Total</p>
+                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_d777e3af0668') }}</p>
                         <p class="text-body-sm text-accent-600 font-medium">
                             €{{ selectedReservation.total_amount }}
-                            <span v-if="feePctOf(selectedReservation) > 0" class="text-neutral-400 font-normal">· Neto €{{ netOfRes(selectedReservation).toFixed(2) }}</span>
+                            <span v-if="feePctOf(selectedReservation) > 0" class="text-neutral-400 font-normal">{{ $t('admin.generated.k_0550ed929ebc') }}{{ netOfRes(selectedReservation).toFixed(2) }}</span>
                         </p>
                     </div>
                     <div v-if="selectedReservation.guest?.phone || selectedReservation.guest?.email">
-                        <p class="text-tiny text-neutral-400 uppercase">Kontakt</p>
+                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_4e375afc22e7') }}</p>
                         <p class="text-body-sm text-primary-900 break-words">
                             <a v-if="selectedReservation.guest?.phone" :href="`tel:${selectedReservation.guest.phone}`" class="text-accent-700 no-underline hover:underline">{{ selectedReservation.guest.phone }}</a>
                             <span v-if="selectedReservation.guest?.phone && selectedReservation.guest?.email" class="text-neutral-300"> · </span>
@@ -546,28 +546,27 @@ function getRoomCalendarCells(room) {
 
                 <!-- Notes -->
                 <div v-if="selectedReservation.notes" class="rounded-lg bg-neutral-50 border border-neutral-100 px-3 py-2">
-                    <p class="text-tiny text-neutral-400 uppercase mb-0.5">Shenime</p>
+                    <p class="text-tiny text-neutral-400 uppercase mb-0.5">{{ $t('admin.generated.k_fb24a852a7a3') }}</p>
                     <p class="text-body-sm text-neutral-700 whitespace-pre-line">{{ selectedReservation.notes }}</p>
                 </div>
 
                 <!-- Multi-room booking -->
                 <div v-if="groupSiblings(selectedReservation).length" class="rounded-lg bg-info-50 border border-info-100 px-3 py-2">
                     <p class="text-body-sm text-info-800">
-                        🔗 Pjese e nje booking-u me {{ groupSiblings(selectedReservation).length + 1 }} dhoma — bashke me dhomat:
-                        <span class="font-medium">{{ groupSiblings(selectedReservation).map((r) => roomOf(r)?.room_number).filter(Boolean).join(', ') }}</span>
+{{ $t('admin.generated.k_00499ea9cb88') }} {{ groupSiblings(selectedReservation).length + 1 }} {{ $t('admin.generated.k_9d9dbeaafaf2') }} <span class="font-medium">{{ groupSiblings(selectedReservation).map((r) => roomOf(r)?.room_number).filter(Boolean).join(', ') }}</span>
                     </p>
                 </div>
             </div>
             <template #footer>
-                <Button v-if="canUpdate && selectedReservation?.status === 'confirmed'" variant="primary" size="sm" @click="doCheckIn(selectedReservation)">Check-in</Button>
-                <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="secondary" size="sm" @click="doCheckOut(selectedReservation)">Check-out</Button>
-                <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="outline" size="sm" @click="openMove">Zhvendos dhomën</Button>
-                <Button v-if="canUpdate && selectedReservation && !['checked_in','checked_out','cancelled'].includes(selectedReservation.status)" variant="outline" size="sm" @click="openEdit">Edito</Button>
+                <Button v-if="canUpdate && selectedReservation?.status === 'confirmed'" variant="primary" size="sm" @click="doCheckIn(selectedReservation)">{{ $t('admin.generated.k_cdcd4da54b15') }}</Button>
+                <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="secondary" size="sm" @click="doCheckOut(selectedReservation)">{{ $t('admin.generated.k_21e6813ac89c') }}</Button>
+                <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="outline" size="sm" @click="openMove">{{ $t('admin.generated.k_e85cc82fcf84') }}</Button>
+                <Button v-if="canUpdate && selectedReservation && !['checked_in','checked_out','cancelled'].includes(selectedReservation.status)" variant="outline" size="sm" @click="openEdit">{{ $t('admin.generated.k_9b810e5b2ada') }}</Button>
                 <Link v-if="selectedReservation" :href="route('reservations.show', selectedReservation.id)" class="no-underline">
-                    <Button variant="outline" size="sm">Detaje</Button>
+                    <Button variant="outline" size="sm">{{ $t('admin.generated.k_a3f9150ec16c') }}</Button>
                 </Link>
-                <Button v-if="canUpdate && selectedReservation && ['pending','confirmed'].includes(selectedReservation.status)" variant="outline" size="sm" class="text-error-600" @click="doCancel(selectedReservation)">Anulo</Button>
-                <Button variant="ghost" @click="showDetailModal = false">Mbyll</Button>
+                <Button v-if="canUpdate && selectedReservation && ['pending','confirmed'].includes(selectedReservation.status)" variant="outline" size="sm" class="text-error-600" @click="doCancel(selectedReservation)">{{ $t('admin.generated.k_1574ef95826c') }}</Button>
+                <Button variant="ghost" @click="showDetailModal = false">{{ $t('admin.generated.k_30f7d21af244') }}</Button>
             </template>
         </Modal>
 

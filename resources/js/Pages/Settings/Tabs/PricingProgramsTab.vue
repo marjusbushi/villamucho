@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/UI/Card.vue';
@@ -45,7 +46,7 @@ const bookingCommission = computed(() => Number(props.financial.channel_fees?.['
 function submit() {
     form.put(route('settings.pricing-programs'), {
         preserveScroll: true,
-        onSuccess: () => props.toasts?.success('Programet OTA u ruajtën.'),
+        onSuccess: () => props.toasts?.success(translate('admin.generated.k_e96006e3db4f')),
     });
 }
 </script>
@@ -54,8 +55,8 @@ function submit() {
     <Card>
         <template #header>
             <div>
-                <h3 class="text-h4 text-primary-900">Çmimet & programet OTA</h3>
-                <p class="text-tiny text-neutral-500 mt-1">Vendos vetëm programet që hoteli ka aktivizuar realisht në Booking.com dhe Expedia.</p>
+                <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_1206ef200027') }}</h3>
+                <p class="text-tiny text-neutral-500 mt-1">{{ $t('admin.generated.k_aedc165c7e8d') }}</p>
             </div>
         </template>
 
@@ -63,22 +64,22 @@ function submit() {
             <div class="rounded-xl border border-neutral-200 p-4 space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                        <h4 class="text-body font-bold text-primary-900">Booking.com</h4>
-                        <p class="text-tiny text-neutral-500">Uljet kombinohen me shumëzim, jo me mbledhje.</p>
+                        <h4 class="text-body font-bold text-primary-900">{{ $t('admin.generated.k_d53cf4bf654c') }}</h4>
+                        <p class="text-tiny text-neutral-500">{{ $t('admin.generated.k_86b55631b168') }}</p>
                     </div>
-                    <span class="text-tiny font-bold rounded-full bg-info-50 text-info-700 px-2.5 py-1">Aplikohet vetë: +{{ booking.modifier }}%</span>
+                    <span class="text-tiny font-bold rounded-full bg-info-50 text-info-700 px-2.5 py-1">{{ $t('admin.generated.k_9eab3b7aef0b') }}{{ booking.modifier }}%</span>
                 </div>
 
                 <div class="grid sm:grid-cols-2 gap-4">
                     <div class="rounded-lg bg-neutral-50 p-3 space-y-2">
-                        <Checkbox v-model="form.booking_genius_enabled" label="Genius aktiv" />
+                        <Checkbox v-model="form.booking_genius_enabled" :label="$t('admin.generated.k_c8aab48b8a07')" />
                         <div class="flex items-center gap-2">
                             <TextInput v-model="form.booking_genius_pct" type="number" min="0" max="50" step="0.5" :disabled="!form.booking_genius_enabled" />
                             <span class="text-body-sm text-neutral-500">%</span>
                         </div>
                     </div>
                     <div class="rounded-lg bg-neutral-50 p-3 space-y-2">
-                        <Checkbox v-model="form.booking_mobile_enabled" label="Mobile Price aktiv" />
+                        <Checkbox v-model="form.booking_mobile_enabled" :label="$t('admin.generated.k_2c1d73fe6beb')" />
                         <div class="flex items-center gap-2">
                             <TextInput v-model="form.booking_mobile_pct" type="number" min="0" max="50" step="0.5" :disabled="!form.booking_mobile_enabled" />
                             <span class="text-body-sm text-neutral-500">%</span>
@@ -86,45 +87,44 @@ function submit() {
                     </div>
                 </div>
 
-                <Checkbox v-model="form.booking_preferred_enabled" label="Preferred Partner aktiv" />
-                <p class="text-tiny text-neutral-500">Preferred Partner nuk ul çmimin e klientit. Për fitimin neto përdoret komisioni Booking.com {{ bookingCommission }}% nga skeda Financiare.</p>
-                <p class="text-body-sm text-primary-900 bg-accent-50 rounded-lg p-3">Shembull: synimi final €85 → dërgo Booking €{{ booking.example }}. Ulja maksimale e kombinuar: {{ booking.combined }}%.</p>
+                <Checkbox v-model="form.booking_preferred_enabled" :label="$t('admin.generated.k_39400b3795cf')" />
+                <p class="text-tiny text-neutral-500">{{ $t('admin.generated.k_debb924ec9fc') }} {{ bookingCommission }}{{ $t('admin.generated.k_49df5ab25ec1') }}</p>
+                <p class="text-body-sm text-primary-900 bg-accent-50 rounded-lg p-3">{{ $t('admin.generated.k_6fe08412089c') }}{{ booking.example }}{{ $t('admin.generated.k_ded025603eff') }} {{ booking.combined }}%.</p>
             </div>
 
             <div class="rounded-xl border border-neutral-200 p-4 space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                        <h4 class="text-body font-bold text-primary-900">Expedia</h4>
-                        <p class="text-tiny text-neutral-500">Member Price dhe Mobile Price mbrohen veçmas nga Booking.</p>
+                        <h4 class="text-body font-bold text-primary-900">{{ $t('admin.generated.k_d93b5b340790') }}</h4>
+                        <p class="text-tiny text-neutral-500">{{ $t('admin.generated.k_9c7f3ab052ad') }}</p>
                     </div>
-                    <span class="text-tiny font-bold rounded-full bg-info-50 text-info-700 px-2.5 py-1">Aplikohet vetë: +{{ expedia.modifier }}%</span>
+                    <span class="text-tiny font-bold rounded-full bg-info-50 text-info-700 px-2.5 py-1">{{ $t('admin.generated.k_9eab3b7aef0b') }}{{ expedia.modifier }}%</span>
                 </div>
 
                 <div class="grid sm:grid-cols-2 gap-4">
                     <div class="rounded-lg bg-neutral-50 p-3 space-y-2">
-                        <Checkbox v-model="form.expedia_member_enabled" label="Member Price aktiv" />
+                        <Checkbox v-model="form.expedia_member_enabled" :label="$t('admin.generated.k_54c5186b27e9')" />
                         <div class="flex items-center gap-2">
                             <TextInput v-model="form.expedia_member_pct" type="number" min="0" max="50" step="0.5" :disabled="!form.expedia_member_enabled" />
                             <span class="text-body-sm text-neutral-500">%</span>
                         </div>
                     </div>
                     <div class="rounded-lg bg-neutral-50 p-3 space-y-2">
-                        <Checkbox v-model="form.expedia_mobile_enabled" label="Mobile Price aktiv" />
+                        <Checkbox v-model="form.expedia_mobile_enabled" :label="$t('admin.generated.k_2c1d73fe6beb')" />
                         <div class="flex items-center gap-2">
                             <TextInput v-model="form.expedia_mobile_pct" type="number" min="0" max="50" step="0.5" :disabled="!form.expedia_mobile_enabled" />
                             <span class="text-body-sm text-neutral-500">%</span>
                         </div>
                     </div>
                 </div>
-                <p class="text-body-sm text-primary-900 bg-accent-50 rounded-lg p-3">Shembull: synimi final €85 → dërgo Expedia €{{ expedia.example }}. Ulja maksimale e kombinuar: {{ expedia.combined }}%.</p>
+                <p class="text-body-sm text-primary-900 bg-accent-50 rounded-lg p-3">{{ $t('admin.generated.k_330136e374de') }}{{ expedia.example }}{{ $t('admin.generated.k_ded025603eff') }} {{ expedia.combined }}%.</p>
             </div>
 
             <div class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-body-sm text-warning-800">
-                Modifier-at vendosen te mapping-u i secilit kanal në Channex. Mos e rrit çmimin bazë të PMS-së, sepse do të rritej edhe website-i.
-            </div>
+{{ $t('admin.generated.k_d233ed5effd0') }} </div>
 
             <div class="flex justify-end">
-                <Button type="submit" variant="primary" :loading="form.processing">Ruaj programet OTA</Button>
+                <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_c83df3c31df6') }}</Button>
             </div>
         </form>
     </Card>

@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { computed } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { Mail, ShieldCheck, UserRound } from 'lucide-vue-next';
@@ -26,18 +27,18 @@ const roleLabel = computed(() => ({
     manager: 'Menaxher',
     receptionist: 'Recepsionist',
     housekeeping: 'Housekeeping',
-}[user.role] || 'Përdorues'));
+}[user.role] || translate('admin.generated.k_781024501505')));
 </script>
 
 <template>
-    <Head title="Profili" />
+    <Head :title="$t('admin.generated.k_e6dfdac39962')" />
 
     <AppLayout>
         <PageHeader
-            title="Profili"
-            :breadcrumbs="[{ label: 'Paneli', href: '/dashboard' }, { label: 'Profili' }]"
+            :title="$t('admin.generated.k_e6dfdac39962')"
+            :breadcrumbs="[{ label: $t('admin.generated.k_b3a32a3956fc'), href: '/dashboard' }, { label: $t('admin.generated.k_b34a7b61bd38') }]"
         />
-        <p class="mt-1 text-body-sm text-neutral-500">Menaxho të dhënat personale dhe sigurinë e llogarisë.</p>
+        <p class="mt-1 text-body-sm text-neutral-500">{{ $t('admin.generated.k_4d36ff5302c3') }}</p>
 
         <div class="mt-5 max-w-6xl space-y-5 pb-10">
             <section class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card">

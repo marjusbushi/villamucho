@@ -6,6 +6,7 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 
 // Persist the collapsed state so it survives Inertia navigations
 // (AppLayout re-mounts per page, so we restore from localStorage).
@@ -33,6 +34,7 @@ function openMobileMenu() {
 defineExpose({ openMobileMenu });
 
 const page = usePage();
+const { t } = useI18n();
 const userPermissions = computed(() => page.props.auth.user?.permissions || []);
 
 function can(permission) {
@@ -127,38 +129,38 @@ const icons = {
 };
 
 // All possible nav items with permission requirements
-const allNavItems = [
-    { label: 'Dashboard', href: '/dashboard', routeName: 'dashboard', icon: icons.dashboard, permission: null },
-    { label: 'Dhomat', href: '/pms/rooms', icon: icons.rooms, permission: 'view_rooms' },
-    { label: 'Rezervimet', href: '/pms/reservations', match: '/pms/reservations', icon: icons.reservations, permission: 'view_reservations' },
-    { label: 'Mesazhet', href: '/pms/messages', match: '/pms/messages', icon: icons.messages, permission: 'view_reservations' },
-    { label: 'Mysafiret', href: '/pms/guests', icon: icons.guests, permission: 'view_guests' },
-    { label: 'Housekeeping', href: '/pms/housekeeping', icon: icons.housekeeping, permission: 'view_housekeeping' },
-    { label: 'POS Bar/Restaurant', href: '/pms/pos', icon: icons.pos, permission: 'view_pos_orders' },
+const allNavItems = computed(() => [
+    { label: t('admin.sidebar.dashboard'), href: '/dashboard', routeName: 'dashboard', icon: icons.dashboard, permission: null },
+    { label: t('admin.sidebar.rooms'), href: '/pms/rooms', icon: icons.rooms, permission: 'view_rooms' },
+    { label: t('admin.sidebar.reservations'), href: '/pms/reservations', match: '/pms/reservations', icon: icons.reservations, permission: 'view_reservations' },
+    { label: t('admin.sidebar.messages'), href: '/pms/messages', match: '/pms/messages', icon: icons.messages, permission: 'view_reservations' },
+    { label: t('admin.sidebar.guests'), href: '/pms/guests', icon: icons.guests, permission: 'view_guests' },
+    { label: t('admin.sidebar.housekeeping'), href: '/pms/housekeeping', icon: icons.housekeeping, permission: 'view_housekeeping' },
+    { label: t('admin.sidebar.pos'), href: '/pms/pos', icon: icons.pos, permission: 'view_pos_orders' },
     {
-        label: 'Financa',
+        label: t('admin.sidebar.finance'),
         icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M1 4.25C1 3.56 1.56 3 2.25 3h15.5c.69 0 1.25.56 1.25 1.25v2a.75.75 0 01-.75.75 2 2 0 100 4 .75.75 0 01.75.75v2c0 .69-.56 1.25-1.25 1.25H2.25C1.56 15 1 14.44 1 13.75v-2a.75.75 0 01.75-.75 2 2 0 100-4A.75.75 0 011 6.25v-2z"/></svg>',
         permission: 'view_finance',
         addon: 'finance',
         children: [
-            { label: 'Paneli', href: '/pms/finance' },
-            { label: 'Arka & Banka', href: '/pms/finance/accounts' },
-            { label: 'Pagesat', href: '/pms/finance/payments' },
-            { label: 'Blerjet (Bills)', href: '/pms/finance/bills' },
-            { label: 'Furnitorët', href: '/pms/finance/suppliers' },
+            { label: t('admin.sidebar.financeDashboard'), href: '/pms/finance' },
+            { label: t('admin.sidebar.cashAndBank'), href: '/pms/finance/accounts' },
+            { label: t('admin.sidebar.payments'), href: '/pms/finance/payments' },
+            { label: t('admin.sidebar.bills'), href: '/pms/finance/bills' },
+            { label: t('admin.sidebar.suppliers'), href: '/pms/finance/suppliers' },
         ],
     },
-    { label: 'Raporte', href: '/pms/reports', icon: icons.reports, permission: 'view_reports' },
-    { label: 'Perdoruesit', href: '/pms/users', icon: icons.users, permission: 'view_users' },
-    { label: 'Historia', href: '/pms/audit-logs', icon: icons.history, role: 'admin' },
-    { label: 'Cmimet', href: '/pms/pricing', icon: icons.pricing, permission: 'view_settings' },
-    { label: 'Cmim Inteligjent', href: '/pms/pricing/smart', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.684a1 1 0 01.633.632l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.551a1 1 0 01-.632.633l-.551.183a1 1 0 000 1.898l.551.184a1 1 0 01.633.632l.183.551a1 1 0 001.898 0l.184-.551a1 1 0 01.632-.633l.551-.183a1 1 0 000-1.898l-.551-.184a1 1 0 01-.633-.632l-.183-.551z" /></svg>', permission: 'view_settings' },
-    { label: 'Settings', href: '/pms/settings', icon: icons.settings, permission: 'view_settings' },
-];
+    { label: t('admin.sidebar.reports'), href: '/pms/reports', icon: icons.reports, permission: 'view_reports' },
+    { label: t('admin.sidebar.users'), href: '/pms/users', icon: icons.users, permission: 'view_users' },
+    { label: t('admin.sidebar.history'), href: '/pms/audit-logs', icon: icons.history, role: 'admin' },
+    { label: t('admin.sidebar.pricing'), href: '/pms/pricing', icon: icons.pricing, permission: 'view_settings' },
+    { label: t('admin.sidebar.smartPricing'), href: '/pms/pricing/smart', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.684a1 1 0 01.633.632l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.551a1 1 0 01-.632.633l-.551.183a1 1 0 000 1.898l.551.184a1 1 0 01.633.632l.183.551a1 1 0 001.898 0l.184-.551a1 1 0 01.632-.633l.551-.183a1 1 0 000-1.898l-.551-.184a1 1 0 01-.633-.632l-.183-.551z" /></svg>', permission: 'view_settings' },
+    { label: t('admin.sidebar.settings'), href: '/pms/settings', icon: icons.settings, permission: 'view_settings' },
+]);
 
 // Filter nav items based on user permissions
 const navItems = computed(() =>
-    allNavItems.filter((item) =>
+    allNavItems.value.filter((item) =>
         (!item.permission || can(item.permission))
         && (!item.role || page.props.auth.user?.role === item.role)
         && (!item.addon || (page.props.tenant?.addons || []).includes(item.addon))
@@ -236,8 +238,8 @@ const navItems = computed(() =>
                             </button>
                         </template>
                         <template #content>
-                            <DropdownLink :href="route('profile.edit')">Profili</DropdownLink>
-                            <DropdownLink :href="route('logout')" method="post" as="button">Dil</DropdownLink>
+                            <DropdownLink :href="route('profile.edit')">{{ $t('admin.account.profile') }}</DropdownLink>
+                            <DropdownLink :href="route('logout')" method="post" as="button">{{ $t('admin.account.logout') }}</DropdownLink>
                         </template>
                     </Dropdown>
                 </div>

@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -33,27 +34,27 @@ const activeTab = ref('hotel');
 const hasFinanceAddon = (usePage().props.tenant?.addons || []).includes('finance');
 
 const tabs = [
-    { id: 'hotel', label: 'Hotel Info' },
-    { id: 'website', label: 'Faqja Web' },
-    { id: 'about', label: 'Faqja: Rreth Nesh' },
-    { id: 'room-types', label: 'Tipet e dhomave' },
-    { id: 'amenities', label: 'Pajisjet' },
-    { id: 'floors', label: 'Katet' },
-    { id: 'menu', label: 'Menu POS' },
-    { id: 'housekeeping', label: 'Housekeeping' },
-    { id: 'financial', label: 'Financiare' },
-    { id: 'pricing-programs', label: 'Çmimet & OTA' },
-    { id: 'market-rates', label: 'Çmimet e Tregut' },
-    ...(hasFinanceAddon ? [{ id: 'currencies', label: 'Monedhat' }] : []),
-    { id: 'ai', label: 'Asistenti AI' },
+    { id: 'hotel', label: translate('admin.generated.k_5d00bebf3a59') },
+    { id: 'website', label: translate('admin.generated.k_a52b2023d48c') },
+    { id: 'about', label: translate('admin.generated.k_4f476b8b8937') },
+    { id: 'room-types', label: translate('admin.generated.k_202a7b47d404') },
+    { id: 'amenities', label: translate('admin.generated.k_c18e598a31ab') },
+    { id: 'floors', label: translate('admin.generated.k_ae5097d86746') },
+    { id: 'menu', label: translate('admin.generated.k_2279df611655') },
+    { id: 'housekeeping', label: translate('admin.generated.k_83c5931cf9e9') },
+    { id: 'financial', label: translate('admin.generated.k_aa5778855cd0') },
+    { id: 'pricing-programs', label: translate('admin.generated.k_a0124fddd9e8') },
+    { id: 'market-rates', label: translate('admin.generated.k_c7f91743b945') },
+    ...(hasFinanceAddon ? [{ id: 'currencies', label: translate('admin.generated.k_330e93a8a9d5') }] : []),
+    { id: 'ai', label: translate('admin.generated.k_19c6878a2e32') },
 ];
 </script>
 
 <template>
     <AppLayout>
         <PageHeader
-            title="Settings"
-            :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]"
+            :title="$t('admin.generated.k_cb16582d3259')"
+            :breadcrumbs="[{ label: $t('admin.generated.k_6bfa9bde2480'), href: '/dashboard' }, { label: $t('admin.generated.k_126a74d0a6b2') }]"
         />
 
         <div class="mt-6 flex flex-col lg:flex-row gap-6">

@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import ReportShell from '@/Components/UI/ReportShell.vue';
 import Card from '@/Components/UI/Card.vue';
 import ReportKpiGrid from '@/Components/UI/ReportKpiGrid.vue';
@@ -14,17 +15,17 @@ const props = defineProps({
     currency: { type: String, default: '€' },
 });
 
-const money = (v) => `${props.currency}${Number(v ?? 0).toLocaleString('sq-AL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (v) => `${props.currency}${Number(v ?? 0).toLocaleString(getIntlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const commissionRate = () => Number(props.totals?.revenue ?? 0) > 0
-    ? `${((Number(props.totals?.commission ?? 0) / Number(props.totals.revenue)) * 100).toLocaleString('sq-AL', { maximumFractionDigits: 1 })}%`
+    ? `${((Number(props.totals?.commission ?? 0) / Number(props.totals.revenue)) * 100).toLocaleString(getIntlLocale(), { maximumFractionDigits: 1 })}%`
     : '0%';
 
 const kpis = [
-    { label: 'Rezervime', value: () => props.totals?.count ?? 0, tone: 'info', icon: CalendarCheck, detail: `${props.totals?.nights ?? 0} netë` },
-    { label: 'Të ardhura bruto', value: () => money(props.totals?.revenue), tone: 'accent', icon: Banknote },
-    { label: 'Komision', value: () => money(props.totals?.commission), tone: 'warning', icon: Percent, detail: () => commissionRate() },
-    { label: 'Të ardhura neto', value: () => money(props.totals?.net), tone: 'success', icon: HandCoins },
+    { label: translate('admin.generated.k_8b861e176b4c'), value: () => props.totals?.count ?? 0, tone: 'info', icon: CalendarCheck, detail: translate('admin.generated.k_920ed4640be7', { p0: props.totals?.nights ?? 0 }) },
+    { label: translate('admin.generated.k_d3fe93a7afb8'), value: () => money(props.totals?.revenue), tone: 'accent', icon: Banknote },
+    { label: translate('admin.generated.k_28eaba77cb31'), value: () => money(props.totals?.commission), tone: 'warning', icon: Percent, detail: () => commissionRate() },
+    { label: translate('admin.generated.k_bc7fa976e9e9'), value: () => money(props.totals?.net), tone: 'success', icon: HandCoins },
 ];
 
 const channelBars = computed(() => props.rows.map((row) => ({
@@ -37,21 +38,21 @@ const channelBars = computed(() => props.rows.map((row) => ({
 </script>
 
 <template>
-    <ReportShell title="Prodhimi sipas Kanaleve" route-name="reports.channels" :filters="filters">
+    <ReportShell :title="$t('admin.generated.k_05db9dd4e743')" route-name="reports.channels" :filters="filters">
         <ReportKpiGrid :items="kpis" />
         <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(280px,0.65fr)_1.35fr]">
-            <ReportBarList title="Kontributi sipas kanalit" description="Të ardhurat bruto që sjell çdo burim rezervimi." :rows="channelBars" />
+            <ReportBarList :title="$t('admin.generated.k_5a2769c70cfc')" :description="$t('admin.generated.k_1aa86f300620')" :rows="channelBars" />
             <Card :padding="false">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-neutral-200">
                     <thead class="bg-neutral-50">
                         <tr>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Kanali</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Rezervime</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Netë</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Të ardhura</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Komision</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Neto</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_0d3e60252296') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_74f1852bb421') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_983a0727d367') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_e3efe194beeb') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_1ff4f40c6b2c') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_20ade973549f') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
@@ -71,7 +72,7 @@ const channelBars = computed(() => props.rows.map((row) => ({
                     </tbody>
                     <tfoot v-if="rows.length" class="bg-neutral-50 border-t-2 border-neutral-200">
                         <tr>
-                            <td class="px-5 py-3 text-body-sm font-semibold text-primary-900">Totali</td>
+                            <td class="px-5 py-3 text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_11a0efb0b568') }}</td>
                             <td class="px-5 py-3 text-right text-body-sm font-semibold">{{ totals.count }}</td>
                             <td class="px-5 py-3 text-right text-body-sm font-semibold">{{ totals.nights }}</td>
                             <td class="px-5 py-3 text-right text-body-sm font-semibold">{{ money(totals.revenue) }}</td>
@@ -81,7 +82,7 @@ const channelBars = computed(() => props.rows.map((row) => ({
                     </tfoot>
                 </table>
             </div>
-            <div v-if="!rows.length" class="px-6 py-10 text-center text-body-sm text-neutral-500">Asnjë rezervim në këtë periudhë.</div>
+            <div v-if="!rows.length" class="px-6 py-10 text-center text-body-sm text-neutral-500">{{ $t('admin.generated.k_1c1f12c82a22') }}</div>
             </Card>
         </div>
     </ReportShell>

@@ -108,10 +108,10 @@ onBeforeUnmount(() => { stopCycle(); document.removeEventListener('keydown', onK
     <!-- Lightbox -->
     <Teleport to="body">
         <div v-if="lightbox" class="fixed inset-0 z-[100] bg-ink/95 flex items-center justify-center p-4 sm:p-10" @click.self="closeLightbox">
-            <button type="button" aria-label="Mbyll" class="absolute top-5 right-5 text-bone/70 hover:text-bone" @click="closeLightbox">
+            <button type="button" :aria-label="$t('admin.generated.k_4912b9942b17')" class="absolute top-5 right-5 text-bone/70 hover:text-bone" @click="closeLightbox">
                 <X class="h-7 w-7" :stroke-width="1.25" />
             </button>
-            <button v-if="images.length > 1" type="button" aria-label="Para" class="absolute left-4 sm:left-8 text-bone/70 hover:text-bone" @click.stop="prev">
+            <button v-if="images.length > 1" type="button" :aria-label="$t('admin.generated.k_f3caa6eec666')" class="absolute left-4 sm:left-8 text-bone/70 hover:text-bone" @click.stop="prev">
                 <ChevronLeft class="h-9 w-9" :stroke-width="1" />
             </button>
 
@@ -120,7 +120,7 @@ onBeforeUnmount(() => { stopCycle(); document.removeEventListener('keydown', onK
                 <figcaption class="mt-4 text-center eyebrow text-bone/50">{{ alt }} · {{ index + 1 }} / {{ images.length }}</figcaption>
             </figure>
 
-            <button v-if="images.length > 1" type="button" aria-label="Pas" class="absolute right-4 sm:right-8 text-bone/70 hover:text-bone" @click.stop="next">
+            <button v-if="images.length > 1" type="button" :aria-label="$t('admin.generated.k_826caf136584')" class="absolute right-4 sm:right-8 text-bone/70 hover:text-bone" @click.stop="next">
                 <ChevronRight class="h-9 w-9" :stroke-width="1" />
             </button>
         </div>

@@ -2,8 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\Bill;
 use App\Models\FinanceAccount;
 use App\Models\FinancePayment;
+use App\Models\Guest;
+use App\Models\Payment;
+use App\Models\Reservation;
+use App\Models\Room;
+use App\Models\RoomType;
+use App\Models\Supplier;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Database\Seeders\RolePermissionSeeder;
@@ -35,6 +42,86 @@ class FinancePaymentsPageTest extends TestCase
             'description' => 'Pagesë testi',
             'paid_at' => now(),
         ], $attributes));
+    }
+
+    private function reservation(): Reservation
+    {
+        $type = RoomType::create(['name' => 'Std', 'base_price' => 80, 'max_occupancy' => 2, 'amenities' => []]);
+        $room = Room::create(['room_type_id' => $type->id, 'room_number' => '101', 'floor' => 1, 'status' => 'available']);
+        $guest = Guest::create(['first_name' => 'Ana', 'last_name' => 'Test', 'email' => 'ana@test.local', 'phone' => '1']);
+
+        return Reservation::create([
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'created_by' => User::factory()->create()->id,
+            'check_in_date' => '2026-08-01',
+            'check_out_date' => '2026-08-03',
+            'status' => 'confirmed',
+        ]);
+    }
+
+    public function test_payment_rows_expose_structured_navigation_links(): void
+    {
+        $this->withoutVite();
+        $admin = $this->admin();
+        $reservation = $this->reservation();
+
+        Payment::create([
+            'reservation_id' => $reservation->id,
+            'amount' => 120,
+            'method' => 'cash',
+            'type' => 'payment',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)->get(route('finance.payments', ['all_dates' => 1]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('payments.data.0.account_id', fn ($id) => is_int($id))
+                ->where('payments.data.0.related.reservation.id', $reservation->id)
+                ->where('payments.data.0.related.reservation.href', route('reservations.show', $reservation))
+                ->where('payments.data.0.created_by', $admin->name));
+    }
+
+    public function test_bill_payment_links_to_the_exact_bill_and_supplier(): void
+    {
+        $this->withoutVite();
+        $admin = $this->admin();
+        FinanceAccount::ensureDefaults();
+        $supplier = Supplier::create(['name' => 'Eco Market', 'is_active' => true]);
+        $bill = Bill::create([
+            'supplier_id' => $supplier->id,
+            'number' => 'INV-42',
+            'category' => 'Ushqim & Pije',
+            'issue_date' => today(),
+            'currency' => 'EUR',
+            'total' => 75,
+            'status' => 'open',
+        ]);
+        $this->payment([
+            'direction' => 'out',
+            'amount' => 75,
+            'bill_id' => $bill->id,
+            'description' => 'Pagesë fature',
+        ]);
+
+        $this->actingAs($admin)->get(route('finance.payments', ['all_dates' => 1]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('payments.data.0.related.bill.id', $bill->id)
+                ->where('payments.data.0.related.bill.href', route('finance.bills', ['bill_id' => $bill->id]))
+                ->where('payments.data.0.related.supplier.id', $supplier->id)
+                ->where('payments.data.0.related.supplier.href', route('finance.suppliers', ['supplier_id' => $supplier->id])));
+
+        $this->actingAs($admin)->get(route('finance.bills', ['bill_id' => $bill->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('bills.total', 1)
+                ->where('bills.data.0.id', $bill->id));
+
+        $this->actingAs($admin)->get(route('finance.suppliers', ['supplier_id' => $supplier->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('focusSupplierId', $supplier->id));
     }
 
     public function test_payment_page_filters_rows_and_keeps_period_summary_stable(): void

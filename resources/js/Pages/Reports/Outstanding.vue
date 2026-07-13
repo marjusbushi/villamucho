@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { Link } from '@inertiajs/vue3';
 import ReportShell from '@/Components/UI/ReportShell.vue';
 import Card from '@/Components/UI/Card.vue';
@@ -12,23 +13,23 @@ const props = defineProps({
     currency: { type: String, default: '€' },
 });
 
-const money = (v) => `${props.currency}${Number(v ?? 0).toLocaleString('sq-AL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (v) => `${props.currency}${Number(v ?? 0).toLocaleString(getIntlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const statusBadge = {
-    confirmed: { variant: 'info', label: 'Konfirmuar' },
-    checked_in: { variant: 'success', label: 'Brenda' },
-    checked_out: { variant: 'neutral', label: 'Larguar' },
+    confirmed: { variant: 'info', label: translate('admin.generated.k_ba233950cbc4') },
+    checked_in: { variant: 'success', label: translate('admin.generated.k_ceef4633e6ad') },
+    checked_out: { variant: 'neutral', label: translate('admin.generated.k_657b819bd70e') },
 };
-const fmt = (d) => d ? new Date(d).toLocaleDateString('sq-AL', { day: '2-digit', month: 'short' }) : '—';
+const fmt = (d) => d ? new Date(d).toLocaleDateString(getIntlLocale(), { day: '2-digit', month: 'short' }) : '—';
 
 const kpis = [
-    { label: 'Borxhi total', value: () => money(props.total), tone: props.total > 0 ? 'error' : 'success', icon: AlertTriangle, detail: 'Për t’u arkëtuar' },
-    { label: 'Qëndrime me detyrim', value: () => props.rows.length, tone: props.rows.length ? 'warning' : 'success', icon: ReceiptText },
+    { label: translate('admin.generated.k_d2e21dc87f23'), value: () => money(props.total), tone: props.total > 0 ? 'error' : 'success', icon: AlertTriangle, detail: translate('admin.generated.k_3998ec811a6f') },
+    { label: translate('admin.generated.k_179bf31db787'), value: () => props.rows.length, tone: props.rows.length ? 'warning' : 'success', icon: ReceiptText },
 ];
 </script>
 
 <template>
-    <ReportShell title="Bilance të Papaguara">
+    <ReportShell :title="$t('admin.generated.k_e5a27d18b6d6')">
         <ReportKpiGrid :items="kpis" />
 
         <Card :padding="false" class="mt-5">
@@ -36,13 +37,13 @@ const kpis = [
                 <table class="min-w-full divide-y divide-neutral-200">
                     <thead class="bg-neutral-50">
                         <tr>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Mysafiri</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Dhoma</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Statusi</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Periudha</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Faturë</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Paguar</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Mbetet</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_11cab5233d4e') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_f97d3a426c51') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_1d8fb31c6b54') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_1574d0f5f4f4') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_1bf361e366ee') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_3c428e14329a') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_b61b4e8cd257') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
@@ -61,7 +62,7 @@ const kpis = [
                     </tbody>
                 </table>
             </div>
-            <div v-if="!rows.length" class="px-6 py-12 text-center text-body-sm text-neutral-500">Asnjë borxh i hapur. Të gjitha faturat janë të mbyllura. ✅</div>
+            <div v-if="!rows.length" class="px-6 py-12 text-center text-body-sm text-neutral-500">{{ $t('admin.generated.k_26879d0779af') }}</div>
         </Card>
     </ReportShell>
 </template>

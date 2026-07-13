@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
@@ -56,7 +57,7 @@ function loadPokSdk() {
         s.src = POK_CDN;
         s.async = true;
         s.onload = () => (window.PokPayment ? resolve(window.PokPayment) : reject(new Error('PokPayment global missing after load')));
-        s.onerror = () => reject(new Error('Nuk u ngarkua dot forma e pagesës. Kontrollo lidhjen dhe provo sërish.'));
+        s.onerror = () => reject(new Error(translate('admin.generated.k_775ad0f66d84')));
         document.head.appendChild(s);
     });
 }
@@ -93,7 +94,7 @@ async function startPayment() {
             () => {
                 confirming.value = true;
                 router.post(props.confirmUrl, {}, {
-                    onError: () => { confirming.value = false; error.value = "Pagesa u krye, por s'u konfirmua ende. Prit pak sekonda dhe rifresko."; },
+                    onError: () => { confirming.value = false; error.value = translate('admin.generated.k_00c09206cd2d'); },
                 });
             },
             (e) => {
@@ -101,7 +102,7 @@ async function startPayment() {
                 // Silent safety net: if the card form fails, send the guest to POK's hosted page
                 // (the reservation stays held) rather than leaving them stuck.
                 if (props.payUrl) { window.location.href = props.payUrl; return; }
-                error.value = e?.message || 'Pagesa dështoi.';
+                error.value = e?.message || translate('admin.generated.k_3fa37dcaeaff');
                 started.value = false; // bring the retry button back — never a dead end
             },
             // Pre-fill identity fields so the guest enters ONLY card number / expiry / CVC.
@@ -151,23 +152,22 @@ onUnmounted(() => { if (tick) clearInterval(tick); });
 </script>
 
 <template>
-    <Head title="Pagesa" />
+    <Head :title="$t('admin.generated.k_9ae4255a7958')" />
     <WebsiteLayout>
         <div class="max-w-xl mx-auto px-5 py-16 sm:py-20">
-            <p class="text-eyebrow text-ionian mb-3">Hapi i fundit</p>
-            <h1 class="font-serif text-display-sm text-ink">Përfundo pagesën</h1>
+            <p class="text-eyebrow text-ionian mb-3">{{ $t('admin.generated.k_063103ecd5d8') }}</p>
+            <h1 class="font-serif text-display-sm text-ink">{{ $t('admin.generated.k_6aeaf1b56910') }}</h1>
             <p class="text-driftwood mt-2 mb-8 lead">
-                <template v-if="guestName">{{ guestName }}, r</template><template v-else>R</template>ezervimi mbahet për ty derisa të paguash. Pagesa është e sigurt përmes POK.
-            </p>
+                <template v-if="guestName">{{ guestName }}{{ $t('admin.generated.k_5c4d67b1c0db') }}</template><template v-else>{{ $t('admin.generated.k_e3a040b84398') }}</template>{{ $t('admin.generated.k_fec5be500f0c') }} </p>
 
             <!-- summary -->
             <div class="rounded-2xl border border-limestone bg-bone/60 p-5 mb-3">
                 <div class="flex items-center justify-between text-ink/70 text-body-sm">
-                    <span>{{ roomName || 'Dhoma' }}</span>
-                    <span>{{ nights }} net<template v-if="adults"> · {{ adults }} të rritur</template><template v-if="children">, {{ children }} fëmijë</template></span>
+                    <span>{{ roomName || $t('admin.generated.k_56dfd63697e3') }}</span>
+                    <span>{{ nights }} {{ $t('admin.generated.k_b26dd1a3ecab') }}<template v-if="adults"> · {{ adults }} {{ $t('admin.generated.k_4b3616423937') }}</template><template v-if="children">, {{ children }} {{ $t('admin.generated.k_e97cb6c00455') }}</template></span>
                 </div>
                 <div class="flex items-baseline justify-between mt-3 pt-3 border-t border-limestone">
-                    <span class="text-ink font-medium">Total për të paguar</span>
+                    <span class="text-ink font-medium">{{ $t('admin.generated.k_4eb893f1c8e6') }}</span>
                     <span class="font-serif text-3xl text-brass">{{ currency }}{{ money(amount) }}</span>
                 </div>
             </div>
@@ -178,8 +178,7 @@ onUnmounted(() => { if (tick) clearInterval(tick); });
                 role="status"
                 :class="['text-center text-body-sm mb-6 tabular-nums', holdUrgent ? 'text-error-600 font-medium' : 'text-driftwood']"
             >
-                Dhoma mbahet për ty edhe {{ holdClock }} min
-            </p>
+{{ $t('admin.generated.k_ab6a0585f9cb') }} {{ holdClock }} {{ $t('admin.generated.k_b75f2e453e36') }} </p>
 
             <div
                 v-if="error || flashError"
@@ -193,13 +192,13 @@ onUnmounted(() => { if (tick) clearInterval(tick); });
 
             <!-- hold expired → the release cron frees the room; don't offer a dead payment -->
             <div v-if="holdExpired" class="rounded-xl bg-limestone/40 border border-limestone text-ink/80 text-body-sm px-4 py-6 text-center">
-                <p>Koha e mbajtjes mbaroi — dhoma u lirua.</p>
-                <Link href="/book" class="btn-reserve inline-block mt-4">Rezervo përsëri</Link>
+                <p>{{ $t('admin.generated.k_a019b0f5d840') }}</p>
+                <Link href="/book" class="btn-reserve inline-block mt-4">{{ $t('admin.generated.k_b400e5ca8025') }}</Link>
             </div>
 
             <div v-else-if="!openForPayment" class="rounded-xl bg-limestone/40 border border-limestone text-ink/80 text-body-sm px-4 py-6 text-center">
-                <p>Po konfirmojmë pagesën tënde…</p>
-                <button type="button" class="mt-3 text-ionian underline text-body-sm" @click="router.reload()">Rifresko gjendjen</button>
+                <p>{{ $t('admin.generated.k_19c40fdd4f7a') }}</p>
+                <button type="button" class="mt-3 text-ionian underline text-body-sm" @click="router.reload()">{{ $t('admin.generated.k_e6d7988a4128') }}</button>
             </div>
 
             <template v-else>
@@ -207,29 +206,26 @@ onUnmounted(() => { if (tick) clearInterval(tick); });
                 <div v-if="!started" class="text-center">
                     <button type="button" @click="startPayment"
                         class="rounded-xl bg-ionian text-white font-medium px-7 py-3.5 hover:bg-ionian-dark">
-                        {{ error ? 'Provo sërish' : 'Paguaj me kartë' }}
+                        {{ error ? $t('admin.generated.k_26515f673d03') : $t('admin.generated.k_837effc7f915') }}
                     </button>
                 </div>
 
-                <p v-if="sdkLoading" role="status" class="text-center text-ink/70 text-body-sm py-6">Po hapet forma e pagesës…</p>
+                <p v-if="sdkLoading" role="status" class="text-center text-ink/70 text-body-sm py-6">{{ $t('admin.generated.k_6204d45003f2') }}</p>
 
                 <!-- POK card form (CDN build) mounts here; hidden while the server confirms so a
                      nervous guest can't re-tap POK's pay button mid-confirmation -->
-                <div v-show="started && !confirming" id="pok-form" tabindex="-1" aria-label="Forma e pagesës me kartë" class="min-h-[220px] outline-none"></div>
+                <div v-show="started && !confirming" id="pok-form" tabindex="-1" :aria-label="$t('admin.generated.k_d73a2595b37d')" class="min-h-[220px] outline-none"></div>
 
                 <p v-if="confirming" role="status" aria-live="polite" class="text-center text-driftwood text-body-sm mt-5">
                     <span class="inline-block h-4 w-4 mr-1.5 align-[-2px] rounded-full border-2 border-ionian border-t-transparent animate-spin" aria-hidden="true"></span>
-                    Po konfirmohet pagesa… mos e mbyll faqen.
-                </p>
+{{ $t('admin.generated.k_4c2c6bfb97ba') }} </p>
 
                 <p class="text-center text-tiny text-driftwood mt-8 leading-relaxed">
-                    🔒 Pagesë e sigurt nëpërmjet POK — të dhënat e kartës nuk kalojnë kurrë nëpër serverët tanë.
-                </p>
+{{ $t('admin.generated.k_7ae537141bc8') }} </p>
 
                 <p v-if="env === 'staging'" class="text-center text-tiny text-driftwood mt-3 leading-relaxed">
-                    Modaliteti TEST — përdor kartën <b class="text-ink">4242 4242 4242 4242</b>,<br>
-                    datë skadence në të ardhmen, çfarëdo CVV 3-shifror.
-                </p>
+{{ $t('admin.generated.k_560f42d51bb9') }} <b class="text-ink">4242 4242 4242 4242</b>,<br>
+{{ $t('admin.generated.k_a656d10acb69') }} </p>
 
                 <pre v-if="env === 'staging' && diag" class="mt-6 whitespace-pre-wrap break-words rounded-lg bg-ink/5 border border-limestone text-ink/60 text-[11px] leading-relaxed p-3">{{ diag }}</pre>
             </template>

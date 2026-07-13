@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import {
@@ -26,7 +27,7 @@ const props = defineProps({
 const typeLabel = {
     checkout_clean: 'Check-out',
     stayover_clean: 'Ditor',
-    deep_clean: 'Thellësi',
+    deep_clean: translate('admin.generated.k_a0d531b7e261'),
     inspection: 'Inspektim',
 };
 
@@ -40,19 +41,19 @@ const pct = computed(() => total.value === 0 ? 100 : Math.round((doneCount.value
 const groupDefinitions = [
     {
         key: 'linen',
-        label: 'Shtrati & tekstilet',
+        label: translate('admin.generated.k_212eda01297e'),
         icon: BedDouble,
         matches: /çarçaf|krevat|dyshek|peshqir|tekst/i,
     },
     {
         key: 'bathroom',
-        label: 'Banjo',
+        label: translate('admin.generated.k_94d7c2d7af96'),
         icon: ShowerHead,
         matches: /banj|wc|dush|lavaman|sapun|shampo|higjen|amenit/i,
     },
     {
         key: 'final',
-        label: 'Kontrolli final',
+        label: translate('admin.generated.k_45dc76b2bd0a'),
         icon: ShieldCheck,
         matches: /kontroll|dëmt|demt|pajis|televiz|\btv\b|\bac\b|drit|minibar|harruar/i,
     },
@@ -61,7 +62,7 @@ const groupDefinitions = [
 const groupedItems = computed(() => {
     const groups = [
         ...groupDefinitions.map((group) => ({ ...group, items: [] })),
-        { key: 'room', label: 'Dhoma', icon: House, items: [] },
+        { key: 'room', label: translate('admin.generated.k_0c61f9b6d7d1'), icon: House, items: [] },
     ];
 
     items.value.forEach((item, index) => {
@@ -122,7 +123,7 @@ const elapsed = computed(() => {
 
 const startedTime = computed(() => {
     if (!startedMs) return '—';
-    return new Date(startedMs).toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' });
+    return new Date(startedMs).toLocaleTimeString(getIntlLocale(), { hour: '2-digit', minute: '2-digit' });
 });
 
 const finishing = ref(false);
@@ -179,22 +180,21 @@ function submitIssue() {
                 <Link
                     :href="route('housekeeping.index')"
                     class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 no-underline transition-colors hover:bg-neutral-50"
-                    aria-label="Prapa"
+                    :aria-label="$t('admin.generated.k_a20afb15e92b')"
                 >
                     <ArrowLeft class="h-5 w-5" :stroke-width="2" />
                 </Link>
 
                 <div class="min-w-0">
-                    <h1 class="truncate text-h4 font-semibold leading-none text-primary-900">Dhoma {{ task.room?.room_number || '—' }}</h1>
+                    <h1 class="truncate text-h4 font-semibold leading-none text-primary-900">{{ $t('admin.generated.k_98a2941a8f74') }} {{ task.room?.room_number || '—' }}</h1>
                     <p class="mt-1 truncate text-small text-neutral-500">
-                        {{ task.room?.room_type || 'Pa tip dhome' }}<span v-if="task.room?.floor"> · Kati {{ task.room.floor }}</span>
+                        {{ task.room?.room_type || $t('admin.generated.k_786323a8a1d4') }}<span v-if="task.room?.floor"> {{ $t('admin.generated.k_20e72de54dbf') }} {{ task.room.floor }}</span>
                     </p>
                 </div>
 
                 <div class="ml-auto flex shrink-0 items-center gap-2">
                     <span v-if="task.priority === 'urgent'" class="hidden items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1.5 text-tiny font-semibold uppercase tracking-wide text-warning-700 sm:inline-flex">
-                        <span class="h-1.5 w-1.5 rounded-full bg-warning-500" /> Urgjente
-                    </span>
+                        <span class="h-1.5 w-1.5 rounded-full bg-warning-500" /> {{ $t('admin.generated.k_41d5c3257de4') }} </span>
                     <span class="rounded-full border px-2.5 py-1.5 text-tiny font-semibold uppercase tracking-wide"
                         :class="task.type === 'checkout_clean' ? 'border-error-200 bg-error-50 text-error-700' : 'border-info-200 bg-info-50 text-info-700'">
                         {{ typeLabel[task.type] || task.type }}
@@ -208,18 +208,17 @@ function submitIssue() {
                 <div class="bg-gradient-to-br from-primary-900 to-primary-700 px-5 py-5 text-white sm:px-6 sm:py-6">
                     <div class="flex items-center justify-between gap-4 lg:block">
                         <div>
-                            <p class="text-tiny font-semibold uppercase tracking-[0.16em] text-primary-200">Koha e pastrimit</p>
+                            <p class="text-tiny font-semibold uppercase tracking-[0.16em] text-primary-200">{{ $t('admin.generated.k_dce9ac3412d3') }}</p>
                             <p class="mt-2 text-4xl font-semibold leading-none tabular-nums sm:text-5xl">{{ elapsed }}</p>
                         </div>
                         <div class="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-small text-primary-100 lg:mt-4">
-                            <span class="h-2 w-2 rounded-full bg-success-300 ring-4 ring-success-300/10" /> Në proces
-                        </div>
+                            <span class="h-2 w-2 rounded-full bg-success-300 ring-4 ring-success-300/10" /> {{ $t('admin.generated.k_f2e249d56d29') }} </div>
                     </div>
                 </div>
 
                 <div class="px-5 py-4 sm:px-6 sm:py-5">
                     <div class="flex items-end justify-between">
-                        <p class="text-body-sm font-semibold text-primary-900">Progresi</p>
+                        <p class="text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_82ebcb63fd91') }}</p>
                         <p class="text-h3 font-semibold text-success-700">{{ doneCount }}/{{ total }}</p>
                     </div>
                     <div class="mt-2.5 h-2.5 overflow-hidden rounded-full bg-neutral-200">
@@ -229,15 +228,15 @@ function submitIssue() {
                     <div class="mt-5 hidden space-y-3 border-t border-neutral-100 pt-4 lg:block">
                         <div class="flex items-center gap-3 text-small text-neutral-600">
                             <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100"><UserRound class="h-4 w-4" /></span>
-                            <span>Caktuar: <b class="text-neutral-800">{{ task.assigned_to || task.started_by || 'E pacaktuar' }}</b></span>
+                            <span>{{ $t('admin.generated.k_ac86c5e2c90f') }} <b class="text-neutral-800">{{ task.assigned_to || task.started_by || $t('admin.generated.k_08eeebda65bc') }}</b></span>
                         </div>
                         <div class="flex items-center gap-3 text-small text-neutral-600">
                             <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100"><Clock3 class="h-4 w-4" /></span>
-                            <span>Filluar në <b class="text-neutral-800">{{ startedTime }}</b></span>
+                            <span>{{ $t('admin.generated.k_a94e0b9eff48') }} <b class="text-neutral-800">{{ startedTime }}</b></span>
                         </div>
                         <div class="flex items-center gap-3 text-small text-neutral-600">
                             <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100"><Save class="h-4 w-4" /></span>
-                            <span>Ruhet automatikisht</span>
+                            <span>{{ $t('admin.generated.k_e21bd00f595d') }}</span>
                         </div>
                     </div>
                 </div>
@@ -246,8 +245,8 @@ function submitIssue() {
             <section class="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
                 <div class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-4 sm:px-5">
                     <div>
-                        <h2 class="text-h4 font-semibold text-primary-900">Lista e pastrimit</h2>
-                        <p class="mt-0.5 text-small text-neutral-500">Prek një detyrë për ta shënuar të përfunduar.</p>
+                        <h2 class="text-h4 font-semibold text-primary-900">{{ $t('admin.generated.k_cfa19a5a227b') }}</h2>
+                        <p class="mt-0.5 text-small text-neutral-500">{{ $t('admin.generated.k_188d0eaf25f6') }}</p>
                     </div>
                     <span class="rounded-lg bg-success-50 px-2.5 py-1.5 text-small font-semibold text-success-700">{{ pct }}%</span>
                 </div>
@@ -283,13 +282,13 @@ function submitIssue() {
 
                 <div v-else class="px-6 py-14 text-center">
                     <ShieldCheck class="mx-auto h-9 w-9 text-success-500" :stroke-width="1.6" />
-                    <p class="mt-3 text-body-sm font-medium text-primary-900">Kjo detyrë nuk ka listë pune.</p>
-                    <p class="mt-1 text-small text-neutral-500">Mund ta përfundosh direkt.</p>
+                    <p class="mt-3 text-body-sm font-medium text-primary-900">{{ $t('admin.generated.k_321b138830ef') }}</p>
+                    <p class="mt-1 text-small text-neutral-500">{{ $t('admin.generated.k_75818e1d03f6') }}</p>
                 </div>
 
                 <div v-if="task.issue_reported" class="mx-3 mb-4 flex items-start gap-2.5 rounded-xl border border-error-200 bg-error-50 px-3 py-3 text-small text-error-700 sm:mx-5">
                     <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
-                    <span><b>Problem i raportuar:</b> {{ task.issue_reported }}</span>
+                    <span><b>{{ $t('admin.generated.k_7a1f0b6f2ac6') }}</b> {{ task.issue_reported }}</span>
                 </div>
             </section>
         </main>
@@ -298,10 +297,10 @@ function submitIssue() {
             <div class="mx-auto flex min-h-[78px] max-w-6xl items-center gap-3 px-3 py-3 sm:px-6">
                 <button type="button" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-error-200 bg-error-50 text-error-700 sm:w-auto sm:px-4" @click="showIssue = true">
                     <AlertTriangle class="h-4 w-4" :stroke-width="2" />
-                    <span class="ml-2 hidden text-body-sm font-semibold sm:inline">Raporto problem</span>
+                    <span class="ml-2 hidden text-body-sm font-semibold sm:inline">{{ $t('admin.generated.k_112172e502d7') }}</span>
                 </button>
 
-                <p class="hidden text-small text-neutral-500 md:block">Dhoma bëhet “E lirë” vetëm pasi lista përfundon.</p>
+                <p class="hidden text-small text-neutral-500 md:block">{{ $t('admin.generated.k_7fd5845b61fb') }}</p>
 
                 <button
                     type="button"
@@ -309,29 +308,27 @@ function submitIssue() {
                     :disabled="!allDone || finishing"
                     @click="finish"
                 >
-                    <span v-if="finishing">Duke përfunduar...</span>
+                    <span v-if="finishing">{{ $t('admin.generated.k_b90181e69eb2') }}</span>
                     <template v-else>
-                        Përfundo pastrimin
-                        <span v-if="!allDone" class="text-tiny font-medium opacity-80">{{ doneCount }}/{{ total }}</span>
+{{ $t('admin.generated.k_46c233d9d106') }} <span v-if="!allDone" class="text-tiny font-medium opacity-80">{{ doneCount }}/{{ total }}</span>
                         <ChevronRight class="h-4 w-4" :stroke-width="2.3" />
                     </template>
                 </button>
             </div>
         </footer>
 
-        <Modal :show="showIssue" title="Raporto problem" max-width="md" @close="showIssue = false">
+        <Modal :show="showIssue" :title="$t('admin.generated.k_20a978599f7a')" max-width="md" @close="showIssue = false">
             <div class="space-y-4">
-                <FormGroup label="Përshkrimi i problemit" required>
-                    <Textarea v-model="issueText" placeholder="Përshkruaj problemin e gjetur..." :rows="3" />
+                <FormGroup :label="$t('admin.generated.k_a48c07c5cada')" required>
+                    <Textarea v-model="issueText" :placeholder="$t('admin.generated.k_771f4e699c79')" :rows="3" />
                 </FormGroup>
                 <label class="flex items-center gap-2 text-body-sm text-neutral-700">
                     <input v-model="setMaintenance" type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-accent-600" />
-                    Vendos dhomën në mirëmbajtje
-                </label>
+{{ $t('admin.generated.k_c45c1e2bbafa') }} </label>
             </div>
             <template #footer>
-                <Button variant="outline" @click="showIssue = false">Anulo</Button>
-                <Button variant="danger" :disabled="!issueText.trim()" @click="submitIssue">Raporto</Button>
+                <Button variant="outline" @click="showIssue = false">{{ $t('admin.generated.k_5263953371b8') }}</Button>
+                <Button variant="danger" :disabled="!issueText.trim()" @click="submitIssue">{{ $t('admin.generated.k_28886d1b60ab') }}</Button>
             </template>
         </Modal>
     </div>

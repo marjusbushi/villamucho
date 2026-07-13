@@ -15,8 +15,7 @@ const initial = hotelName.charAt(0);
                 </div>
                 <h1 class="text-h1 text-white mb-3">{{ hotelName }}</h1>
                 <p class="text-body text-neutral-400 max-w-sm mx-auto">
-                    Sistemi i plote per menaxhimin e hotelit tuaj — rezervime, dhoma, housekeeping dhe POS ne nje vend.
-                </p>
+{{ $t('admin.generated.k_702d029f663b') }} </p>
             </div>
             <div class="absolute inset-0 bg-gradient-to-br from-accent-900/20 via-transparent to-primary-900/40" />
         </div>

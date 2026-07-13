@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import axios from 'axios';
 import { computed, ref, reactive, watch } from 'vue';
 import { useForm, router, usePage } from '@inertiajs/vue3';
@@ -26,7 +27,7 @@ function formatDate(value) {
     const [year, month, day] = String(value).split('-').map(Number);
     if (!year || !month || !day) return value;
 
-    return new Intl.DateTimeFormat('sq-AL', {
+    return new Intl.DateTimeFormat(getIntlLocale(), {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -57,7 +58,7 @@ function formatPrice(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) return '—';
 
-    return new Intl.NumberFormat('sq-AL', {
+    return new Intl.NumberFormat(getIntlLocale(), {
         style: 'currency',
         currency: 'EUR',
         minimumFractionDigits: Number.isInteger(number) ? 0 : 2,
@@ -88,10 +89,10 @@ const otaSyncPending = computed(() => Boolean(
 
 const otaActionLabel = computed(() => {
     const action = otaPreview.value?.action;
-    if (['extend', 'open', 'opening'].includes(action)) return 'Hapen net të reja për rezervim';
-    if (['shorten', 'close', 'closing'].includes(action)) return 'Mbyllen netët pas datës së re';
-    if (action === 'pin') return 'Data fiksohet dhe nuk lëviz më automatikisht';
-    return 'Nuk ndryshon asnjë natë';
+    if (['extend', 'open', 'opening'].includes(action)) return translate('admin.generated.k_b4c8a1084a37');
+    if (['shorten', 'close', 'closing'].includes(action)) return translate('admin.generated.k_2b995441b5b2');
+    if (action === 'pin') return translate('admin.generated.k_1f99602c48b2');
+    return translate('admin.generated.k_441280c023cc');
 });
 
 function openOtaWindow() {
@@ -123,7 +124,7 @@ async function previewOtaWindow() {
         otaPreview.value = data.preview || data;
     } catch (error) {
         otaPreview.value = null;
-        otaError.value = apiError(error, 'Nuk u krijua dot kontrolli paraprak. Provo përsëri.');
+        otaError.value = apiError(error, translate('admin.generated.k_da0913ef737a'));
     } finally {
         otaPreviewing.value = false;
     }
@@ -141,14 +142,14 @@ async function applyOtaWindow() {
             confirmed: true,
         });
         otaQueuedMessage.value = data.queued
-            ? 'Sinkronizimi me Channex po nis; ende nuk quhet i përfunduar.'
-            : 'Data ishte tashmë e vendosur dhe nuk u nis një sinkronizim i ri.';
+            ? translate('admin.generated.k_692424e8f8e9')
+            : translate('admin.generated.k_01d18896cdcd');
         otaConfirmed.value = false;
         otaPreview.value = null;
-        toasts.value?.success(data.queued ? 'Kërkesa për Channex u vendos në radhë.' : 'Nuk kishte ndryshim të ri.');
+        toasts.value?.success(data.queued ? translate('admin.generated.k_d89c7da2c3ed') : translate('admin.generated.k_f664cdee4af2'));
         router.reload({ only: ['otaWindow'], preserveScroll: true });
     } catch (error) {
-        otaError.value = apiError(error, 'Ndryshimi nuk u nis. Rifresko kontrollin paraprak dhe provo përsëri.');
+        otaError.value = apiError(error, translate('admin.generated.k_f6bf47397ab3'));
         if (error?.response?.status === 409) {
             otaPreview.value = null;
             otaConfirmed.value = false;
@@ -241,7 +242,7 @@ async function previewSeasonCopy() {
         copyPreview.value = data.preview || data;
     } catch (error) {
         copyPreview.value = null;
-        copyError.value = apiError(error, 'Nuk u krijua dot kontrolli paraprak i sezoneve.');
+        copyError.value = apiError(error, translate('admin.generated.k_26d25079cd20'));
     } finally {
         copyPreviewing.value = false;
     }
@@ -268,18 +269,18 @@ async function applySeasonCopy() {
         });
         const syncQueued = data.sync_queued !== false;
         copyAppliedMessage.value = syncQueued
-            ? 'Sezonet u kopjuan dhe përditësimi për Channex u vendos në radhë.'
-            : 'Sezonet u kopjuan në PMS, por sinkronizimi me Channex nuk u vendos në radhë. Përdor “Sinkronizo tani” para se t’i konsiderosh çmimet aktive në OTA.';
+            ? translate('admin.generated.k_1cd31cc43a6e')
+            : translate('admin.generated.k_affa8b0d31e6');
         copyConfirmed.value = false;
         copyPreview.value = null;
         if (syncQueued) {
-            toasts.value?.success('Sezonet u kopjuan me sukses.');
+            toasts.value?.success(translate('admin.generated.k_56aec18a067c'));
         } else {
-            toasts.value?.warning('Sezonet u ruajtën; sinkronizimi me Channex duhet riprovuar.');
+            toasts.value?.warning(translate('admin.generated.k_a92dd97d5553'));
         }
         router.reload({ only: ['seasons', 'seasonCopy'], preserveScroll: true });
     } catch (error) {
-        copyError.value = apiError(error, 'Sezonet nuk u kopjuan. Rifresko kontrollin paraprak dhe provo përsëri.');
+        copyError.value = apiError(error, translate('admin.generated.k_fb3087b9a19f'));
         if ([409, 422].includes(error?.response?.status)) {
             copyPreview.value = null;
             copyConfirmed.value = false;
@@ -322,7 +323,7 @@ function saveRates() {
     savingRates.value = true;
     router.post(route('pricing.rates.save'), { base, rates }, {
         preserveScroll: true,
-        onSuccess: () => toasts.value?.success('Cmimet u ruajten.'),
+        onSuccess: () => toasts.value?.success(translate('admin.generated.k_50b93c41a367')),
         onFinish: () => { savingRates.value = false; },
     });
 }
@@ -340,7 +341,7 @@ function syncChannex() {
             if (flash.error) toasts.value?.error(flash.error);
             else toasts.value?.success(flash.success || 'Sinkronizimi u nis.');
         },
-        onError: () => toasts.value?.error('Sinkronizimi deshtoi.'),
+        onError: () => toasts.value?.error(translate('admin.generated.k_a770c9461aa5')),
         onFinish: () => { syncing.value = false; },
     });
 }
@@ -365,7 +366,7 @@ function openEditSeason(s) {
 function submitSeason() {
     const opts = {
         preserveScroll: true,
-        onSuccess: () => { showSeason.value = false; toasts.value?.success('U ruajt.'); },
+        onSuccess: () => { showSeason.value = false; toasts.value?.success(translate('admin.generated.k_d79213323d87')); },
     };
     if (editingSeason.value) {
         sform.put(route('pricing.seasons.update', editingSeason.value.id), opts);
@@ -377,7 +378,7 @@ function deleteSeason(s) {
     if (!confirm(`Fshi sezonin "${s.name}"? (cmimet e tij do hiqen)`)) return;
     router.delete(route('pricing.seasons.destroy', s.id), {
         preserveScroll: true,
-        onSuccess: () => toasts.value?.success('Sezoni u fshi.'),
+        onSuccess: () => toasts.value?.success(translate('admin.generated.k_6031e3e37904')),
     });
 }
 
@@ -389,8 +390,8 @@ function fmtRange(s) {
 <template>
     <AppLayout>
         <PageHeader
-            title="Cmimet"
-            :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Cmimet' }]"
+            :title="$t('admin.generated.k_41ef039c5194')"
+            :breadcrumbs="[{ label: $t('admin.generated.k_f226794ce976'), href: '/dashboard' }, { label: $t('admin.generated.k_9cccd7468e78') }]"
         />
 
         <div class="mt-6 space-y-6">
@@ -398,32 +399,31 @@ function fmtRange(s) {
             <Card>
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
-                        <h3 class="text-h4 text-primary-900">Channel Manager (Channex)</h3>
-                        <p class="text-small text-neutral-500 mt-0.5">Çmimet dhe dhomat e lira shkojnë vetvetiu te Channex dhe OTA-të. Mund të zgjedhësh datën e fundit që pranon rezervime.</p>
+                        <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_5786b449b811') }}</h3>
+                        <p class="text-small text-neutral-500 mt-0.5">{{ $t('admin.generated.k_18d8a171be34') }}</p>
                     </div>
                     <div class="flex shrink-0 flex-col gap-2 sm:flex-row">
                         <Button variant="outline" @click="openOtaWindow">
-                            Ndrysho datën e OTA-ve
-                        </Button>
+{{ $t('admin.generated.k_3c46c19034c7') }} </Button>
                         <Button variant="secondary" :disabled="syncing" @click="syncChannex">
-                            {{ syncing ? 'Po sinkronizohet…' : 'Sinkronizo tani' }}
+                            {{ syncing ? $t('admin.generated.k_270ec5ff9530') : $t('admin.generated.k_bb12cb3fbb4c') }}
                         </Button>
                     </div>
                 </div>
 
                 <div class="mt-4 grid gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4 sm:grid-cols-3">
                     <div>
-                        <p class="text-tiny font-medium uppercase tracking-wide text-neutral-500">Nata e fundit e konfiguruar</p>
+                        <p class="text-tiny font-medium uppercase tracking-wide text-neutral-500">{{ $t('admin.generated.k_bcbc2e972c63') }}</p>
                         <p class="mt-1 text-body-sm font-semibold text-primary-900">{{ formatDate(otaEffectiveUntil) }}</p>
                     </div>
                     <div>
-                        <p class="text-tiny font-medium uppercase tracking-wide text-neutral-500">Checkout i fundit i mundshëm</p>
+                        <p class="text-tiny font-medium uppercase tracking-wide text-neutral-500">{{ $t('admin.generated.k_e74c4fbdf8d7') }}</p>
                         <p class="mt-1 text-body-sm font-semibold text-primary-900">{{ formatDate(nextDate(otaEffectiveUntil)) }}</p>
                     </div>
                     <div>
-                        <p class="text-tiny font-medium uppercase tracking-wide text-neutral-500">Mënyra</p>
+                        <p class="text-tiny font-medium uppercase tracking-wide text-neutral-500">{{ $t('admin.generated.k_51ddb459ca05') }}</p>
                         <p class="mt-1 text-body-sm font-semibold text-primary-900">
-                            {{ otaWindow.configured_until ? 'Datë e zgjedhur nga ti' : 'Dritare automatike' }}
+                            {{ otaWindow.configured_until ? $t('admin.generated.k_85bf551587e9') : $t('admin.generated.k_ac3136e75c30') }}
                         </p>
                     </div>
                 </div>
@@ -433,13 +433,11 @@ function fmtRange(s) {
                     class="mt-3 rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-small text-warning-800"
                     role="status"
                 >
-                    <strong>Ndryshimi nuk është konfirmuar ende nga procesi i sinkronizimit.</strong>
-                    <span v-if="otaWindow.applied_until"> Channex kishte të zbatuar deri më {{ formatDate(otaWindow.applied_until) }}.</span>
-                    Mos e konsidero datën e re aktive në OTA derisa ky njoftim të zhduket.
-                </div>
+                    <strong>{{ $t('admin.generated.k_ae248b23fa5d') }}</strong>
+                    <span v-if="otaWindow.applied_until"> {{ $t('admin.generated.k_4f0dd3b2e4ca') }} {{ formatDate(otaWindow.applied_until) }}.</span>
+{{ $t('admin.generated.k_c82352eecc28') }} </div>
                 <div class="mt-3 rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-small text-warning-800">
-                    <strong>Channex është LIVE.</strong> Data nuk ndryshon vetëm duke e zgjedhur; fillimisht shikon ndikimin dhe pastaj e konfirmon qartë.
-                </div>
+                    <strong>{{ $t('admin.generated.k_edc684fd7b7a') }}</strong> {{ $t('admin.generated.k_86cf0aa1def8') }} </div>
             </Card>
 
             <!-- Seasons -->
@@ -447,8 +445,8 @@ function fmtRange(s) {
                 <template #header>
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div class="min-w-0">
-                            <h3 class="text-h4 text-primary-900">Sezonet</h3>
-                            <p class="text-small text-neutral-500 mt-0.5">Periudha datash me çmime të ndryshme. Mund të kopjosh një vit te viti tjetër dhe të shtosh një rritje përqindjeje.</p>
+                            <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_b393cba9fdfc') }}</h3>
+                            <p class="text-small text-neutral-500 mt-0.5">{{ $t('admin.generated.k_d2d5790eb313') }}</p>
                         </div>
                         <div class="flex shrink-0 flex-col gap-2 sm:flex-row">
                             <Button
@@ -457,9 +455,8 @@ function fmtRange(s) {
                                 :disabled="!sourceYearOptions.length"
                                 @click="openSeasonCopy"
                             >
-                                Kopjo për vitin tjetër
-                            </Button>
-                            <Button size="sm" variant="primary" @click="openCreateSeason">+ Shto sezon</Button>
+{{ $t('admin.generated.k_05a62a33ee40') }} </Button>
+                            <Button size="sm" variant="primary" @click="openCreateSeason">{{ $t('admin.generated.k_b5b2a800444e') }}</Button>
                         </div>
                     </div>
                 </template>
@@ -468,14 +465,13 @@ function fmtRange(s) {
                     <div v-for="s in seasons" :key="s.id" class="py-3 flex items-center gap-4">
                         <div class="flex-1 min-w-0">
                             <p class="text-body-sm font-medium text-primary-900">{{ s.name }}</p>
-                            <p class="text-small text-neutral-500">{{ fmtRange(s) }} · prioritet {{ s.priority }}</p>
+                            <p class="text-small text-neutral-500">{{ fmtRange(s) }} {{ $t('admin.generated.k_c0857a9c44ab') }} {{ s.priority }}</p>
                         </div>
-                        <Button size="sm" variant="ghost" @click="openEditSeason(s)">Edito</Button>
-                        <Button size="sm" variant="ghost" class="text-error-600" @click="deleteSeason(s)">Fshi</Button>
+                        <Button size="sm" variant="ghost" @click="openEditSeason(s)">{{ $t('admin.generated.k_0814d8529e68') }}</Button>
+                        <Button size="sm" variant="ghost" class="text-error-600" @click="deleteSeason(s)">{{ $t('admin.generated.k_315a0d2b6347') }}</Button>
                     </div>
                     <div v-if="!seasons.length" class="py-6 text-center text-body-sm text-neutral-500">
-                        Asnje sezon. Shtoni nje (p.sh. "Sezoni i larte: 1 Korrik–31 Gusht").
-                    </div>
+{{ $t('admin.generated.k_1974bcb2ef98') }} </div>
                 </div>
             </Card>
 
@@ -483,8 +479,8 @@ function fmtRange(s) {
             <Card>
                 <template #header>
                     <div>
-                        <h3 class="text-h4 text-primary-900">Cmimet sipas tipit dhe sezonit</h3>
-                        <p class="text-small text-neutral-500 mt-0.5">Bosh = perdoret cmimi bazё. Cmimi llogaritet natё-pёr-natё sipas datave.</p>
+                        <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_26e2b820adef') }}</h3>
+                        <p class="text-small text-neutral-500 mt-0.5">{{ $t('admin.generated.k_36dda3961dee') }}</p>
                     </div>
                 </template>
 
@@ -492,8 +488,8 @@ function fmtRange(s) {
                     <table class="w-full text-body-sm">
                         <thead>
                             <tr class="border-b border-neutral-200">
-                                <th class="px-3 py-2 text-left text-label text-neutral-600">Tipi i dhomes</th>
-                                <th class="px-3 py-2 text-left text-label text-neutral-600 whitespace-nowrap">Cmimi bazё (€)</th>
+                                <th class="px-3 py-2 text-left text-label text-neutral-600">{{ $t('admin.generated.k_a6aa7eff1daa') }}</th>
+                                <th class="px-3 py-2 text-left text-label text-neutral-600 whitespace-nowrap">{{ $t('admin.generated.k_17da06e5a5dd') }}</th>
                                 <th v-for="s in seasons" :key="s.id" class="px-3 py-2 text-left text-label text-neutral-600 whitespace-nowrap">
                                     {{ s.name }} (€)
                                 </th>
@@ -514,58 +510,57 @@ function fmtRange(s) {
                             </tr>
                             <tr v-if="!roomTypes.length">
                                 <td :colspan="2 + seasons.length" class="px-3 py-6 text-center text-neutral-500">
-                                    Shto tipe dhomash te Settings se pari.
-                                </td>
+{{ $t('admin.generated.k_62e357276d24') }} </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
                 <div class="flex justify-end mt-4">
-                    <Button variant="primary" :loading="savingRates" @click="saveRates">Ruaj cmimet</Button>
+                    <Button variant="primary" :loading="savingRates" @click="saveRates">{{ $t('admin.generated.k_f5e21afe68a5') }}</Button>
                 </div>
             </Card>
         </div>
 
         <!-- Season modal -->
-        <Modal :show="showSeason" :title="editingSeason ? 'Edito sezonin' : 'Sezon i ri'" @close="showSeason = false">
+        <Modal :show="showSeason" :title="editingSeason ? $t('admin.generated.k_2b26c6dc5ef0') : $t('admin.generated.k_654a85c2d207')" @close="showSeason = false">
             <form @submit.prevent="submitSeason" class="space-y-4">
-                <FormGroup label="Emri" :error="sform.errors.name" required>
-                    <TextInput v-model="sform.name" placeholder="psh. Sezoni i larte" :error="sform.errors.name" />
+                <FormGroup :label="$t('admin.generated.k_51a0c7aadeb7')" :error="sform.errors.name" required>
+                    <TextInput v-model="sform.name" :placeholder="$t('admin.generated.k_ba5b2b430ece')" :error="sform.errors.name" />
                 </FormGroup>
                 <div class="grid grid-cols-2 gap-4">
-                    <FormGroup label="Nga data" :error="sform.errors.start_date" required>
+                    <FormGroup :label="$t('admin.generated.k_8b9d783e781c')" :error="sform.errors.start_date" required>
                         <DatePicker v-model="sform.start_date" :error="sform.errors.start_date" />
                     </FormGroup>
-                    <FormGroup label="Deri me" :error="sform.errors.end_date" required>
+                    <FormGroup :label="$t('admin.generated.k_15cdee011901')" :error="sform.errors.end_date" required>
                         <DatePicker v-model="sform.end_date" :error="sform.errors.end_date" />
                     </FormGroup>
                 </div>
-                <FormGroup label="Prioriteti" :error="sform.errors.priority" required>
+                <FormGroup :label="$t('admin.generated.k_2bd87c03f9dd')" :error="sform.errors.priority" required>
                     <TextInput type="number" v-model="sform.priority" min="0" max="1000" />
-                    <p class="text-tiny text-neutral-400 mt-1">Me i larte fiton kur dy sezone mbivendosen (p.sh. 'Fundjavё' > 'Sezon i larte').</p>
+                    <p class="text-tiny text-neutral-400 mt-1">{{ $t('admin.generated.k_90569615eda2') }}</p>
                 </FormGroup>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showSeason = false">Anulo</Button>
-                <Button variant="primary" :loading="sform.processing" @click="submitSeason">{{ editingSeason ? 'Ruaj' : 'Shto' }}</Button>
+                <Button variant="outline" @click="showSeason = false">{{ $t('admin.generated.k_b59ae1e356c9') }}</Button>
+                <Button variant="primary" :loading="sform.processing" @click="submitSeason">{{ editingSeason ? $t('admin.generated.k_4e4180955a51') : $t('admin.generated.k_fa00ecca163b') }}</Button>
             </template>
         </Modal>
 
         <!-- OTA sell-window modal -->
         <Modal
             :show="showOtaWindow"
-            title="Deri kur të jenë OTA-të të hapura"
+            :title="$t('admin.generated.k_d1e9a2a6b2ca')"
             max-width="xl"
             :closeable="!otaPreviewing && !otaApplying"
             @close="closeOtaWindow"
         >
             <div class="space-y-4">
                 <div class="rounded-lg border border-warning-200 bg-warning-50 p-3 text-body-sm text-warning-800">
-                    <p class="font-semibold">Ky veprim prek Booking.com dhe Expedia LIVE.</p>
-                    <p class="mt-1">Data që zgjedh është <strong>nata e fundit që mund të shitet</strong>. Checkout-i mund të bëhet të nesërmen.</p>
+                    <p class="font-semibold">{{ $t('admin.generated.k_93ba7f15c952') }}</p>
+                    <p class="mt-1">{{ $t('admin.generated.k_1234a2426913') }} <strong>{{ $t('admin.generated.k_19445548ff03') }}</strong>{{ $t('admin.generated.k_ae22191a964b') }}</p>
                 </div>
 
-                <FormGroup label="Nata e fundit e hapur për rezervim" html-for="ota-sell-until" required>
+                <FormGroup :label="$t('admin.generated.k_8d1115767601')" html-for="ota-sell-until" required>
                     <DatePicker
                         id="ota-sell-until"
                         v-model="otaSellUntil"
@@ -574,23 +569,21 @@ function fmtRange(s) {
                         :disabled="otaPreviewing || otaApplying"
                     />
                     <p class="mt-1 text-small text-neutral-500">
-                        Checkout-i i fundit i mundshëm: <strong>{{ formatDate(nextDate(otaSellUntil)) }}</strong>.
+{{ $t('admin.generated.k_a368fdc8bbca') }} <strong>{{ formatDate(nextDate(otaSellUntil)) }}</strong>.
                     </p>
                     <p class="mt-1 text-small text-neutral-500">
-                        Kufiri teknik i inventarit në Channex: {{ otaWindow.max_days || 500 }} ditë përpara.
-                    </p>
+{{ $t('admin.generated.k_422cefa4e409') }} {{ otaWindow.max_days || 500 }} {{ $t('admin.generated.k_144850fc6e94') }} </p>
                 </FormGroup>
 
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-small text-neutral-500">Asgjë nuk ndryshon pa kontrollin dhe konfirmimin tënd.</p>
+                    <p class="text-small text-neutral-500">{{ $t('admin.generated.k_f64af9b008ee') }}</p>
                     <Button
                         variant="outline"
                         :loading="otaPreviewing"
                         :disabled="otaApplying || !otaSellUntil"
                         @click="previewOtaWindow"
                     >
-                        Shiko ndikimin
-                    </Button>
+{{ $t('admin.generated.k_4c7056fa08e1') }} </Button>
                 </div>
 
                 <p v-if="otaError" class="rounded-md bg-error-50 px-3 py-2 text-body-sm text-error-700" role="alert">
@@ -602,29 +595,29 @@ function fmtRange(s) {
                     role="status"
                     aria-live="polite"
                 >
-                    <strong>Në radhë, jo ende i përfunduar.</strong> {{ otaQueuedMessage }}
+                    <strong>{{ $t('admin.generated.k_7df7c73cf05e') }}</strong> {{ otaQueuedMessage }}
                 </div>
 
                 <section v-if="otaPreview" class="space-y-4" aria-labelledby="ota-preview-title">
                     <div class="border-t border-neutral-200 pt-4">
-                        <h4 id="ota-preview-title" class="text-body font-semibold text-primary-900">Kontrolli para konfirmimit</h4>
+                        <h4 id="ota-preview-title" class="text-body font-semibold text-primary-900">{{ $t('admin.generated.k_0b9aded31b54') }}</h4>
                     </div>
 
                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <div class="rounded-md border border-neutral-200 p-3">
-                            <p class="text-tiny uppercase tracking-wide text-neutral-500">Aktualisht</p>
+                            <p class="text-tiny uppercase tracking-wide text-neutral-500">{{ $t('admin.generated.k_28b692a38c73') }}</p>
                             <p class="mt-1 text-body-sm font-semibold text-primary-900">{{ formatDate(otaPreview.current_until) }}</p>
                         </div>
                         <div class="rounded-md border border-neutral-200 p-3">
-                            <p class="text-tiny uppercase tracking-wide text-neutral-500">Pas ndryshimit</p>
+                            <p class="text-tiny uppercase tracking-wide text-neutral-500">{{ $t('admin.generated.k_55d3739014b5') }}</p>
                             <p class="mt-1 text-body-sm font-semibold text-primary-900">{{ formatDate(otaPreview.requested_until) }}</p>
                         </div>
                         <div class="rounded-md border border-neutral-200 p-3">
-                            <p class="text-tiny uppercase tracking-wide text-neutral-500">Veprimi</p>
+                            <p class="text-tiny uppercase tracking-wide text-neutral-500">{{ $t('admin.generated.k_f15aab88ce38') }}</p>
                             <p class="mt-1 text-body-sm font-semibold text-primary-900">{{ otaActionLabel }}</p>
                         </div>
                         <div class="rounded-md border border-neutral-200 p-3">
-                            <p class="text-tiny uppercase tracking-wide text-neutral-500">Net të prekura</p>
+                            <p class="text-tiny uppercase tracking-wide text-neutral-500">{{ $t('admin.generated.k_0a87fff64845') }}</p>
                             <p class="mt-1 text-body-sm font-semibold text-primary-900">{{ otaPreview.nights || 0 }}</p>
                         </div>
                     </div>
@@ -633,19 +626,16 @@ function fmtRange(s) {
                         v-if="otaPreview.action === 'pin'"
                         class="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-body-sm text-neutral-700"
                     >
-                        Nuk hapet dhe nuk mbyllet asnjë natë tani. Data vetëm fiksohet, që nesër të mos zgjatet automatikisht.
-                    </div>
+{{ $t('admin.generated.k_3475d84a38ae') }} </div>
                     <div v-else class="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-body-sm text-neutral-700">
                         <p>
-                            Intervali i prekur:
-                            <strong>{{ formatDate(otaPreview.range_from) }} → {{ formatDate(otaPreview.range_to) }}</strong>
+{{ $t('admin.generated.k_c906b2573e50') }} <strong>{{ formatDate(otaPreview.range_from) }} → {{ formatDate(otaPreview.range_to) }}</strong>
                         </p>
-                        <p class="mt-1">Preken {{ otaPreview.room_type_count || otaWindow.room_type_count || 0 }} tipe dhomash në Channex.</p>
+                        <p class="mt-1">{{ $t('admin.generated.k_6ac5de0acc4f') }} {{ otaPreview.room_type_count || otaWindow.room_type_count || 0 }} {{ $t('admin.generated.k_3db1f498adfd') }}</p>
                     </div>
 
                     <div class="rounded-md border border-primary-100 bg-primary-50 p-3 text-body-sm text-primary-800">
-                        Rezervimet ekzistuese nuk anulohen dhe puna brenda PMS-it nuk ndryshon. Ndryshon vetëm mundësia për të marrë rezervime të reja nga OTA-të pas kësaj date.
-                    </div>
+{{ $t('admin.generated.k_a62b5521162d') }} </div>
 
                     <label
                         v-if="otaPreview.action !== 'unchanged'"
@@ -659,17 +649,16 @@ function fmtRange(s) {
                             class="mt-0.5 h-4 w-4 rounded border-neutral-300 text-accent-600 focus:ring-accent-500"
                             :disabled="otaApplying"
                         />
-                        <span>E kontrollova datën dhe e kuptoj që ky ndryshim do të dërgohet te Booking.com dhe Expedia live.</span>
+                        <span>{{ $t('admin.generated.k_e4d1640ce3ac') }}</span>
                     </label>
                     <p v-else class="rounded-md bg-neutral-100 px-3 py-2 text-body-sm text-neutral-600">
-                        Data është e njëjtë me atë aktuale; nuk ka ndryshim për t'u nisur.
-                    </p>
+{{ $t('admin.generated.k_0dd0bd8718e5') }} </p>
                 </section>
             </div>
 
             <template #footer>
                 <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <Button variant="outline" :disabled="otaPreviewing || otaApplying" @click="closeOtaWindow">Mbyll</Button>
+                    <Button variant="outline" :disabled="otaPreviewing || otaApplying" @click="closeOtaWindow">{{ $t('admin.generated.k_c46815d171c9') }}</Button>
                     <Button
                         v-if="otaPreview"
                         variant="primary"
@@ -677,8 +666,7 @@ function fmtRange(s) {
                         :disabled="otaPreviewing || !otaConfirmed || otaPreview.action === 'unchanged'"
                         @click="applyOtaWindow"
                     >
-                        Konfirmo dhe nis sinkronizimin
-                    </Button>
+{{ $t('admin.generated.k_d002089c394f') }} </Button>
                 </div>
             </template>
         </Modal>
@@ -686,42 +674,41 @@ function fmtRange(s) {
         <!-- Copy seasons modal -->
         <Modal
             :show="showSeasonCopy"
-            title="Kopjo sezonet në një vit tjetër"
+            :title="$t('admin.generated.k_12318b964d42')"
             max-width="2xl"
             :closeable="!copyPreviewing && !copyApplying"
             @close="closeSeasonCopy"
         >
             <div class="space-y-4">
                 <p class="text-body-sm text-neutral-600">
-                    Kopjo datat dhe çmimet e një viti, pastaj shto një rritje përqindjeje. Fillimisht shikon çdo çmim; asgjë nuk ruhet pa konfirmim.
-                </p>
+{{ $t('admin.generated.k_e33a2246f9b6') }} </p>
 
                 <div class="grid gap-4 sm:grid-cols-3">
-                    <FormGroup label="Kopjo nga viti" html-for="copy-source-year" required>
+                    <FormGroup :label="$t('admin.generated.k_2edd8048f300')" html-for="copy-source-year" required>
                         <select
                             id="copy-source-year"
                             v-model="copySourceYear"
                             class="block w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-body-sm text-neutral-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
                             :disabled="copyPreviewing || copyApplying"
                         >
-                            <option value="" disabled>Zgjidh vitin</option>
+                            <option value="" disabled>{{ $t('admin.generated.k_724357c69c7e') }}</option>
                             <option v-for="year in sourceYearOptions" :key="year" :value="String(year)">{{ year }}</option>
                         </select>
                     </FormGroup>
 
-                    <FormGroup label="Kopjo te viti" html-for="copy-target-year" required>
+                    <FormGroup :label="$t('admin.generated.k_e601ec61e4a0')" html-for="copy-target-year" required>
                         <select
                             id="copy-target-year"
                             v-model="copyTargetYear"
                             class="block w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-body-sm text-neutral-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
                             :disabled="copyPreviewing || copyApplying"
                         >
-                            <option value="" disabled>Zgjidh vitin</option>
+                            <option value="" disabled>{{ $t('admin.generated.k_724357c69c7e') }}</option>
                             <option v-for="year in targetYearOptions" :key="year" :value="String(year)">{{ year }}</option>
                         </select>
                     </FormGroup>
 
-                    <FormGroup label="Rritja e çmimeve (%)" html-for="copy-uplift" required>
+                    <FormGroup :label="$t('admin.generated.k_a192f9ca0360')" html-for="copy-uplift" required>
                         <TextInput
                             id="copy-uplift"
                             v-model="copyUplift"
@@ -735,15 +722,14 @@ function fmtRange(s) {
                 </div>
 
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-small text-neutral-500">Shembull: 100 € me +7% bëhet 107 €. Lejohet nga -50% deri në +100%.</p>
+                    <p class="text-small text-neutral-500">{{ $t('admin.generated.k_f66c095dd7dc') }}</p>
                     <Button
                         variant="outline"
                         :loading="copyPreviewing"
                         :disabled="copyApplying || !copySourceYear || !copyTargetYear || !copyUpliftValid"
                         @click="previewSeasonCopy"
                     >
-                        Shiko sezonet dhe çmimet
-                    </Button>
+{{ $t('admin.generated.k_0d1aafac5a6a') }} </Button>
                 </div>
 
                 <p v-if="copyError" class="rounded-md bg-error-50 px-3 py-2 text-body-sm text-error-700" role="alert">
@@ -765,7 +751,7 @@ function fmtRange(s) {
                             <span class="font-normal text-neutral-500">({{ Number(copyPreview.uplift_pct) >= 0 ? '+' : '' }}{{ copyPreview.uplift_pct }}%)</span>
                         </h4>
                         <p class="mt-1 text-small text-neutral-500">
-                            OTA-të janë aktualisht të hapura deri më {{ formatDate(copyPreview.ota_publish_until) }}.
+{{ $t('admin.generated.k_d041f1d66f84') }} {{ formatDate(copyPreview.ota_publish_until) }}.
                         </p>
                     </div>
 
@@ -774,22 +760,20 @@ function fmtRange(s) {
                         class="rounded-md border border-warning-200 bg-warning-50 p-3 text-body-sm text-warning-800"
                         role="alert"
                     >
-                        <strong>Kontrollo Çmimin Inteligjent:</strong> ka {{ copyPreview.override_count }} çmime ditore të Çmimit Inteligjent në këtë interval. Ato nuk ndryshohen nga kopjimi dhe kanë përparësi ndaj çmimit të sezonit në ato data.
-                    </div>
+                        <strong>{{ $t('admin.generated.k_b0e6552ff225') }}</strong> {{ $t('admin.generated.k_5381f98b2fa9') }} {{ copyPreview.override_count }} {{ $t('admin.generated.k_d382781187ec') }} </div>
 
                     <p
                         v-if="copyPreview.state === 'no_changes'"
                         class="rounded-md bg-neutral-100 px-3 py-2 text-body-sm text-neutral-600"
                         role="status"
                     >
-                        Të njëjtat sezone dhe çmime janë tashmë në vitin {{ copyPreview.target_year }}; nuk ka asgjë të re për të ruajtur.
-                    </p>
+{{ $t('admin.generated.k_140af4abe277') }} {{ copyPreview.target_year }}{{ $t('admin.generated.k_3c8a6f37a655') }} </p>
 
                     <div
                         v-if="copyPreview.conflicts?.length"
                         class="rounded-md border border-error-200 bg-error-50 p-3 text-body-sm text-error-800"
                     >
-                        <p class="font-semibold">Konflikte për t'u kontrolluar:</p>
+                        <p class="font-semibold">{{ $t('admin.generated.k_e3e3e800bb90') }}</p>
                         <ul class="mt-1 list-disc space-y-1 pl-5">
                             <li v-for="(conflict, index) in copyPreview.conflicts" :key="index">{{ conflict }}</li>
                         </ul>
@@ -806,16 +790,16 @@ function fmtRange(s) {
                                     {{ season.source_name }} → {{ season.target_name }}
                                 </p>
                                 <p class="mt-0.5 text-small text-neutral-500">
-                                    {{ formatDate(season.start_date) }} → {{ formatDate(season.end_date) }} · prioritet {{ season.priority }}
+                                    {{ formatDate(season.start_date) }} → {{ formatDate(season.end_date) }} {{ $t('admin.generated.k_c0857a9c44ab') }} {{ season.priority }}
                                 </p>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full min-w-[480px] text-body-sm">
                                     <thead>
                                         <tr class="border-b border-neutral-200 text-left text-label text-neutral-600">
-                                            <th class="px-4 py-2">Tipi i dhomës</th>
-                                            <th class="px-4 py-2">Çmimi {{ copyPreview.source_year }}</th>
-                                            <th class="px-4 py-2">Çmimi {{ copyPreview.target_year }}</th>
+                                            <th class="px-4 py-2">{{ $t('admin.generated.k_5c01262e5337') }}</th>
+                                            <th class="px-4 py-2">{{ $t('admin.generated.k_72d62739f21f') }} {{ copyPreview.source_year }}</th>
+                                            <th class="px-4 py-2">{{ $t('admin.generated.k_72d62739f21f') }} {{ copyPreview.target_year }}</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-neutral-100">
@@ -824,7 +808,7 @@ function fmtRange(s) {
                                             <td class="px-4 py-2 text-neutral-700">
                                                 {{ formatPrice(rate.source_price) }}
                                                 <span class="block text-tiny text-neutral-400">
-                                                    {{ rate.source_kind === 'base' ? 'çmim bazë' : 'çmim sezonal' }}
+                                                    {{ rate.source_kind === 'base' ? $t('admin.generated.k_caf380b323f3') : $t('admin.generated.k_afee019b2ecb') }}
                                                 </span>
                                             </td>
                                             <td class="px-4 py-2 font-semibold text-primary-900">{{ formatPrice(rate.target_price) }}</td>
@@ -835,7 +819,7 @@ function fmtRange(s) {
                         </article>
                     </div>
                     <p v-else class="rounded-md bg-neutral-100 px-3 py-2 text-body-sm text-neutral-600">
-                        Nuk u gjet asnjë sezon për vitin {{ copyPreview.source_year }}.
+{{ $t('admin.generated.k_725effbdcb04') }} {{ copyPreview.source_year }}.
                     </p>
 
                     <label
@@ -850,14 +834,14 @@ function fmtRange(s) {
                             class="mt-0.5 h-4 w-4 rounded border-neutral-300 text-accent-600 focus:ring-accent-500"
                             :disabled="copyApplying"
                         />
-                        <span>E kontrollova të gjitha çmimet dhe e kuptoj se ruajtja mund të ndryshojë çmimet në Booking.com dhe Expedia live.</span>
+                        <span>{{ $t('admin.generated.k_706bd8877d36') }}</span>
                     </label>
                 </section>
             </div>
 
             <template #footer>
                 <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <Button variant="outline" :disabled="copyPreviewing || copyApplying" @click="closeSeasonCopy">Mbyll</Button>
+                    <Button variant="outline" :disabled="copyPreviewing || copyApplying" @click="closeSeasonCopy">{{ $t('admin.generated.k_c46815d171c9') }}</Button>
                     <Button
                         v-if="copyPreview?.state === 'ready' && copyPreview?.seasons?.length"
                         variant="primary"
@@ -865,8 +849,7 @@ function fmtRange(s) {
                         :disabled="copyPreviewing || !copyConfirmed"
                         @click="applySeasonCopy"
                     >
-                        Konfirmo kopjimin e sezoneve
-                    </Button>
+{{ $t('admin.generated.k_6c319fb9adff') }} </Button>
                 </div>
             </template>
         </Modal>

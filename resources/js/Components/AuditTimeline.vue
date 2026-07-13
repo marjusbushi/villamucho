@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale } from '@/i18n';
 import { ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { Bot, ChevronDown, ChevronUp, History, UserRound } from 'lucide-vue-next';
@@ -26,7 +27,7 @@ function visibleChanges(entry) {
 
 function formatDateTime(value) {
     if (!value) return '—';
-    return new Date(value).toLocaleString('sq-AL', {
+    return new Date(value).toLocaleString(getIntlLocale(), {
         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
 }
@@ -62,7 +63,7 @@ function dotClass(action) {
                     {{ entry.actor || sourceLabels[entry.source] || entry.source }}
                 </span>
                 <span class="rounded-full bg-neutral-100 px-2 py-0.5 text-tiny text-neutral-600">{{ sourceLabels[entry.source] || entry.source }}</span>
-                <span v-if="showIp && entry.ip_address" class="text-tiny text-neutral-400">IP {{ entry.ip_address }}</span>
+                <span v-if="showIp && entry.ip_address" class="text-tiny text-neutral-400">{{ $t('admin.generated.k_91b9a16453f5') }} {{ entry.ip_address }}</span>
             </div>
 
             <div v-if="entry.changes.length" class="mt-3 grid gap-2 sm:grid-cols-2">
@@ -83,14 +84,14 @@ function dotClass(action) {
             </div>
 
             <button v-if="entry.changes.length > 4" type="button" class="mt-2 inline-flex items-center gap-1 text-small font-medium text-accent-700" @click="toggle(entry.id)">
-                <template v-if="expanded.has(entry.id)"><ChevronUp class="h-3.5 w-3.5" /> Më pak</template>
-                <template v-else><ChevronDown class="h-3.5 w-3.5" /> Shiko të gjitha ({{ entry.changes.length }})</template>
+                <template v-if="expanded.has(entry.id)"><ChevronUp class="h-3.5 w-3.5" /> {{ $t('admin.generated.k_63fc9444f199') }}</template>
+                <template v-else><ChevronDown class="h-3.5 w-3.5" /> {{ $t('admin.generated.k_a25e45280efc') }}{{ entry.changes.length }})</template>
             </button>
         </article>
     </div>
 
     <div v-else class="px-6 py-10 text-center">
         <History class="mx-auto h-8 w-8 text-neutral-300" :stroke-width="1.5" />
-        <p class="mt-2 text-body-sm text-neutral-500">Nuk ka ende veprime të regjistruara.</p>
+        <p class="mt-2 text-body-sm text-neutral-500">{{ $t('admin.generated.k_9f73d7392234') }}</p>
     </div>
 </template>

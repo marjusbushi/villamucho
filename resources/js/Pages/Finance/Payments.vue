@@ -1,6 +1,7 @@
 <script setup>
+import { translate } from '@/i18n';
 import { computed, reactive, ref, watch } from 'vue';
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { router, useForm } from '@inertiajs/vue3';
 import {
     ArrowDown,
     ArrowLeftRight,
@@ -20,6 +21,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Button from '@/Components/UI/Button.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import TextInput from '@/Components/UI/TextInput.vue';
+import TransactionDetailsDrawer from './Components/TransactionDetailsDrawer.vue';
 import { money, sourceBadge } from './financeShared.js';
 
 const props = defineProps({
@@ -33,10 +35,10 @@ const props = defineProps({
 });
 
 const chips = [
-    { key: null, label: 'Të gjitha' },
-    { key: 'in', label: 'Hyrje' },
-    { key: 'out', label: 'Dalje' },
-    { key: 'transfer', label: 'Transferta' },
+    { key: null, label: translate('admin.generated.k_6fb31d77cd7a') },
+    { key: 'in', label: translate('admin.generated.k_32ca1edb0c23') },
+    { key: 'out', label: translate('admin.generated.k_dc0b7e2bc98e') },
+    { key: 'transfer', label: translate('admin.generated.k_1261bbc1c168') },
 ];
 
 const localFilters = reactive({
@@ -124,11 +126,11 @@ function exportPayments() {
 }
 
 function methodLabel(method) {
-    return ({ cash: 'Cash', card: 'Kartë', bank: 'Bankë', ota: 'OTA' })[method] || method;
+    return ({ cash: 'Cash', card: translate('admin.generated.k_7978c69d3136'), bank: translate('admin.generated.k_7e9186243681'), ota: 'OTA' })[method] || method;
 }
 
 function directionLabel(direction) {
-    return ({ in: 'Hyrje', out: 'Dalje', transfer: 'Transfertë' })[direction] || direction;
+    return ({ in: 'Hyrje', out: 'Dalje', transfer: translate('admin.generated.k_8ced4cb90156') })[direction] || direction;
 }
 
 function paymentAccount(payment) {
@@ -138,10 +140,6 @@ function paymentAccount(payment) {
 }
 
 const selectedPayment = ref(null);
-const selectedReservationId = computed(() => {
-    const match = selectedPayment.value?.description?.match(/rezervimi\s+#(\d+)/i);
-    return match?.[1] || null;
-});
 
 function localDateTime() {
     const now = new Date();
@@ -198,38 +196,36 @@ function submit() {
 
 <template>
     <AppLayout>
-        <PageHeader title="Pagesat" :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Financa' }, { label: 'Pagesat' }]">
+        <PageHeader :title="$t('admin.generated.k_1b076f6d5726')" :breadcrumbs="[{ label: $t('admin.generated.k_ebd4ffcbbb57'), href: '/dashboard' }, { label: $t('admin.generated.k_e169478356da') }, { label: $t('admin.generated.k_cdef3886e657') }]">
             <template #actions>
                 <Button variant="outline" @click="exportPayments">
                     <Download class="h-4 w-4" />
-                    Eksporto
-                </Button>
+{{ $t('admin.generated.k_4c46633ecafd') }} </Button>
                 <Button v-if="can.createPayment" @click="openNewPayment">
                     <Plus class="h-4 w-4" />
-                    Pagesë e re
-                </Button>
+{{ $t('admin.generated.k_a971e174c5f1') }} </Button>
             </template>
         </PageHeader>
 
-        <p class="mt-1 text-body-sm text-neutral-500">Monitoro hyrjet, daljet dhe transfertat nga një vend.</p>
+        <p class="mt-1 text-body-sm text-neutral-500">{{ $t('admin.generated.k_e4cb996b7e1a') }}</p>
 
         <div class="mt-5 pb-10 space-y-5">
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-card">
                     <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-50 text-accent-700"><ArrowDown class="h-5 w-5" /></span>
-                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">Hyrje në periudhë</p><p class="mt-0.5 truncate text-h3 font-extrabold tabular-nums text-accent-700">{{ money(summary.income) }}</p></div>
+                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">{{ $t('admin.generated.k_97cd26a9596c') }}</p><p class="mt-0.5 truncate text-h3 font-extrabold tabular-nums text-accent-700">{{ money(summary.income) }}</p></div>
                 </div>
                 <div class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-card">
                     <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-error-50 text-error-600"><ArrowUp class="h-5 w-5" /></span>
-                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">Dalje në periudhë</p><p class="mt-0.5 truncate text-h3 font-extrabold tabular-nums text-error-600">{{ money(summary.expenses) }}</p></div>
+                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">{{ $t('admin.generated.k_0dc7e9079945') }}</p><p class="mt-0.5 truncate text-h3 font-extrabold tabular-nums text-error-600">{{ money(summary.expenses) }}</p></div>
                 </div>
                 <div class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-card">
                     <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-50 text-accent-700"><WalletCards class="h-5 w-5" /></span>
-                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">Neto</p><p class="mt-0.5 truncate text-h3 font-extrabold tabular-nums" :class="summary.net < 0 ? 'text-error-600' : 'text-primary-900'">{{ money(summary.net) }}</p></div>
+                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">{{ $t('admin.generated.k_580c609c5d3b') }}</p><p class="mt-0.5 truncate text-h3 font-extrabold tabular-nums" :class="summary.net < 0 ? 'text-error-600' : 'text-primary-900'">{{ money(summary.net) }}</p></div>
                 </div>
                 <div class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-card">
                     <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-600"><ArrowLeftRight class="h-5 w-5" /></span>
-                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">Transferta</p><p class="mt-0.5 text-h3 font-extrabold tabular-nums text-primary-900">{{ summary.transfers }}</p></div>
+                    <div class="min-w-0"><p class="text-body-sm font-medium text-neutral-500">{{ $t('admin.generated.k_7d386d0e9e86') }}</p><p class="mt-0.5 text-h3 font-extrabold tabular-nums text-primary-900">{{ summary.transfers }}</p></div>
                 </div>
             </div>
 
@@ -254,32 +250,32 @@ function submit() {
                     <div class="flex flex-wrap items-center gap-2">
                         <label class="relative min-w-[220px] flex-1 xl:w-64 xl:flex-none">
                             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-                            <input v-model="localFilters.query" type="search" class="w-full rounded-lg border-neutral-200 py-2 pl-9 pr-3 text-body-sm placeholder:text-neutral-400 focus:border-accent-500 focus:ring-accent-500" placeholder="Kërko pagesë…" @input="scheduleSearch" />
+                            <input v-model="localFilters.query" type="search" class="w-full rounded-lg border-neutral-200 py-2 pl-9 pr-3 text-body-sm placeholder:text-neutral-400 focus:border-accent-500 focus:ring-accent-500" :placeholder="$t('admin.generated.k_fb7ab1bd2fdd')" @input="scheduleSearch" />
                         </label>
                         <select v-model="localFilters.account_id" class="rounded-lg border-neutral-200 py-2 pr-8 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()">
-                            <option value="">Të gjitha llogaritë</option>
+                            <option value="">{{ $t('admin.generated.k_10503bf9330e') }}</option>
                             <option v-for="account in accounts" :key="account.id" :value="String(account.id)">{{ account.name }}</option>
                         </select>
                         <select v-model="localFilters.method" class="rounded-lg border-neutral-200 py-2 pr-8 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()">
-                            <option value="">Të gjitha metodat</option><option value="cash">Cash</option><option value="card">Kartë</option><option value="ota">OTA</option><option value="bank">Bankë</option>
+                            <option value="">{{ $t('admin.generated.k_20b48ac69f69') }}</option><option value="cash">{{ $t('admin.generated.k_7ac455cf0851') }}</option><option value="card">{{ $t('admin.generated.k_c4ba878993a8') }}</option><option value="ota">{{ $t('admin.generated.k_5bbdab586826') }}</option><option value="bank">{{ $t('admin.generated.k_d2b6f19a8bef') }}</option>
                         </select>
                     </div>
                 </div>
 
                 <div class="flex flex-wrap items-end gap-3 border-b border-neutral-100 bg-neutral-50/60 px-4 py-3">
-                    <label class="text-tiny font-semibold text-neutral-500"><span class="mb-1 block">Nga data</span><input v-model="localFilters.date_from" type="date" class="rounded-lg border-neutral-200 py-1.5 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()" /></label>
-                    <label class="text-tiny font-semibold text-neutral-500"><span class="mb-1 block">Deri më</span><input v-model="localFilters.date_to" type="date" class="rounded-lg border-neutral-200 py-1.5 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()" /></label>
+                    <label class="text-tiny font-semibold text-neutral-500"><span class="mb-1 block">{{ $t('admin.generated.k_41fe934f47c2') }}</span><input v-model="localFilters.date_from" type="date" class="rounded-lg border-neutral-200 py-1.5 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()" /></label>
+                    <label class="text-tiny font-semibold text-neutral-500"><span class="mb-1 block">{{ $t('admin.generated.k_3b9cdc2b0dd0') }}</span><input v-model="localFilters.date_to" type="date" class="rounded-lg border-neutral-200 py-1.5 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()" /></label>
                     <label class="text-tiny font-semibold text-neutral-500">
-                        <span class="mb-1 block">Burimi</span>
-                        <span class="relative block"><SlidersHorizontal class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><select v-model="localFilters.source" class="rounded-lg border-neutral-200 py-1.5 pl-9 pr-8 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()"><option value="">Të gjitha burimet</option><option value="auto">Automatike</option><option value="manual">Manuale</option></select></span>
+                        <span class="mb-1 block">{{ $t('admin.generated.k_fc0e8f7c7cf0') }}</span>
+                        <span class="relative block"><SlidersHorizontal class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><select v-model="localFilters.source" class="rounded-lg border-neutral-200 py-1.5 pl-9 pr-8 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()"><option value="">{{ $t('admin.generated.k_6d8cb08fb247') }}</option><option value="auto">{{ $t('admin.generated.k_87666132e6df') }}</option><option value="manual">{{ $t('admin.generated.k_ee1dc7d60c27') }}</option></select></span>
                     </label>
-                    <button v-if="activeFilterCount" type="button" class="mb-1 text-tiny font-semibold text-accent-700 hover:text-accent-800" @click="clearFilters">Pastro filtrat</button>
+                    <button v-if="activeFilterCount" type="button" class="mb-1 text-tiny font-semibold text-accent-700 hover:text-accent-800" @click="clearFilters">{{ $t('admin.generated.k_e5f704258e89') }}</button>
                 </div>
 
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[980px] text-body-sm tabular-nums">
                         <thead><tr class="border-b border-neutral-100 text-left text-tiny uppercase tracking-wide text-neutral-400">
-                            <th class="px-4 py-3">Lloji</th><th class="px-4 py-3">Data</th><th class="px-4 py-3">Përshkrimi</th><th class="px-4 py-3">Metoda</th><th class="px-4 py-3">Llogaria</th><th class="px-4 py-3">Burimi</th><th class="px-4 py-3 text-right">Shuma</th><th class="w-8"></th>
+                            <th class="px-4 py-3">{{ $t('admin.generated.k_65e6723972cf') }}</th><th class="px-4 py-3">{{ $t('admin.generated.k_1a663c917dea') }}</th><th class="px-4 py-3">{{ $t('admin.generated.k_5ed8e9c8f4d2') }}</th><th class="px-4 py-3">{{ $t('admin.generated.k_344d77ed0b66') }}</th><th class="px-4 py-3">{{ $t('admin.generated.k_1e876dc236b9') }}</th><th class="px-4 py-3">{{ $t('admin.generated.k_fc0e8f7c7cf0') }}</th><th class="px-4 py-3 text-right">{{ $t('admin.generated.k_d2b49f928901') }}</th><th class="w-8"></th>
                         </tr></thead>
                         <tbody>
                             <tr v-for="payment in payments.data" :key="payment.id" tabindex="0" class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60 focus:bg-neutral-50 focus:outline-none" @click="selectedPayment = payment" @keydown.enter="selectedPayment = payment">
@@ -295,56 +291,45 @@ function submit() {
                                 </td>
                                 <td class="pr-3 text-neutral-300"><ChevronRight class="h-4 w-4" /></td>
                             </tr>
-                            <tr v-if="!payments.data.length"><td colspan="8" class="px-4 py-12 text-center text-neutral-400">Asnjë pagesë me këto filtra.</td></tr>
+                            <tr v-if="!payments.data.length"><td colspan="8" class="px-4 py-12 text-center text-neutral-400">{{ $t('admin.generated.k_677ebcfd293e') }}</td></tr>
                         </tbody>
                     </table>
                 </div>
 
                 <div class="flex flex-col gap-3 border-t border-neutral-200 bg-neutral-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <label class="flex items-center gap-2 text-body-sm text-neutral-500"><select v-model.number="localFilters.per_page" class="rounded-lg border-neutral-200 py-1.5 pr-8 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()"><option :value="10">10</option><option :value="20">20</option><option :value="30">30</option><option :value="50">50</option></select> për faqe</label>
-                    <nav class="flex items-center justify-center gap-1" aria-label="Faqet e pagesave">
+                    <label class="flex items-center gap-2 text-body-sm text-neutral-500"><select v-model.number="localFilters.per_page" class="rounded-lg border-neutral-200 py-1.5 pr-8 text-body-sm text-neutral-700 focus:border-accent-500 focus:ring-accent-500" @change="applyFilters()"><option :value="10">10</option><option :value="20">20</option><option :value="30">30</option><option :value="50">50</option></select> {{ $t('admin.generated.k_7d792d0995c4') }}</label>
+                    <nav class="flex items-center justify-center gap-1" :aria-label="$t('admin.generated.k_3116cc511f6d')">
                         <button type="button" class="grid h-8 w-8 place-items-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40" :disabled="payments.current_page === 1" @click="goToPage(payments.current_page - 1)"><ChevronLeft class="h-4 w-4" /></button>
                         <template v-for="page in visiblePages" :key="page"><span v-if="typeof page === 'string'" class="grid h-8 w-8 place-items-center text-neutral-400">…</span><button v-else type="button" class="h-8 min-w-8 rounded-md px-2 text-body-sm font-semibold" :class="page === payments.current_page ? 'bg-accent-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'" @click="goToPage(page)">{{ page }}</button></template>
                         <button type="button" class="grid h-8 w-8 place-items-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40" :disabled="payments.current_page === payments.last_page" @click="goToPage(payments.current_page + 1)"><ChevronRight class="h-4 w-4" /></button>
                     </nav>
-                    <p class="text-body-sm tabular-nums text-neutral-500">{{ payments.from || 0 }}–{{ payments.to || 0 }} nga {{ payments.total }} rezultate</p>
+                    <p class="text-body-sm tabular-nums text-neutral-500">{{ payments.from || 0 }}–{{ payments.to || 0 }} {{ $t('admin.generated.k_bca51c44dede') }} {{ payments.total }} {{ $t('admin.generated.k_b174154e4179') }}</p>
                 </div>
             </section>
         </div>
 
         <Modal :show="showNew" @close="closeNewPayment">
             <form class="p-5" @submit.prevent="submit">
-                <div class="mb-4 flex items-start justify-between gap-4"><div><h3 class="text-h4 font-bold text-primary-900">Pagesë manuale</h3><p class="mt-1 text-tiny text-neutral-500">Regjistro një arkëtim ose shpenzim jashtë folios/POS-it.</p></div><button type="button" class="grid h-8 w-8 place-items-center rounded-md text-neutral-400 hover:bg-neutral-100" @click="closeNewPayment"><X class="h-4 w-4" /></button></div>
+                <div class="mb-4 flex items-start justify-between gap-4"><div><h3 class="text-h4 font-bold text-primary-900">{{ $t('admin.generated.k_b70188b5cb02') }}</h3><p class="mt-1 text-tiny text-neutral-500">{{ $t('admin.generated.k_aee4f4796a95') }}</p></div><button type="button" class="grid h-8 w-8 place-items-center rounded-md text-neutral-400 hover:bg-neutral-100" @click="closeNewPayment"><X class="h-4 w-4" /></button></div>
                 <div class="mb-4 grid grid-cols-2 gap-2">
-                    <button type="button" class="rounded-lg border px-3 py-2.5 text-body-sm font-bold" :class="form.direction === 'in' ? 'border-accent-500 bg-accent-50 text-accent-700' : 'border-neutral-200 text-neutral-500'" @click="form.direction = 'in'"><ArrowDown class="mr-1 inline h-4 w-4" /> Hyrje · Arkëtim</button>
-                    <button v-if="can.payBills" type="button" class="rounded-lg border px-3 py-2.5 text-body-sm font-bold" :class="form.direction === 'out' ? 'border-error-500 bg-error-50 text-error-700' : 'border-neutral-200 text-neutral-500'" @click="form.direction = 'out'"><ArrowUp class="mr-1 inline h-4 w-4" /> Dalje · Shpenzim</button>
+                    <button type="button" class="rounded-lg border px-3 py-2.5 text-body-sm font-bold" :class="form.direction === 'in' ? 'border-accent-500 bg-accent-50 text-accent-700' : 'border-neutral-200 text-neutral-500'" @click="form.direction = 'in'"><ArrowDown class="mr-1 inline h-4 w-4" /> {{ $t('admin.generated.k_de6f08ba011b') }}</button>
+                    <button v-if="can.payBills" type="button" class="rounded-lg border px-3 py-2.5 text-body-sm font-bold" :class="form.direction === 'out' ? 'border-error-500 bg-error-50 text-error-700' : 'border-neutral-200 text-neutral-500'" @click="form.direction = 'out'"><ArrowUp class="mr-1 inline h-4 w-4" /> {{ $t('admin.generated.k_fc6de4f415f6') }}</button>
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
-                    <div><label class="mb-1 block text-body-sm font-semibold text-primary-900">Llogaria</label><select v-model="form.account_id" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm"><option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }} · {{ money(account.balance, account.currency) }}</option></select><p class="mt-1 text-tiny text-neutral-400">Zgjidh ku do të hyjnë ose dalin fondet.</p></div>
-                    <div><label class="mb-1 block text-body-sm font-semibold text-primary-900">Metoda</label><select v-model="form.method" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm"><option value="cash">Cash</option><option value="card">Kartë</option><option value="bank">Bankë</option></select></div>
-                    <div><label class="mb-1 block text-body-sm font-semibold text-primary-900">Shuma</label><TextInput v-model="form.amount" type="number" min="0.01" step="0.01" class="w-full" placeholder="0.00" /><p v-if="form.errors.amount" class="mt-1 text-tiny text-error-600">{{ form.errors.amount }}</p></div>
+                    <div><label class="mb-1 block text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_1e876dc236b9') }}</label><select v-model="form.account_id" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm"><option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }} · {{ money(account.balance, account.currency) }}</option></select><p class="mt-1 text-tiny text-neutral-400">{{ $t('admin.generated.k_8c91c7682a11') }}</p></div>
+                    <div><label class="mb-1 block text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_344d77ed0b66') }}</label><select v-model="form.method" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm"><option value="cash">{{ $t('admin.generated.k_7ac455cf0851') }}</option><option value="card">{{ $t('admin.generated.k_c4ba878993a8') }}</option><option value="bank">{{ $t('admin.generated.k_d2b6f19a8bef') }}</option></select></div>
+                    <div><label class="mb-1 block text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_d2b49f928901') }}</label><TextInput v-model="form.amount" type="number" min="0.01" step="0.01" class="w-full" placeholder="0.00" /><p v-if="form.errors.amount" class="mt-1 text-tiny text-error-600">{{ form.errors.amount }}</p></div>
                     <div>
-                        <label class="mb-1 block text-body-sm font-semibold text-primary-900">Monedha</label><select v-model="form.currency" :disabled="selectedFormAccount?.currency !== 'EUR'" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm disabled:bg-neutral-50"><option value="EUR">EUR €</option><option value="ALL">ALL Lek</option></select>
-                        <div v-if="form.currency === 'ALL'" class="mt-2 rounded-lg bg-neutral-50 p-2"><label class="mb-1 block text-tiny font-semibold text-neutral-500">Kursi · L për 1 €</label><TextInput v-model="form.fx_rate" type="number" min="1" step="0.01" class="w-full" /><p class="mt-1 text-tiny text-neutral-400">Vlera bazë: {{ fxEquivalent }}</p><p v-if="form.errors.fx_rate" class="mt-1 text-tiny text-error-600">{{ form.errors.fx_rate }}</p></div>
+                        <label class="mb-1 block text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_b36654705cb7') }}</label><select v-model="form.currency" :disabled="selectedFormAccount?.currency !== 'EUR'" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm disabled:bg-neutral-50"><option value="EUR">{{ $t('admin.generated.k_e89e22ad3b97') }}</option><option value="ALL">{{ $t('admin.generated.k_fd4d287d7420') }}</option></select>
+                        <div v-if="form.currency === 'ALL'" class="mt-2 rounded-lg bg-neutral-50 p-2"><label class="mb-1 block text-tiny font-semibold text-neutral-500">{{ $t('admin.generated.k_668919f6c94c') }}</label><TextInput v-model="form.fx_rate" type="number" min="1" step="0.01" class="w-full" /><p class="mt-1 text-tiny text-neutral-400">{{ $t('admin.generated.k_171af558d279') }} {{ fxEquivalent }}</p><p v-if="form.errors.fx_rate" class="mt-1 text-tiny text-error-600">{{ form.errors.fx_rate }}</p></div>
                     </div>
-                    <div class="sm:col-span-2"><label class="mb-1 block text-body-sm font-semibold text-primary-900">Përshkrimi</label><textarea v-model="form.description" maxlength="300" rows="3" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-accent-500" placeholder="p.sh. blerje dekori për recepsionin" /><p v-if="form.errors.description" class="mt-1 text-tiny text-error-600">{{ form.errors.description }}</p></div>
-                    <div class="sm:col-span-2"><label class="mb-1 block text-body-sm font-semibold text-primary-900">Data dhe ora</label><input v-model="form.paid_at" type="datetime-local" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-accent-500" /><p v-if="form.errors.paid_at" class="mt-1 text-tiny text-error-600">{{ form.errors.paid_at }}</p></div>
+                    <div class="sm:col-span-2"><label class="mb-1 block text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_5ed8e9c8f4d2') }}</label><textarea v-model="form.description" maxlength="300" rows="3" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-accent-500" :placeholder="$t('admin.generated.k_859da1bc6b2d')" /><p v-if="form.errors.description" class="mt-1 text-tiny text-error-600">{{ form.errors.description }}</p></div>
+                    <div class="sm:col-span-2"><label class="mb-1 block text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_0238235638a7') }}</label><input v-model="form.paid_at" type="datetime-local" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-accent-500" /><p v-if="form.errors.paid_at" class="mt-1 text-tiny text-error-600">{{ form.errors.paid_at }}</p></div>
                 </div>
-                <div class="mt-5 flex items-center justify-end gap-2 border-t border-neutral-100 pt-4"><Button variant="ghost" type="button" @click="closeNewPayment">Anulo</Button><Button type="submit" :loading="form.processing" :variant="form.direction === 'out' ? 'danger' : 'primary'" :disabled="!form.amount || !form.description">Ruaj pagesën</Button></div>
+                <div class="mt-5 flex items-center justify-end gap-2 border-t border-neutral-100 pt-4"><Button variant="ghost" type="button" @click="closeNewPayment">{{ $t('admin.generated.k_cfdab4713700') }}</Button><Button type="submit" :loading="form.processing" :variant="form.direction === 'out' ? 'danger' : 'primary'" :disabled="!form.amount || !form.description">{{ $t('admin.generated.k_ceaf64f3479c') }}</Button></div>
             </form>
         </Modal>
 
-        <Transition enter-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-150" leave-to-class="opacity-0">
-            <div v-if="selectedPayment" class="fixed inset-0 z-50 bg-primary-950/30" @click.self="selectedPayment = null">
-                <aside class="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-xl">
-                    <div class="flex items-start justify-between border-b border-neutral-100 p-5"><div><p class="text-tiny font-bold uppercase tracking-wide text-neutral-400">Detajet</p><h2 class="mt-1 text-h4 font-bold text-primary-900">Pagesa #{{ selectedPayment.id }}</h2></div><button type="button" class="grid h-8 w-8 place-items-center rounded-md text-neutral-400 hover:bg-neutral-100" @click="selectedPayment = null"><X class="h-4 w-4" /></button></div>
-                    <div class="flex-1 overflow-y-auto p-5">
-                        <div class="rounded-xl p-5 text-center" :class="selectedPayment.direction === 'in' ? 'bg-accent-50 text-accent-700' : selectedPayment.direction === 'out' ? 'bg-error-50 text-error-600' : 'bg-neutral-100 text-neutral-700'"><p class="text-body-sm font-semibold">{{ directionLabel(selectedPayment.direction) }}</p><p class="mt-1 text-h2 font-extrabold tabular-nums">{{ selectedPayment.direction === 'in' ? '+' : selectedPayment.direction === 'out' ? '−' : '' }} {{ money(selectedPayment.amount, selectedPayment.currency) }}</p><p v-if="selectedPayment.currency !== 'EUR'" class="mt-1 text-tiny opacity-70">≈ {{ money(selectedPayment.amount_base) }}</p></div>
-                        <dl class="mt-5 divide-y divide-neutral-100 text-body-sm"><div class="flex justify-between gap-5 py-3"><dt class="text-neutral-500">Përshkrimi</dt><dd class="m-0 text-right font-semibold text-primary-900">{{ selectedPayment.description }}</dd></div><div class="flex justify-between gap-5 py-3"><dt class="text-neutral-500">Data dhe ora</dt><dd class="m-0 text-right font-semibold text-primary-900">{{ selectedPayment.paid_at.slice(0, 16) }}</dd></div><div class="flex justify-between gap-5 py-3"><dt class="text-neutral-500">Llogaria</dt><dd class="m-0 text-right font-semibold text-primary-900">{{ paymentAccount(selectedPayment) }}</dd></div><div class="flex justify-between gap-5 py-3"><dt class="text-neutral-500">Metoda</dt><dd class="m-0 text-right font-semibold text-primary-900">{{ methodLabel(selectedPayment.method) }}</dd></div><div class="flex justify-between gap-5 py-3"><dt class="text-neutral-500">Burimi</dt><dd class="m-0 text-right"><span class="rounded-full px-2 py-0.5 text-tiny font-bold" :class="sourceBadge(selectedPayment).cls">{{ sourceBadge(selectedPayment).text }}</span></dd></div><div v-if="selectedReservationId" class="flex justify-between gap-5 py-3"><dt class="text-neutral-500">Rezervimi</dt><dd class="m-0 text-right"><Link class="font-semibold text-accent-700 hover:text-accent-800" :href="`/pms/reservations/${selectedReservationId}`">Hap rezervimin #{{ selectedReservationId }} ↗</Link></dd></div></dl>
-                        <div class="mt-5 rounded-lg bg-neutral-50 p-3 text-tiny leading-relaxed text-neutral-500">{{ selectedPayment.source === 'auto' ? 'Krijuar automatikisht nga folio/POS. Nuk mund të modifikohet manualisht.' : 'Kjo lëvizje është regjistruar manualisht.' }}<br />ID transaksioni: PAY-{{ String(selectedPayment.id).padStart(6, '0') }}</div>
-                    </div>
-                </aside>
-            </div>
-        </Transition>
+        <TransactionDetailsDrawer :payment="selectedPayment" @close="selectedPayment = null" />
     </AppLayout>
 </template>

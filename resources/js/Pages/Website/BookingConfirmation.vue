@@ -25,11 +25,11 @@ onMounted(() => headingEl.value?.focus({ preventScroll: true }));
                     <div class="h-20 w-20 rounded-full bg-error-50 flex items-center justify-center mx-auto mb-6">
                         <X class="h-9 w-9 text-error-500" :stroke-width="1.5" aria-hidden="true" />
                     </div>
-                    <h1 ref="headingEl" tabindex="-1" class="text-h1 text-primary-900 focus:outline-none">Rezervimi nuk u përfundua</h1>
-                    <p class="text-body text-neutral-600 mt-3">Pagesa nuk u përfundua në kohë, ndaj dhoma u lirua. Mund të provosh sërish.</p>
-                    <Link href="/book" class="btn-reserve mt-8">Provo sërish</Link>
+                    <h1 ref="headingEl" tabindex="-1" class="text-h1 text-primary-900 focus:outline-none">{{ $t('confirmation.cancelled.heading') }}</h1>
+                    <p class="text-body text-neutral-600 mt-3">{{ $t('confirmation.cancelled.message') }}</p>
+                    <Link href="/book" class="btn-reserve mt-8">{{ $t('confirmation.cancelled.retry') }}</Link>
                     <p v-if="hotel?.phone" class="text-body-sm text-neutral-500 mt-5">
-                        Ose na telefono dhe e rregullojmë bashkë:
+                        {{ $t('confirmation.cancelled.callUs') }}
                         <a :href="'tel:' + hotel.phone" class="text-ionian font-medium whitespace-nowrap">{{ hotel.phone }}</a>
                     </p>
                 </template>

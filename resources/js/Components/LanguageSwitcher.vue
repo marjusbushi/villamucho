@@ -1,11 +1,11 @@
 <script setup>
 import { useI18n } from 'vue-i18n';
-import { setLocale } from '@/i18n';
+import { setLocale, translate } from '@/i18n';
 
 const { locale } = useI18n();
 const langs = [
-    { code: 'sq', label: 'SQ' },
-    { code: 'en', label: 'EN' },
+    { code: 'sq', label: translate('admin.generated.k_af24f6f6b0fd') },
+    { code: 'en', label: translate('admin.generated.k_d9adb794c95f') },
 ];
 </script>
 

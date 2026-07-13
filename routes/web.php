@@ -214,6 +214,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         // Phase 2: Blerjet (Bills) + Furnitorët
         Route::get('/bills', [FinanceController::class, 'bills'])->name('finance.bills');
         Route::post('/bills', [FinanceController::class, 'storeBill'])->middleware('permission:manage_bills')->name('finance.bills.store');
+        Route::post('/bills/categories', [FinanceController::class, 'storeBillCategory'])->middleware('permission:manage_bills')->name('finance.bill-categories.store');
         Route::post('/bills/{bill}/pay', [FinanceController::class, 'payBill'])->middleware('permission:pay_bills')->name('finance.bills.pay');
         Route::get('/suppliers', [FinanceController::class, 'suppliers'])->name('finance.suppliers');
         Route::post('/suppliers', [FinanceController::class, 'storeSupplier'])->middleware('permission:manage_suppliers')->name('finance.suppliers.store');

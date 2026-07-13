@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed, watch, onMounted } from 'vue';
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
@@ -13,7 +14,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:checkIn', 'update:checkOut']);
 
-const WEEKDAYS = ['Hën', 'Mar', 'Mër', 'Enj', 'Pre', 'Sht', 'Die'];
+const WEEKDAYS = [translate('admin.generated.k_a687ff7ecec9'), 'Mar', translate('admin.generated.k_95fb3bac92c2'), 'Enj', 'Pre', 'Sht', 'Die'];
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayStr = ymd(new Date());
@@ -27,7 +28,7 @@ const viewMonth = ref(new Date(now.getFullYear(), now.getMonth(), 1));
 const minMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 const maxMonth = new Date(now.getFullYear(), now.getMonth() + 6, 1); // bookable window ~6 months out
 
-const monthLabel = computed(() => viewMonth.value.toLocaleDateString('sq-AL', { month: 'long', year: 'numeric' }));
+const monthLabel = computed(() => viewMonth.value.toLocaleDateString(getIntlLocale(), { month: 'long', year: 'numeric' }));
 const canPrev = computed(() => viewMonth.value > minMonth);
 const canNext = computed(() => viewMonth.value < maxMonth);
 
@@ -60,7 +61,7 @@ async function fetchAvailability() {
     } catch (e) {
         // Surface it — a silently empty calendar reads as "everything is booked".
         fetchFailed.value = true;
-        message.value = "S'u ngarkua disponueshmëria — provo sërish.";
+        message.value = translate('admin.generated.k_09bdfd8b4c0f');
     }
     loading.value = false;
 }
@@ -117,7 +118,7 @@ function pick(dateStr) {
     while (cur < end) {
         const ds = ymd(cur);
         if ((free(ds) ?? 0) <= 0) {
-            message.value = 'Ka net të zëna në këtë interval — zgjidh data të tjera.';
+            message.value = translate('admin.generated.k_2cd967e66743');
             emit('update:checkIn', dateStr);
             emit('update:checkOut', '');
             return;
@@ -138,11 +139,11 @@ function nextMonth() {
 
 // Spoken label for a day button — a bare number tells a screen reader nothing.
 function dayLabel(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00').toLocaleDateString('sq-AL', { day: 'numeric', month: 'long' });
+    const d = new Date(dateStr + 'T00:00:00').toLocaleDateString(getIntlLocale(), { day: 'numeric', month: 'long' });
     if (isPast(dateStr)) return `${d} — e kaluar`;
-    if (isFull(dateStr)) return `${d} — e zënë`;
+    if (isFull(dateStr)) return translate('admin.generated.k_d47892adebda', { p0: d });
     const n = free(dateStr);
-    return n === undefined ? d : `${d} — ${n} dhoma të lira`;
+    return n === undefined ? d : translate('admin.generated.k_2881370dc144', { p0: d, p1: n });
 }
 </script>
 
@@ -150,11 +151,11 @@ function dayLabel(dateStr) {
     <div class="select-none">
         <!-- Header: 44px tap targets, labelled, month announced on change -->
         <div class="flex items-center justify-between mb-3">
-            <button type="button" :disabled="!canPrev" aria-label="Muaji i mëparshëm" class="h-11 w-11 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="prevMonth">
+            <button type="button" :disabled="!canPrev" :aria-label="$t('admin.generated.k_53f167999619')" class="h-11 w-11 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="prevMonth">
                 <ChevronLeft class="h-5 w-5" aria-hidden="true" />
             </button>
             <span aria-live="polite" class="text-body font-medium text-ink capitalize">{{ monthLabel }}</span>
-            <button type="button" :disabled="!canNext" aria-label="Muaji tjetër" class="h-11 w-11 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="nextMonth">
+            <button type="button" :disabled="!canNext" :aria-label="$t('admin.generated.k_57d2a863876f')" class="h-11 w-11 inline-flex items-center justify-center rounded-md text-ink/60 hover:bg-limestone disabled:opacity-30 disabled:cursor-not-allowed" @click="nextMonth">
                 <ChevronRight class="h-5 w-5" aria-hidden="true" />
             </button>
         </div>
@@ -193,13 +194,13 @@ function dayLabel(dateStr) {
 
         <!-- Legend + message -->
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-tiny text-ink/50">
-            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-success-100 ring-1 ring-success-200" /> E lirë (numri = dhoma)</span>
-            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-limestone/60" /> E zënë</span>
-            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-ionian" /> Zgjedhja jote</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-success-100 ring-1 ring-success-200" /> {{ $t('admin.generated.k_65616082d53a') }}</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-limestone/60" /> {{ $t('admin.generated.k_622dc259b405') }}</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded bg-ionian" /> {{ $t('admin.generated.k_2eccde5f3968') }}</span>
         </div>
         <p v-if="message" role="alert" class="mt-2 text-small text-error-600">
             {{ message }}
-            <button v-if="fetchFailed" type="button" class="underline ml-1" @click="retryFetch">Provo sërish</button>
+            <button v-if="fetchFailed" type="button" class="underline ml-1" @click="retryFetch">{{ $t('admin.generated.k_3a8d3bffc18f') }}</button>
         </p>
     </div>
 </template>

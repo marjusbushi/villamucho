@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
@@ -23,9 +24,9 @@ const form = useForm({
 });
 
 const allMethods = [
-    { value: 'cash', label: 'Cash' },
-    { value: 'card', label: 'Karte bankare' },
-    { value: 'room_charge', label: 'Room Charge (ne folio)' },
+    { value: 'cash', label: translate('admin.generated.k_b70b7df57996') },
+    { value: 'card', label: translate('admin.generated.k_dff2d7624625') },
+    { value: 'room_charge', label: translate('admin.generated.k_1462e7507e49') },
 ];
 
 function toggleMethod(method) {
@@ -39,7 +40,7 @@ function toggleMethod(method) {
 
 function submit() {
     form.put(route('settings.financial'), {
-        onSuccess: () => props.toasts?.success('Konfigurimet financiare u ruajten.'),
+        onSuccess: () => props.toasts?.success(translate('admin.generated.k_3f05c482ff55')),
     });
 }
 </script>
@@ -47,20 +48,20 @@ function submit() {
 <template>
     <Card>
         <template #header>
-            <h3 class="text-h4 text-primary-900">Konfigurime Financiare</h3>
+            <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_8a2ae8721d11') }}</h3>
         </template>
 
         <form @submit.prevent="submit" class="space-y-5">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="TVSH / Tax Rate (%)" :error="form.errors.tax_rate" required>
+                <FormGroup :label="$t('admin.generated.k_b309b4658d41')" :error="form.errors.tax_rate" required>
                     <TextInput type="number" v-model="form.tax_rate" min="0" max="100" step="0.5" :error="form.errors.tax_rate" />
                 </FormGroup>
-                <FormGroup label="Simboli i valutes" :error="form.errors.currency_symbol" required>
+                <FormGroup :label="$t('admin.generated.k_8b3ea4fc70a0')" :error="form.errors.currency_symbol" required>
                     <TextInput v-model="form.currency_symbol" placeholder="€" maxlength="5" :error="form.errors.currency_symbol" />
                 </FormGroup>
             </div>
 
-            <FormGroup label="Metodat e pageses aktive" :error="form.errors.payment_methods">
+            <FormGroup :label="$t('admin.generated.k_bd40bacd65d9')" :error="form.errors.payment_methods">
                 <div class="space-y-2">
                     <label v-for="method in allMethods" :key="method.value" class="flex items-center gap-2 text-body-sm text-neutral-700">
                         <input
@@ -78,8 +79,8 @@ function submit() {
 
             <!-- Channel commissions: feed the auto-filled fee on each reservation -->
             <div>
-                <p class="text-label text-neutral-700 mb-1">Komisionet e Kanaleve (%)</p>
-                <p class="text-tiny text-neutral-400 mb-3">Komisioni qe mban secili kanal. Perdoret per te mbushur vete fee-ne te cdo rezervim (p.sh. Booking.com 12%). Lere bosh ose 0 nese nuk ka komision. Direkt eshte gjithmone 0%.</p>
+                <p class="text-label text-neutral-700 mb-1">{{ $t('admin.generated.k_78545cb0396b') }}</p>
+                <p class="text-tiny text-neutral-400 mb-3">{{ $t('admin.generated.k_61e5dedee9df') }}</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                     <div v-for="c in feeChannels" :key="c.id" class="flex items-center gap-3">
                         <span class="inline-flex items-center gap-2 text-body-sm text-neutral-700 w-32 shrink-0">
@@ -92,7 +93,7 @@ function submit() {
             </div>
 
             <div class="flex justify-end pt-2">
-                <Button type="submit" variant="primary" :loading="form.processing">Ruaj ndryshimet</Button>
+                <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_13d431875cf4') }}</Button>
             </div>
         </form>
     </Card>

@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -94,7 +95,7 @@ const roomTypeOptions = computed(() => props.roomTypes.map((type) => ({
     label: `${type.name} (€${type.base_price})`,
 })));
 const roomTypeFilterOptions = computed(() => [
-    { value: '', label: 'Të gjitha' },
+    { value: '', label: translate('admin.generated.k_04822094270a') },
     ...props.roomTypes.map((type) => ({ value: type.id, label: type.name })),
 ]);
 
@@ -109,29 +110,29 @@ const roomFloorOptions = computed(() => (
             .map((floor) => ({ value: floor, label: `Kati ${floor}` }))
 ));
 const floorFilterOptions = computed(() => [
-    { value: '', label: 'Të gjitha' },
+    { value: '', label: translate('admin.generated.k_04822094270a') },
     ...roomFloorOptions.value,
 ]);
 const floorNameMap = computed(() => Object.fromEntries(roomFloorOptions.value.map((floor) => [String(floor.value), floor.label])));
 const floorName = (number) => floorNameMap.value[String(number)] || `Kati ${number}`;
 
 const statusOptions = [
-    { value: 'available', label: 'E lirë' },
-    { value: 'occupied', label: 'E zënë' },
-    { value: 'cleaning', label: 'Për pastrim' },
-    { value: 'maintenance', label: 'Mirëmbajtje' },
+    { value: 'available', label: translate('admin.generated.k_d78c3bb41e73') },
+    { value: 'occupied', label: translate('admin.generated.k_9c02368c4f32') },
+    { value: 'cleaning', label: translate('admin.generated.k_59e19b31e720') },
+    { value: 'maintenance', label: translate('admin.generated.k_7d16819adc7b') },
 ];
 
 const occupancyBadge = {
-    vacant: { variant: 'neutral', label: 'Bosh' },
-    occupied: { variant: 'info', label: 'E zënë' },
-    maintenance: { variant: 'neutral', label: 'Mirëmbajtje' },
+    vacant: { variant: 'neutral', label: translate('admin.generated.k_5017092ee971') },
+    occupied: { variant: 'info', label: translate('admin.generated.k_9c02368c4f32') },
+    maintenance: { variant: 'neutral', label: translate('admin.generated.k_7d16819adc7b') },
 };
 const housekeepingBadge = {
-    clean: { variant: 'success', label: 'E pastër' },
-    dirty: { variant: 'warning', label: 'Për pastrim' },
-    cleaning: { variant: 'warning', label: 'Në pastrim' },
-    maintenance: { variant: 'neutral', label: 'Mirëmbajtje' },
+    clean: { variant: 'success', label: translate('admin.generated.k_dbf552fb4050') },
+    dirty: { variant: 'warning', label: translate('admin.generated.k_59e19b31e720') },
+    cleaning: { variant: 'warning', label: translate('admin.generated.k_27b9fbdd1d2d') },
+    maintenance: { variant: 'neutral', label: translate('admin.generated.k_7d16819adc7b') },
 };
 
 const createForm = useForm({ room_type_id: '', room_number: '', floor: '', status: 'available', notes: '' });
@@ -158,7 +159,7 @@ function formatDate(value) {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleDateString('sq-AL', { day: '2-digit', month: 'short' });
+    return date.toLocaleDateString(getIntlLocale(), { day: '2-digit', month: 'short' });
 }
 
 function formatTime(value) {
@@ -169,7 +170,7 @@ function formatTime(value) {
 
 function money(value) {
     const amount = Number(value || 0);
-    return new Intl.NumberFormat('sq-AL', { style: 'currency', currency: 'EUR' }).format(Number.isFinite(amount) ? amount : 0);
+    return new Intl.NumberFormat(getIntlLocale(), { style: 'currency', currency: 'EUR' }).format(Number.isFinite(amount) ? amount : 0);
 }
 
 function reservationIdOf(...candidates) {
@@ -231,21 +232,21 @@ function roomPresentation(room) {
     const reservationId = operational.reservation_id
         ?? reservationIdOf(active, departure, arrival, focusReservation);
 
-    let activity = 'Pa rezervim sot';
+    let activity = translate('admin.generated.k_4b37e53d8c4f');
     if (hasDeparture) {
         const time = formatTime(departure?.etd || departure?.check_out_time || departure?.check_out_at || operational.departure_time);
         activity = `Largohet sot${time ? ` · ${time}` : ''}`;
     } else if (hasArrival && !hasActive) {
         const time = formatTime(arrival?.eta || arrival?.check_in_time || arrival?.check_in_at || operational.arrival_time);
-        activity = `Mbërrin sot${time ? ` · ${time}` : ''}`;
+        activity = translate('admin.generated.k_ded4d66434fa', { p0: time ? ` · ${time}` : '' });
     } else if (hasActive) {
         const until = formatDate(active?.check_out_date || active?.check_out || operational.check_out_date);
-        activity = until ? `Deri më ${until}` : 'Qëndrim aktiv';
+        activity = until ? translate('admin.generated.k_baf15ed7b023', { p0: until }) : translate('admin.generated.k_7d2417958091');
     } else if (next) {
         const arrivalDate = formatDate(next.check_in_date || next.check_in || next.arrival_date);
-        activity = arrivalDate ? `Mbërrin më ${arrivalDate}` : 'Rezervim i ardhshëm';
+        activity = arrivalDate ? translate('admin.generated.k_8f326d563ab2', { p0: arrivalDate }) : translate('admin.generated.k_970081e1ffc6');
     } else if (housekeepingKey === 'dirty') {
-        activity = 'Check-out përfunduar';
+        activity = translate('admin.generated.k_4fe7d59ff1ef');
     }
 
     const arrivalStatus = normalizeKey(arrival?.status || operational.arrival_status);
@@ -270,7 +271,7 @@ function roomPresentation(room) {
         roomNumber: room.room_number,
         floor: room.floor,
         typeId: room.room_type_id ?? roomType.id,
-        typeName: roomType.name || 'Pa tipologji',
+        typeName: roomType.name || translate('admin.generated.k_b8b560c77947'),
         occupancyKey,
         housekeepingKey,
         guestName: guestName(guest),
@@ -291,14 +292,14 @@ function explicitAction(view) {
     const labelByKind = {
         check_in: 'Check-in',
         check_out: 'Check-out',
-        open_stay: 'Hap qëndrimin',
-        view_stay: 'Hap qëndrimin',
-        view_reservation: 'Shiko rezervimin',
+        open_stay: translate('admin.generated.k_75b2bf194029'),
+        view_stay: translate('admin.generated.k_75b2bf194029'),
+        view_reservation: translate('admin.generated.k_9e1a22ee63f6'),
         reserve: '+ Rezervim',
         new_reservation: '+ Rezervim',
-        cleaning: 'Shiko pastrimin',
-        housekeeping: 'Shiko pastrimin',
-        maintenance: 'Shiko problemin',
+        cleaning: translate('admin.generated.k_c8dcd23833bf'),
+        housekeeping: translate('admin.generated.k_c8dcd23833bf'),
+        maintenance: translate('admin.generated.k_d21931675096'),
     };
     const label = record?.label || labelByKind[kind] || (typeof raw === 'string' ? raw : 'Hap');
     const href = record?.href || record?.url || null;
@@ -321,7 +322,7 @@ function primaryAction(view) {
     }
 
     if (explicit?.kind === 'check_in' && reservationId && canViewReservations.value) {
-        return { kind: 'view_reservation', label: 'Shiko rezervimin', href: route('reservations.show', reservationId), mode: 'visit' };
+        return { kind: 'view_reservation', label: translate('admin.generated.k_d44c83daccb8'), href: route('reservations.show', reservationId), mode: 'visit' };
     }
 
     if (['open_stay', 'view_stay', 'view_reservation'].includes(explicit?.kind) && reservationId && canViewReservations.value) {
@@ -342,33 +343,33 @@ function primaryAction(view) {
 
     if (view.hasArrival && reservationId && canViewReservations.value) {
         if (view.confirmedArrival && canUpdateReservation.value) {
-            return { kind: 'check_in', label: 'Check-in', href: route('reservations.check-in', reservationId), mode: 'check_in' };
+            return { kind: 'check_in', label: translate('admin.generated.k_2b6fe82c7d05'), href: route('reservations.check-in', reservationId), mode: 'check_in' };
         }
-        return { kind: 'view_reservation', label: 'Shiko rezervimin', href: route('reservations.show', reservationId), mode: 'visit' };
+        return { kind: 'view_reservation', label: translate('admin.generated.k_d44c83daccb8'), href: route('reservations.show', reservationId), mode: 'visit' };
     }
 
     if (view.hasActive && reservationId && canViewReservations.value) {
-        return { kind: 'open_stay', label: 'Hap qëndrimin', href: route('reservations.show', reservationId), mode: 'visit' };
+        return { kind: 'open_stay', label: translate('admin.generated.k_318e75f6a052'), href: route('reservations.show', reservationId), mode: 'visit' };
     }
 
     if (view.housekeepingKey === 'dirty' || view.housekeepingKey === 'cleaning') {
         return canViewHousekeeping.value
-            ? { kind: 'cleaning', label: view.housekeepingKey === 'dirty' ? 'Dërgo në pastrim' : 'Shiko pastrimin', href: route('housekeeping.index'), mode: 'visit' }
+            ? { kind: 'cleaning', label: view.housekeepingKey === 'dirty' ? translate('admin.generated.k_89dc6781625a') : translate('admin.generated.k_c8dcd23833bf'), href: route('housekeeping.index'), mode: 'visit' }
             : null;
     }
 
     if (view.housekeepingKey === 'maintenance' || view.occupancyKey === 'maintenance') {
         return canViewHousekeeping.value
-            ? { kind: 'maintenance', label: 'Shiko problemin', href: route('housekeeping.index'), mode: 'visit' }
+            ? { kind: 'maintenance', label: translate('admin.generated.k_8cf645ba5a22'), href: route('housekeeping.index'), mode: 'visit' }
             : null;
     }
 
     if (view.next && reservationId && canViewReservations.value) {
-        return { kind: 'view_reservation', label: 'Shiko rezervimin', href: route('reservations.show', reservationId), mode: 'visit' };
+        return { kind: 'view_reservation', label: translate('admin.generated.k_d44c83daccb8'), href: route('reservations.show', reservationId), mode: 'visit' };
     }
 
     return canStartReservation.value
-        ? { kind: 'reserve', label: '+ Rezervim', href: route('reservations.calendar'), mode: 'visit' }
+        ? { kind: 'reserve', label: translate('admin.generated.k_c2e4bbe7c33f'), href: route('reservations.calendar'), mode: 'visit' }
         : null;
 }
 
@@ -406,7 +407,7 @@ function handlePrimary(view) {
                 }
                 toasts.value?.success(`Check-in: ${view.guestName || `Dhoma ${view.roomNumber}`}`);
             },
-            onError: (errors) => toasts.value?.error(errors.status || errors.room_id || 'Check-in dështoi.'),
+            onError: (errors) => toasts.value?.error(errors.status || errors.room_id || translate('admin.generated.k_bf0515040767')),
         });
         return;
     }
@@ -442,7 +443,7 @@ function matchesKpi(view, key) {
 }
 
 const filteredRooms = computed(() => {
-    const query = searchQuery.value.trim().toLocaleLowerCase('sq-AL');
+    const query = searchQuery.value.trim().toLocaleLowerCase(getIntlLocale());
     const rooms = roomViews.value.filter((view) => {
         if (filterFloor.value !== '' && String(view.floor) !== String(filterFloor.value)) return false;
         if (filterType.value !== '' && String(view.typeId) !== String(filterType.value)) return false;
@@ -450,18 +451,18 @@ const filteredRooms = computed(() => {
         if (!query) return true;
         return [view.roomNumber, view.typeName, view.guestName, view.activity]
             .filter(Boolean)
-            .some((value) => String(value).toLocaleLowerCase('sq-AL').includes(query));
+            .some((value) => String(value).toLocaleLowerCase(getIntlLocale()).includes(query));
     });
 
     return rooms.sort((a, b) => {
         if (groupMode.value === 'type') {
-            const typeCompare = a.typeName.localeCompare(b.typeName, 'sq-AL', { numeric: true });
+            const typeCompare = a.typeName.localeCompare(b.typeName, getIntlLocale(), { numeric: true });
             if (typeCompare !== 0) return typeCompare;
         } else {
             const floorCompare = Number(a.floor || 0) - Number(b.floor || 0);
             if (floorCompare !== 0) return floorCompare;
         }
-        return String(a.roomNumber).localeCompare(String(b.roomNumber), 'sq-AL', { numeric: true });
+        return String(a.roomNumber).localeCompare(String(b.roomNumber), getIntlLocale(), { numeric: true });
     });
 });
 
@@ -482,20 +483,20 @@ function statValue(key, fallback) {
 
 const kpiItems = computed(() => {
     const items = [
-        { key: 'total', label: 'Gjithsej', value: statValue('total', roomViews.value.length), icon: BedDouble },
+        { key: 'total', label: translate('admin.generated.k_98ea21ad1a70'), value: statValue('total', roomViews.value.length), icon: BedDouble },
     ];
 
     if (canViewReservations.value) {
         items.push(
-            { key: 'arrivals_today', label: 'Mbërrijnë sot', value: statValue('arrivals_today', roomViews.value.filter((room) => room.hasArrival).length), icon: LogIn },
-            { key: 'departures_today', label: 'Largohen sot', value: statValue('departures_today', roomViews.value.filter((room) => room.hasDeparture).length), icon: LogOut },
+            { key: 'arrivals_today', label: translate('admin.generated.k_1288e8726078'), value: statValue('arrivals_today', roomViews.value.filter((room) => room.hasArrival).length), icon: LogIn },
+            { key: 'departures_today', label: translate('admin.generated.k_bdbf1845d6d8'), value: statValue('departures_today', roomViews.value.filter((room) => room.hasDeparture).length), icon: LogOut },
         );
     }
 
     items.push(
-        { key: 'occupied', label: 'Të zëna', value: statValue('occupied', roomViews.value.filter((room) => room.occupancyKey === 'occupied').length), icon: DoorOpen },
-        { key: 'cleaning', label: 'Për pastrim', value: statValue('cleaning', roomViews.value.filter((room) => ['dirty', 'cleaning'].includes(room.housekeepingKey)).length), icon: BrushCleaning },
-        { key: 'maintenance', label: 'Mirëmbajtje', value: statValue('maintenance', roomViews.value.filter((room) => room.housekeepingKey === 'maintenance').length), icon: Wrench },
+        { key: 'occupied', label: translate('admin.generated.k_ce30ecf6098c'), value: statValue('occupied', roomViews.value.filter((room) => room.occupancyKey === 'occupied').length), icon: DoorOpen },
+        { key: 'cleaning', label: translate('admin.generated.k_59e19b31e720'), value: statValue('cleaning', roomViews.value.filter((room) => ['dirty', 'cleaning'].includes(room.housekeepingKey)).length), icon: BrushCleaning },
+        { key: 'maintenance', label: translate('admin.generated.k_7d16819adc7b'), value: statValue('maintenance', roomViews.value.filter((room) => room.housekeepingKey === 'maintenance').length), icon: Wrench },
     );
 
     return items;
@@ -540,7 +541,7 @@ function submitCreate() {
         onSuccess: () => {
             showCreateModal.value = false;
             createForm.reset();
-            toasts.value?.success('Dhoma u shtua.');
+            toasts.value?.success(translate('admin.generated.k_4f3a489d1765'));
         },
     });
 }
@@ -551,7 +552,7 @@ function submitEdit() {
         preserveScroll: true,
         onSuccess: () => {
             showEditModal.value = false;
-            toasts.value?.success('Dhoma u përditësua.');
+            toasts.value?.success(translate('admin.generated.k_8088e5dc07c2'));
         },
     });
 }
@@ -562,7 +563,7 @@ function submitDelete() {
         preserveScroll: true,
         onSuccess: () => {
             showDeleteModal.value = false;
-            toasts.value?.success('Dhoma u fshi.');
+            toasts.value?.success(translate('admin.generated.k_bd3ae352ccda'));
         },
     });
 }
@@ -571,8 +572,8 @@ function submitDelete() {
 <template>
     <AppLayout>
         <PageHeader
-            title="Dhomat"
-            :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Dhomat' }]"
+            :title="$t('admin.generated.k_e3202d16fc49')"
+            :breadcrumbs="[{ label: $t('admin.generated.k_114fb4c3cb3d'), href: '/dashboard' }, { label: $t('admin.generated.k_7027332c15ca') }]"
         >
             <template #actions>
                 <div class="inline-flex rounded-lg border border-neutral-200 bg-white p-0.5">
@@ -582,16 +583,14 @@ function submitDelete() {
                         @click="viewMode = 'grid'"
                     >
                         <LayoutGrid class="h-4 w-4" :stroke-width="1.8" />
-                        Rrjetë
-                    </button>
+{{ $t('admin.generated.k_8b10fd9c7e90') }} </button>
                     <button
                         type="button"
                         :class="['inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-body-sm font-medium transition-colors', viewMode === 'table' ? 'bg-accent-50 text-accent-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800']"
                         @click="viewMode = 'table'"
                     >
                         <List class="h-4 w-4" :stroke-width="1.8" />
-                        Tabelë
-                    </button>
+{{ $t('admin.generated.k_3020a17461c0') }} </button>
                 </div>
                 <Button
                     v-if="canManage"
@@ -600,12 +599,10 @@ function submitDelete() {
                     @click="managementMode = !managementMode"
                 >
                     <template #icon-left><Settings2 class="h-4 w-4" :stroke-width="1.8" /></template>
-                    Menaxho dhomat
-                </Button>
+{{ $t('admin.generated.k_4bfc88bd1197') }} </Button>
                 <Button v-if="canStartReservation" variant="primary" @click="openReservationCreate()">
                     <template #icon-left><Plus class="h-4 w-4" :stroke-width="2" /></template>
-                    Rezervim
-                </Button>
+{{ $t('admin.generated.k_401abd8b8299') }} </Button>
             </template>
         </PageHeader>
 
@@ -617,8 +614,8 @@ function submitDelete() {
                     v-model="searchQuery"
                     type="search"
                     class="h-full min-h-16 w-full rounded-lg border border-neutral-200 bg-white py-3 pl-10 pr-3 text-body-sm text-neutral-900 shadow-card placeholder:text-neutral-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
-                    placeholder="Kërko dhomë ose mysafir..."
-                    aria-label="Kërko dhomë ose mysafir"
+                    :placeholder="$t('admin.generated.k_9b4cbcc8ac3b')"
+                    :aria-label="$t('admin.generated.k_add820b185f7')"
                 />
             </div>
 
@@ -645,18 +642,18 @@ function submitDelete() {
         <div class="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-2.5 shadow-card sm:flex-row sm:items-center">
                 <label class="flex items-center gap-2 text-small text-neutral-600">
-                    <span class="w-20 shrink-0 sm:w-auto">Kati</span>
+                    <span class="w-20 shrink-0 sm:w-auto">{{ $t('admin.generated.k_3deb89580324') }}</span>
                     <span class="min-w-44 flex-1">
                         <Select v-model="filterFloor" :options="floorFilterOptions" placeholder="" />
                     </span>
                 </label>
                 <label class="flex items-center gap-2 text-small text-neutral-600">
-                    <span class="w-20 shrink-0 sm:w-auto">Tipologjia</span>
+                    <span class="w-20 shrink-0 sm:w-auto">{{ $t('admin.generated.k_693a32b00041') }}</span>
                     <span class="min-w-52 flex-1">
                         <Select v-model="filterType" :options="roomTypeFilterOptions" placeholder="" />
                     </span>
                 </label>
-                <Button v-if="filtersActive" variant="ghost" size="sm" @click="clearFilters">Pastro</Button>
+                <Button v-if="filtersActive" variant="ghost" size="sm" @click="clearFilters">{{ $t('admin.generated.k_9bce05bb7db9') }}</Button>
             </div>
 
             <div class="inline-flex self-start rounded-lg border border-neutral-200 bg-white p-0.5 shadow-card lg:self-auto">
@@ -664,24 +661,23 @@ function submitDelete() {
                     type="button"
                     :class="['rounded-md px-4 py-2 text-body-sm font-medium transition-colors', groupMode === 'floor' ? 'bg-accent-50 text-accent-700' : 'text-neutral-500 hover:text-neutral-800']"
                     @click="groupMode = 'floor'"
-                >Sipas katit</button>
+                >{{ $t('admin.generated.k_47afeab77851') }}</button>
                 <button
                     type="button"
                     :class="['rounded-md px-4 py-2 text-body-sm font-medium transition-colors', groupMode === 'type' ? 'bg-accent-50 text-accent-700' : 'text-neutral-500 hover:text-neutral-800']"
                     @click="groupMode = 'type'"
-                >Sipas tipologjisë</button>
+                >{{ $t('admin.generated.k_07632d9b2a29') }}</button>
             </div>
         </div>
 
         <div v-if="managementMode" class="mt-3 flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <p class="text-body-sm font-medium text-neutral-800">Menaxhimi i dhomave</p>
-                <p class="text-small text-neutral-500">Përdor menunë ⋮ për të edituar ose fshirë një dhomë.</p>
+                <p class="text-body-sm font-medium text-neutral-800">{{ $t('admin.generated.k_91a2347955a8') }}</p>
+                <p class="text-small text-neutral-500">{{ $t('admin.generated.k_3ece0701b555') }}</p>
             </div>
             <Button v-if="canCreate" variant="outline" size="sm" @click="showCreateModal = true">
                 <template #icon-left><Plus class="h-4 w-4" /></template>
-                Shto dhomë
-            </Button>
+{{ $t('admin.generated.k_e6c45e5c931f') }} </Button>
         </div>
 
         <!-- Operational room rack -->
@@ -690,7 +686,7 @@ function submitDelete() {
                 <div class="mb-2.5 flex items-center gap-3 px-1">
                     <h2 class="text-body-sm font-semibold text-neutral-800">{{ group.label }}</h2>
                     <span class="h-px flex-1 bg-neutral-200" />
-                    <span class="text-tiny text-neutral-400">{{ group.rooms.length }} dhoma</span>
+                    <span class="text-tiny text-neutral-400">{{ group.rooms.length }} {{ $t('admin.generated.k_0649d391e06d') }}</span>
                 </div>
 
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
@@ -707,18 +703,16 @@ function submitDelete() {
                             <ActionMenu v-if="managementMode && (canUpdate || canDelete)">
                                 <button v-if="canUpdate" type="button" :class="menuItemClass" @click="openEdit(room.raw)">
                                     <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.8" />
-                                    Edito
-                                </button>
+{{ $t('admin.generated.k_b2c61837d6bc') }} </button>
                                 <button v-if="canDelete" type="button" :class="[menuItemClass, 'text-error-600']" @click="openDelete(room.raw)">
                                     <Trash2 class="h-4 w-4 text-error-500" :stroke-width="1.8" />
-                                    Fshi
-                                </button>
+{{ $t('admin.generated.k_481988180f04') }} </button>
                             </ActionMenu>
                         </div>
 
                         <div class="mt-2 flex flex-wrap items-center gap-2">
                             <Badge :variant="occupancyBadge[room.occupancyKey]?.variant || 'neutral'">
-                                {{ occupancyBadge[room.occupancyKey]?.label || 'Bosh' }}
+                                {{ occupancyBadge[room.occupancyKey]?.label || $t('admin.generated.k_5d660e4e013e') }}
                             </Badge>
                             <Badge :variant="housekeepingBadge[room.housekeepingKey]?.variant || 'neutral'">
                                 {{ housekeepingBadge[room.housekeepingKey]?.label || '—' }}
@@ -735,7 +729,7 @@ function submitDelete() {
                                 <span class="truncate">{{ room.activity }}</span>
                             </p>
                             <p v-if="room.outstanding > 0" class="text-small font-medium text-error-600">
-                                Për t’u paguar {{ money(room.outstanding) }}
+{{ $t('admin.generated.k_d28e31b7e598') }} {{ money(room.outstanding) }}
                             </p>
                         </div>
 
@@ -762,13 +756,13 @@ function submitDelete() {
                     <table class="min-w-full divide-y divide-neutral-200">
                         <thead class="bg-neutral-50">
                             <tr>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Dhoma</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Gjendja</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Mysafiri</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Qëndrimi</th>
-                                <th class="px-5 py-3 text-right text-label text-neutral-600">Për t’u paguar</th>
-                                <th class="px-5 py-3 text-right text-label text-neutral-600">Veprimi</th>
-                                <th v-if="managementMode && (canUpdate || canDelete)" class="w-12 px-3 py-3"><span class="sr-only">Menaxho</span></th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_c7580722b1ba') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_7d7c760fa449') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_b175f695b1d5') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_b5b9ae690410') }}</th>
+                                <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_d28e31b7e598') }}</th>
+                                <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_81b12621b35b') }}</th>
+                                <th v-if="managementMode && (canUpdate || canDelete)" class="w-12 px-3 py-3"><span class="sr-only">{{ $t('admin.generated.k_692e14bb5a22') }}</span></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-100">
@@ -779,7 +773,7 @@ function submitDelete() {
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-3">
                                     <div class="flex flex-wrap gap-1.5">
-                                        <Badge :variant="occupancyBadge[room.occupancyKey]?.variant || 'neutral'">{{ occupancyBadge[room.occupancyKey]?.label || 'Bosh' }}</Badge>
+                                        <Badge :variant="occupancyBadge[room.occupancyKey]?.variant || 'neutral'">{{ occupancyBadge[room.occupancyKey]?.label || $t('admin.generated.k_5d660e4e013e') }}</Badge>
                                         <Badge :variant="housekeepingBadge[room.housekeepingKey]?.variant || 'neutral'">{{ housekeepingBadge[room.housekeepingKey]?.label || '—' }}</Badge>
                                     </div>
                                 </td>
@@ -800,11 +794,9 @@ function submitDelete() {
                                 <td v-if="managementMode && (canUpdate || canDelete)" class="px-3 py-3 text-right">
                                     <ActionMenu>
                                         <button v-if="canUpdate" type="button" :class="menuItemClass" @click="openEdit(room.raw)">
-                                            <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.8" /> Edito
-                                        </button>
+                                            <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.8" /> {{ $t('admin.generated.k_b2c61837d6bc') }} </button>
                                         <button v-if="canDelete" type="button" :class="[menuItemClass, 'text-error-600']" @click="openDelete(room.raw)">
-                                            <Trash2 class="h-4 w-4 text-error-500" :stroke-width="1.8" /> Fshi
-                                        </button>
+                                            <Trash2 class="h-4 w-4 text-error-500" :stroke-width="1.8" /> {{ $t('admin.generated.k_481988180f04') }} </button>
                                     </ActionMenu>
                                 </td>
                             </tr>
@@ -819,70 +811,70 @@ function submitDelete() {
             <Card>
                 <div class="text-center py-12">
                     <BedDouble class="mx-auto h-8 w-8 text-neutral-300" :stroke-width="1.5" />
-                    <p class="mt-3 text-body-sm text-neutral-600">Nuk ka dhoma që përputhen me filtrat.</p>
-                    <Button v-if="filtersActive" variant="outline" size="sm" class="mt-3" @click="clearFilters">Pastro filtrat</Button>
-                    <Button v-else-if="canCreate" variant="outline" size="sm" class="mt-3" @click="showCreateModal = true">+ Shto dhomë</Button>
+                    <p class="mt-3 text-body-sm text-neutral-600">{{ $t('admin.generated.k_11da110b0524') }}</p>
+                    <Button v-if="filtersActive" variant="outline" size="sm" class="mt-3" @click="clearFilters">{{ $t('admin.generated.k_67af202f0546') }}</Button>
+                    <Button v-else-if="canCreate" variant="outline" size="sm" class="mt-3" @click="showCreateModal = true">{{ $t('admin.generated.k_a6fa95c13f98') }}</Button>
                 </div>
             </Card>
         </div>
 
         <!-- Create Modal -->
-        <Modal :show="showCreateModal" title="Shto dhomë të re" @close="showCreateModal = false">
+        <Modal :show="showCreateModal" :title="$t('admin.generated.k_14f1a04068bf')" @close="showCreateModal = false">
             <form @submit.prevent="submitCreate" class="space-y-4">
-                <FormGroup label="Numri i dhomës" :error="createForm.errors.room_number" required>
-                    <TextInput v-model="createForm.room_number" placeholder="psh. 106" :error="createForm.errors.room_number" />
+                <FormGroup :label="$t('admin.generated.k_8b4223ed45ea')" :error="createForm.errors.room_number" required>
+                    <TextInput v-model="createForm.room_number" :placeholder="$t('admin.generated.k_ed5259641bd1')" :error="createForm.errors.room_number" />
                 </FormGroup>
-                <FormGroup label="Tipi" :error="createForm.errors.room_type_id" required>
+                <FormGroup :label="$t('admin.generated.k_8ed04a040de1')" :error="createForm.errors.room_type_id" required>
                     <Select v-model="createForm.room_type_id" :options="roomTypeOptions" :error="createForm.errors.room_type_id" />
                 </FormGroup>
-                <FormGroup label="Kati" :error="createForm.errors.floor" required>
+                <FormGroup :label="$t('admin.generated.k_d7ec945ac9f2')" :error="createForm.errors.floor" required>
                     <Select v-model="createForm.floor" :options="roomFloorOptions" :error="createForm.errors.floor" />
                 </FormGroup>
-                <FormGroup label="Shënime">
-                    <Textarea v-model="createForm.notes" placeholder="Shënime opsionale..." :rows="2" />
+                <FormGroup :label="$t('admin.generated.k_5ec0c62ab9f7')">
+                    <Textarea v-model="createForm.notes" :placeholder="$t('admin.generated.k_705ac3377d9d')" :rows="2" />
                 </FormGroup>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showCreateModal = false">Anulo</Button>
-                <Button variant="primary" :loading="createForm.processing" @click="submitCreate">Shto</Button>
+                <Button variant="outline" @click="showCreateModal = false">{{ $t('admin.generated.k_a134eeb9c5ba') }}</Button>
+                <Button variant="primary" :loading="createForm.processing" @click="submitCreate">{{ $t('admin.generated.k_55b86a6b4f98') }}</Button>
             </template>
         </Modal>
 
         <!-- Edit Modal -->
-        <Modal :show="showEditModal" title="Edito dhomën" @close="showEditModal = false">
+        <Modal :show="showEditModal" :title="$t('admin.generated.k_6376c72607bb')" @close="showEditModal = false">
             <form @submit.prevent="submitEdit" class="space-y-4">
-                <FormGroup label="Numri i dhomës" :error="editForm.errors.room_number" required>
+                <FormGroup :label="$t('admin.generated.k_8b4223ed45ea')" :error="editForm.errors.room_number" required>
                     <TextInput v-model="editForm.room_number" :error="editForm.errors.room_number" />
                 </FormGroup>
-                <FormGroup label="Tipi" :error="editForm.errors.room_type_id" required>
+                <FormGroup :label="$t('admin.generated.k_8ed04a040de1')" :error="editForm.errors.room_type_id" required>
                     <Select v-model="editForm.room_type_id" :options="roomTypeOptions" :error="editForm.errors.room_type_id" />
                 </FormGroup>
                 <div class="grid grid-cols-2 gap-4">
-                    <FormGroup label="Kati" :error="editForm.errors.floor" required>
+                    <FormGroup :label="$t('admin.generated.k_d7ec945ac9f2')" :error="editForm.errors.floor" required>
                         <Select v-model="editForm.floor" :options="roomFloorOptions" :error="editForm.errors.floor" />
                     </FormGroup>
-                    <FormGroup label="Statusi" :error="editForm.errors.status" required>
+                    <FormGroup :label="$t('admin.generated.k_fa1c72dde0ef')" :error="editForm.errors.status" required>
                         <Select v-model="editForm.status" :options="statusOptions" :error="editForm.errors.status" />
                     </FormGroup>
                 </div>
-                <FormGroup label="Shënime">
+                <FormGroup :label="$t('admin.generated.k_5ec0c62ab9f7')">
                     <Textarea v-model="editForm.notes" :rows="2" />
                 </FormGroup>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showEditModal = false">Anulo</Button>
-                <Button variant="primary" :loading="editForm.processing" @click="submitEdit">Ruaj</Button>
+                <Button variant="outline" @click="showEditModal = false">{{ $t('admin.generated.k_a134eeb9c5ba') }}</Button>
+                <Button variant="primary" :loading="editForm.processing" @click="submitEdit">{{ $t('admin.generated.k_6a667ef6c499') }}</Button>
             </template>
         </Modal>
 
         <!-- Delete Confirmation -->
-        <Modal :show="showDeleteModal" title="Fshi dhomën" max-width="sm" @close="showDeleteModal = false">
+        <Modal :show="showDeleteModal" :title="$t('admin.generated.k_68cfa489b211')" max-width="sm" @close="showDeleteModal = false">
             <p class="text-body-sm text-neutral-600">
-                Je i sigurt që dëshiron të fshish dhomën <strong>{{ selectedRoom?.room_number }}</strong>?
+{{ $t('admin.generated.k_f5972c79bb47') }} <strong>{{ selectedRoom?.room_number }}</strong>?
             </p>
             <template #footer>
-                <Button variant="outline" @click="showDeleteModal = false">Anulo</Button>
-                <Button variant="danger" @click="submitDelete">Fshi</Button>
+                <Button variant="outline" @click="showDeleteModal = false">{{ $t('admin.generated.k_a134eeb9c5ba') }}</Button>
+                <Button variant="danger" @click="submitDelete">{{ $t('admin.generated.k_481988180f04') }}</Button>
             </template>
         </Modal>
 

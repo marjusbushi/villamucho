@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
@@ -27,22 +28,22 @@ const form = useForm({
 });
 
 const currencyOptions = [
-    { value: 'EUR', label: 'Euro (€)' },
-    { value: 'ALL', label: 'Lek (L)' },
-    { value: 'USD', label: 'Dollar ($)' },
-    { value: 'GBP', label: 'Pound (£)' },
+    { value: 'EUR', label: translate('admin.generated.k_282e7f385ece') },
+    { value: 'ALL', label: translate('admin.generated.k_f80673073fb5') },
+    { value: 'USD', label: translate('admin.generated.k_f57b24be53a0') },
+    { value: 'GBP', label: translate('admin.generated.k_cfee1e2af2b7') },
 ];
 
 const timezoneOptions = [
-    { value: 'Europe/Tirane', label: 'Europe/Tirane (CET)' },
-    { value: 'Europe/Rome', label: 'Europe/Rome (CET)' },
-    { value: 'Europe/London', label: 'Europe/London (GMT)' },
-    { value: 'Europe/Berlin', label: 'Europe/Berlin (CET)' },
+    { value: 'Europe/Tirane', label: translate('admin.generated.k_5394fc28c1cc') },
+    { value: 'Europe/Rome', label: translate('admin.generated.k_46464d96d4bd') },
+    { value: 'Europe/London', label: translate('admin.generated.k_deeb0e96a544') },
+    { value: 'Europe/Berlin', label: translate('admin.generated.k_6b4b97576461') },
 ];
 
 function submit() {
     form.put(route('settings.hotel'), {
-        onSuccess: () => props.toasts?.success('Informacionet u ruajten.'),
+        onSuccess: () => props.toasts?.success(translate('admin.generated.k_a06f32868a8a')),
     });
 }
 </script>
@@ -50,37 +51,37 @@ function submit() {
 <template>
     <Card>
         <template #header>
-            <h3 class="text-h4 text-primary-900">Informacionet e Hotelit</h3>
+            <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_93983af507a9') }}</h3>
         </template>
 
         <form @submit.prevent="submit" class="space-y-5">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="Emri i hotelit" :error="form.errors.name" required>
-                    <TextInput v-model="form.name" placeholder="Hotel Demo" :error="form.errors.name" />
+                <FormGroup :label="$t('admin.generated.k_b921fd1fc57c')" :error="form.errors.name" required>
+                    <TextInput v-model="form.name" :placeholder="$t('admin.generated.k_e10513eac211')" :error="form.errors.name" />
                 </FormGroup>
-                <FormGroup label="Email" :error="form.errors.email">
-                    <TextInput type="email" v-model="form.email" placeholder="info@hotel.com" :error="form.errors.email" />
+                <FormGroup :label="$t('admin.generated.k_4a1e97745177')" :error="form.errors.email">
+                    <TextInput type="email" v-model="form.email" :placeholder="$t('admin.generated.k_bdce9dc634aa')" :error="form.errors.email" />
                 </FormGroup>
-                <FormGroup label="Telefon" :error="form.errors.phone">
+                <FormGroup :label="$t('admin.generated.k_e9f7f48f4515')" :error="form.errors.phone">
                     <TextInput v-model="form.phone" placeholder="+355 4 234 5678" :error="form.errors.phone" />
                 </FormGroup>
-                <FormGroup label="Valuta" :error="form.errors.currency" required>
+                <FormGroup :label="$t('admin.generated.k_cfa912b527cc')" :error="form.errors.currency" required>
                     <Select v-model="form.currency" :options="currencyOptions" :error="form.errors.currency" />
                 </FormGroup>
             </div>
 
-            <FormGroup label="Adresa" :error="form.errors.address">
-                <TextInput v-model="form.address" placeholder="Rruga, qyteti" :error="form.errors.address" />
+            <FormGroup :label="$t('admin.generated.k_90438e4e9c45')" :error="form.errors.address">
+                <TextInput v-model="form.address" :placeholder="$t('admin.generated.k_5ad72e9b0edd')" :error="form.errors.address" />
             </FormGroup>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <FormGroup label="Timezone" :error="form.errors.timezone" required>
+                <FormGroup :label="$t('admin.generated.k_98e81c9f9021')" :error="form.errors.timezone" required>
                     <Select v-model="form.timezone" :options="timezoneOptions" :error="form.errors.timezone" />
                 </FormGroup>
-                <FormGroup label="Ora check-in" :error="form.errors.check_in_time" required>
+                <FormGroup :label="$t('admin.generated.k_2fe20af65929')" :error="form.errors.check_in_time" required>
                     <TextInput type="time" v-model="form.check_in_time" :error="form.errors.check_in_time" />
                 </FormGroup>
-                <FormGroup label="Ora check-out" :error="form.errors.check_out_time" required>
+                <FormGroup :label="$t('admin.generated.k_3bb65cac3540')" :error="form.errors.check_out_time" required>
                     <TextInput type="time" v-model="form.check_out_time" :error="form.errors.check_out_time" />
                 </FormGroup>
             </div>
@@ -89,38 +90,38 @@ function submit() {
 
             <!-- Hero text (per language) — shown at the top of the public Home page -->
             <div>
-                <p class="text-label text-neutral-700 mb-1">Teksti i hero-s (faqja Home)</p>
-                <p class="text-tiny text-neutral-400 mb-3">Mbititulli, titulli i madh dhe nëntitulli në krye të faqes. Shkruaji në të dyja gjuhët — vizitori i sheh sipas gjuhës (SQ/EN). Bosh = teksti i parazgjedhur.</p>
+                <p class="text-label text-neutral-700 mb-1">{{ $t('admin.generated.k_832485474fd4') }}</p>
+                <p class="text-tiny text-neutral-400 mb-3">{{ $t('admin.generated.k_3d931a245054') }}</p>
                 <div class="space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormGroup label="Mbititull — Shqip">
-                            <TextInput v-model="form.hero_eyebrow_sq" placeholder="Ksamil · Bregu Jon" />
+                        <FormGroup :label="$t('admin.generated.k_061e2ab2dc4b')">
+                            <TextInput v-model="form.hero_eyebrow_sq" :placeholder="$t('admin.generated.k_70e34701318d')" />
                         </FormGroup>
-                        <FormGroup label="Eyebrow — English">
-                            <TextInput v-model="form.hero_eyebrow_en" placeholder="Ksamil · Ionian Shore" />
-                        </FormGroup>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormGroup label="Titulli i madh — Shqip">
-                            <TextInput v-model="form.hero_title_sq" placeholder="Nje shtepi e madhe mbi detin Jon" />
-                        </FormGroup>
-                        <FormGroup label="Big title — English">
-                            <TextInput v-model="form.hero_title_en" placeholder="A grand house above the Ionian Sea" />
+                        <FormGroup :label="$t('admin.generated.k_d3fdb9154f16')">
+                            <TextInput v-model="form.hero_eyebrow_en" :placeholder="$t('admin.generated.k_f6108fc2962e')" />
                         </FormGroup>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormGroup label="Nëntitulli — Shqip">
-                            <TextInput v-model="form.hero_subtitle_sq" placeholder="Qetesi, gur i bardhe dhe mikpritje..." />
+                        <FormGroup :label="$t('admin.generated.k_7d17e28c7f52')">
+                            <TextInput v-model="form.hero_title_sq" :placeholder="$t('admin.generated.k_a6f078d4077d')" />
                         </FormGroup>
-                        <FormGroup label="Subtitle — English">
-                            <TextInput v-model="form.hero_subtitle_en" placeholder="Calm, white stone and true hospitality..." />
+                        <FormGroup :label="$t('admin.generated.k_2fdaf7ef3dfb')">
+                            <TextInput v-model="form.hero_title_en" :placeholder="$t('admin.generated.k_e61301fd636f')" />
+                        </FormGroup>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormGroup :label="$t('admin.generated.k_ada0dc508a31')">
+                            <TextInput v-model="form.hero_subtitle_sq" :placeholder="$t('admin.generated.k_e9952a8aa367')" />
+                        </FormGroup>
+                        <FormGroup :label="$t('admin.generated.k_b622bce89a98')">
+                            <TextInput v-model="form.hero_subtitle_en" :placeholder="$t('admin.generated.k_934aa0a11084')" />
                         </FormGroup>
                     </div>
                 </div>
             </div>
 
             <div class="flex justify-end pt-2">
-                <Button type="submit" variant="primary" :loading="form.processing">Ruaj ndryshimet</Button>
+                <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_0ffcd1142c0a') }}</Button>
             </div>
         </form>
     </Card>
