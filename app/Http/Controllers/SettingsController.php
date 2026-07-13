@@ -18,6 +18,7 @@ use App\Tenancy\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\TenantStorage;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -128,7 +129,7 @@ class SettingsController extends Controller
         }
 
         if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('logos', 'public');
+            $path = $request->file('logo')->store(TenantStorage::path('logos'), 'public');
             Setting::set('hotel.logo', $path, 'image');
         }
 
@@ -152,7 +153,7 @@ class SettingsController extends Controller
 
         if ($request->hasFile('logo')) {
             $oldLogo = Setting::get('hotel.logo');
-            $path = $request->file('logo')->store('branding', 'public');
+            $path = $request->file('logo')->store(TenantStorage::path('branding'), 'public');
             Setting::set('hotel.logo', $path, 'image');
             if ($oldLogo) {
                 Storage::disk('public')->delete($oldLogo);
@@ -161,7 +162,7 @@ class SettingsController extends Controller
 
         if ($request->hasFile('hero_image')) {
             $oldHero = Setting::get('hotel.hero_image');
-            $path = $request->file('hero_image')->store('branding', 'public');
+            $path = $request->file('hero_image')->store(TenantStorage::path('branding'), 'public');
             Setting::set('hotel.hero_image', $path, 'image');
             if ($oldHero) {
                 Storage::disk('public')->delete($oldHero);
@@ -217,7 +218,7 @@ class SettingsController extends Controller
         foreach (['hero_image', 'story_image', 'staff_image'] as $imgKey) {
             if ($request->hasFile($imgKey)) {
                 $old = Setting::get("about.{$imgKey}");
-                $path = $request->file($imgKey)->store('about', 'public');
+                $path = $request->file($imgKey)->store(TenantStorage::path('about'), 'public');
                 Setting::set("about.{$imgKey}", $path, 'image');
                 if ($old) {
                     Storage::disk('public')->delete($old);
@@ -550,7 +551,7 @@ class SettingsController extends Controller
         ];
 
         if ($request->hasFile('image')) {
-            $data['image_path'] = $request->file('image')->store('menu', 'public');
+            $data['image_path'] = $request->file('image')->store(TenantStorage::path('menu'), 'public');
         }
 
         MenuItem::create($data);
@@ -573,7 +574,7 @@ class SettingsController extends Controller
             if ($menuItem->image_path) {
                 Storage::disk('public')->delete($menuItem->image_path);
             }
-            $data['image_path'] = $request->file('image')->store('menu', 'public');
+            $data['image_path'] = $request->file('image')->store(TenantStorage::path('menu'), 'public');
         }
 
         $menuItem->update($data);
@@ -615,7 +616,7 @@ class SettingsController extends Controller
         $maxOrder = $roomType->images()->max('sort_order') ?? -1;
 
         foreach ($request->file('images') as $image) {
-            $path = $image->store('room-types', 'public');
+            $path = $image->store(TenantStorage::path('room-types'), 'public');
             $roomType->images()->create([
                 'path' => $path,
                 'sort_order' => ++$maxOrder,
