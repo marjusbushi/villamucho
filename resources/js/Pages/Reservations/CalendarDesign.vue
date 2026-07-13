@@ -263,8 +263,8 @@ function formatMoney(value) {
 
                 <div class="overflow-x-auto overflow-y-visible overscroll-x-contain">
                     <div class="min-w-[1050px]">
-                        <div class="sticky top-0 z-30 flex border-b border-neutral-200 bg-neutral-50/95 backdrop-blur">
-                            <div class="sticky left-0 z-40 flex w-48 shrink-0 items-center border-r border-neutral-200 bg-neutral-50 px-4 py-3 text-tiny font-bold uppercase tracking-wider text-neutral-500">{{ $t('admin.calendarPreview.room') }}</div>
+                        <div class="sticky top-16 z-40 flex border-b border-neutral-300 bg-white shadow-[0_6px_14px_-10px_rgba(15,23,42,0.45)]">
+                            <div class="sticky left-0 z-50 flex w-48 shrink-0 items-center border-r border-neutral-200 bg-white px-4 py-3 text-tiny font-bold uppercase tracking-wider text-neutral-500">{{ $t('admin.calendarPreview.room') }}</div>
                             <div class="grid min-w-0 flex-1" :style="{ gridTemplateColumns: `repeat(${visibleDays}, minmax(76px, 1fr))` }">
                                 <div v-for="day in days" :key="day.iso" class="border-r border-neutral-200 px-2 py-2 text-center" :class="day.today ? 'bg-accent-50' : day.weekend ? 'bg-neutral-100/80' : ''">
                                     <p class="text-[10px] font-bold uppercase tracking-wide text-neutral-400">{{ day.weekday }}</p>
