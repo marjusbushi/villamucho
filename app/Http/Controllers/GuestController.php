@@ -32,7 +32,7 @@ class GuestController extends Controller
             // The UI stores ISO alpha-2 codes, while older imported profiles may
             // still contain alpha-3 values. Accept both formats during filtering.
             'nationality' => ['nullable', 'string', 'between:2,3', 'regex:/^[A-Za-z]{2,3}$/'],
-            'segment' => ['nullable', 'in:all,in_house,arriving_7_days,returning,incomplete,attention'],
+            'segment' => ['nullable', 'in:all,in_house,arriving_7_days,returning,incomplete,duplicates,attention'],
             'sort' => ['nullable', 'in:name,last_stay,next_stay,stays'],
         ]);
 
@@ -97,6 +97,7 @@ class GuestController extends Controller
                 ->whereBetween('check_in_date', [$todayString, $windowEndString])),
             'returning' => $this->whereReturningGuest($query),
             'incomplete' => $this->whereProfileIncomplete($query),
+            'duplicates' => $this->whereDuplicateProfile($query),
             'attention' => $this->whereNeedsAttention($query),
             default => null,
         };
