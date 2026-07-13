@@ -317,6 +317,8 @@
             "title": "Kalendari i rezervimeve",
             "subtitle": "Dhomat, hyrjet, daljet dhe disponueshmëria në një pamje operative.",
             "mockData": "Të dhëna demo",
+            "showSummary": "Shfaq përmbledhjen",
+            "hideSummary": "Fshih përmbledhjen",
             "filters": "Filtrat",
             "newReservation": "Rezervim i ri",
             "occupancy": "Mbushja",

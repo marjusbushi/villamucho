@@ -6,8 +6,10 @@ import {
     BedDouble,
     CalendarDays,
     CheckCircle2,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
+    ChevronUp,
     CircleDollarSign,
     Filter,
     LogIn,
@@ -22,6 +24,7 @@ import Button from '@/Components/UI/Button.vue';
 import { getIntlLocale } from '@/i18n';
 
 const visibleDays = ref(14);
+const showSummary = ref(false);
 const anchorDate = ref(startOfDay(new Date()));
 const query = ref('');
 const statusFilter = ref('all');
@@ -182,12 +185,36 @@ function formatMoney(value) {
                     <span class="inline-flex items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-3 py-1.5 text-tiny font-semibold text-warning-800">
                         <Sparkles class="h-3.5 w-3.5" /> {{ $t('admin.calendarPreview.mockData') }}
                     </span>
+                    <Button variant="outline" size="sm" @click="showSummary = !showSummary">
+                        <ChevronUp v-if="showSummary" class="h-4 w-4" />
+                        <ChevronDown v-else class="h-4 w-4" />
+                        {{ showSummary ? $t('admin.calendarPreview.hideSummary') : $t('admin.calendarPreview.showSummary') }}
+                    </Button>
                     <Button variant="outline" size="sm"><Filter class="h-4 w-4" /> {{ $t('admin.calendarPreview.filters') }}</Button>
                     <Button size="sm"><Plus class="h-4 w-4" /> {{ $t('admin.calendarPreview.newReservation') }}</Button>
                 </div>
             </div>
 
-            <div class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div v-if="!showSummary" class="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-card">
+                    <div><p class="text-tiny font-medium text-neutral-500">{{ $t('admin.calendarPreview.occupancy') }}</p><p class="mt-0.5 text-h4 font-extrabold text-primary-900">{{ occupancy }}%</p></div>
+                    <span class="grid h-8 w-8 place-items-center rounded-lg bg-accent-50 text-accent-700"><BedDouble class="h-4 w-4" /></span>
+                </div>
+                <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-card">
+                    <div><p class="text-tiny font-medium text-neutral-500">{{ $t('admin.calendarPreview.arrivalsToday') }}</p><p class="mt-0.5 text-h4 font-extrabold text-primary-900">{{ arrivals }}</p></div>
+                    <span class="grid h-8 w-8 place-items-center rounded-lg bg-info-50 text-info-700"><LogIn class="h-4 w-4" /></span>
+                </div>
+                <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-card">
+                    <div><p class="text-tiny font-medium text-neutral-500">{{ $t('admin.calendarPreview.departuresToday') }}</p><p class="mt-0.5 text-h4 font-extrabold text-primary-900">{{ departures }}</p></div>
+                    <span class="grid h-8 w-8 place-items-center rounded-lg bg-warning-50 text-warning-700"><LogOut class="h-4 w-4" /></span>
+                </div>
+                <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-card">
+                    <div><p class="text-tiny font-medium text-neutral-500">{{ $t('admin.calendarPreview.availableTonight') }}</p><p class="mt-0.5 text-h4 font-extrabold text-primary-900">{{ availableToday }} <span class="text-tiny font-medium text-neutral-400">/ {{ rooms.length }}</span></p></div>
+                    <span class="grid h-8 w-8 place-items-center rounded-lg bg-success-50 text-success-700"><CheckCircle2 class="h-4 w-4" /></span>
+                </div>
+            </div>
+
+            <div v-else class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-card">
                     <div class="flex items-center justify-between"><p class="text-body-sm font-medium text-neutral-500">{{ $t('admin.calendarPreview.occupancy') }}</p><BedDouble class="h-4 w-4 text-accent-600" /></div>
                     <div class="mt-2 flex items-end justify-between gap-3"><p class="text-h2 font-extrabold text-primary-900">{{ occupancy }}%</p><p class="text-tiny text-success-700">+8% {{ $t('admin.calendarPreview.vsLastWeek') }}</p></div>
@@ -234,7 +261,7 @@ function formatMoney(value) {
                     </div>
                 </div>
 
-                <div class="overflow-auto overscroll-contain" style="max-height: calc(100vh - 23rem);">
+                <div class="overflow-x-auto overflow-y-visible overscroll-x-contain">
                     <div class="min-w-[1050px]">
                         <div class="sticky top-0 z-30 flex border-b border-neutral-200 bg-neutral-50/95 backdrop-blur">
                             <div class="sticky left-0 z-40 flex w-48 shrink-0 items-center border-r border-neutral-200 bg-neutral-50 px-4 py-3 text-tiny font-bold uppercase tracking-wider text-neutral-500">{{ $t('admin.calendarPreview.room') }}</div>

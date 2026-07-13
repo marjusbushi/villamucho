@@ -317,6 +317,8 @@
             "title": "Reservation calendar",
             "subtitle": "Rooms, arrivals, departures, and availability in one operational view.",
             "mockData": "Mock data",
+            "showSummary": "Show summary",
+            "hideSummary": "Hide summary",
             "filters": "Filters",
             "newReservation": "New reservation",
             "occupancy": "Occupancy",
