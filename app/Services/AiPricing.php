@@ -69,7 +69,7 @@ class AiPricing
             'occupancy_pct' => $day['occupancy_pct'],
         ];
 
-        $cacheKey = 'ai.explain.'.md5(json_encode($payload));
+        $cacheKey = 'ai.explain.'.app(\App\Tenancy\TenantContext::class)->id().'.'.md5(json_encode($payload));
 
         return Cache::remember($cacheKey, now()->addDays(7), function () use ($payload) {
             $out = app(GeminiClient::class)->structured(

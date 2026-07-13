@@ -62,7 +62,7 @@ Route::post('/contact', [WebsiteController::class, 'submitContact'])->middleware
 
 // Inbound Channex booking webhook (server-to-server; CSRF-excluded in bootstrap/app.php).
 // Auth is a shared secret header validated in the controller — Channex has no HMAC.
-Route::post('/channex/webhook', [ChannexWebhookController::class, 'handle'])->middleware(['module:channel_manager', 'throttle:120,1'])->name('channex.webhook');
+Route::post('/channex/webhook', [ChannexWebhookController::class, 'handle'])->middleware(['module:channel_manager', 'throttle:channex-webhook'])->name('channex.webhook');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'hotel_host', 'dedicated_control_redirect'])->name('dashboard');

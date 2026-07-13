@@ -44,7 +44,7 @@ class PricingAutopilot extends Command
         // Fast overlap gate for normal deployments. Correctness does not rely
         // on this cache being shared: DB rule-version/type/log locks below are
         // the final cross-process authority.
-        $runLock = Cache::lock('pricing:autopilot:run', 3600);
+        $runLock = Cache::lock('pricing:autopilot:run:'.app(\App\Tenancy\TenantContext::class)->id(), 3600);
         if (! $runLock->get()) {
             $this->warn('Autopiloti është tashmë në punë — kjo thirrje u anashkalua.');
 

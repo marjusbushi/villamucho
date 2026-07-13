@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\Middleware\UseTenantContext;
 use App\Jobs\PushRoomTypeAri;
 use App\Models\Guest;
+use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
@@ -173,6 +174,12 @@ class TenantIsolationTest extends TestCase
             ->assertSessionHas('tenant_id', $tenant->id);
 
         $this->assertSame($tenant->id, $superAdmin->fresh()->current_tenant_id);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'tenant_id' => $tenant->id,
+            'action' => 'tenant.switch',
+            'causer_id' => $superAdmin->id,
+        ]);
     }
 
     public function test_validation_rejects_room_and_guest_ids_from_another_tenant(): void
@@ -293,5 +300,39 @@ class TenantIsolationTest extends TestCase
         } finally {
             $this->app['env'] = 'testing';
         }
+    }
+    public function test_pok_order_ids_are_unique_per_tenant_not_globally(): void
+    {
+        $context = app(TenantContext::class);
+        $first = Tenant::query()->sole();
+        $second = Tenant::factory()->create();
+
+        foreach ([$first, $second] as $i => $tenant) {
+            $context->set($tenant);
+            $type = RoomType::create(['name' => 'Std', 'base_price' => 50, 'max_occupancy' => 2, 'amenities' => []]);
+            $room = Room::create(['room_type_id' => $type->id, 'room_number' => '10'.$i, 'floor' => 1, 'status' => 'available']);
+            $guest = Guest::create(['first_name' => 'G', 'last_name' => (string) $i, 'email' => "g{$i}@example.test"]);
+            $staff = User::factory()->create();
+
+            Reservation::create([
+                'room_id' => $room->id,
+                'guest_id' => $guest->id,
+                'created_by' => $staff->id,
+                'check_in_date' => today()->addDays(2)->toDateString(),
+                'check_out_date' => today()->addDays(4)->toDateString(),
+                'status' => 'pending',
+                'total_amount' => 100,
+                'adults' => 2,
+                'pok_order_id' => 'POK-SAME-ORDER',
+            ]);
+        }
+
+        $context->clear();
+
+        // Both hotels hold the SAME POK order id — no cross-tenant collision.
+        $this->assertSame(
+            2,
+            Reservation::withoutGlobalScopes()->where('pok_order_id', 'POK-SAME-ORDER')->count(),
+        );
     }
 }

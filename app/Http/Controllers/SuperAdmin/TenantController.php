@@ -177,6 +177,10 @@ class TenantController extends Controller
             'current_tenant_id' => $tenant->id,
         ]);
 
+        app(TenantContext::class)->run($tenant, fn () => AuditLog::record('tenant.switch', $tenant, [
+            'super_admin_id' => $request->user()->id,
+        ]));
+
         return redirect()->away($this->tenantDashboardUrl($tenant));
     }
 
