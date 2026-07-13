@@ -7,6 +7,7 @@ use App\Models\FinanceAccount;
 use App\Models\FinancePayment;
 use App\Models\Invoice;
 use App\Models\Setting;
+use App\Services\CurrencyRates;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -241,7 +242,8 @@ class FinanceController extends Controller
     {
         return [
             'baseCurrency' => 'EUR',
-            'fxRate' => (float) Setting::get('financial.fx_all_per_eur', 0) ?: null,
+            'fxRate' => CurrencyRates::rate('ALL'),
+            'fxUpdatedAt' => CurrencyRates::updatedAt(),
             'can' => [
                 'createPayment' => $request->user()->can('create_payment'),
                 'payBills' => $request->user()->can('pay_bills'),
