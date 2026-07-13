@@ -379,6 +379,7 @@
             "centerSubtitle": "{count} case requires your decision",
             "close": "Close conflict center",
             "demoNotice": "This is a mock-data prototype. Choosing a solution does not change any real reservation.",
+            "realNotice": "The system suggests a solution, but the reservation changes only after you confirm it. Availability is checked again before moving.",
             "room": "Room",
             "conflictPeriod": "Conflict period",
             "actionRequired": "Action required",
@@ -389,7 +390,10 @@
             "alternativeType": "Alternative type",
             "choose": "Choose",
             "keepReservation": "This reservation can remain in its current room.",
-            "demoApplied": "Demo: the conflict was resolved by choosing room {room}. Refresh the page to restore it."
+            "demoApplied": "Demo: the conflict was resolved by choosing room {room}. Refresh the page to restore it.",
+            "confirmApply": "Move the reservation to room {room}? The system will check availability again.",
+            "realApplied": "Conflict resolved. The reservation was moved to room {room}.",
+            "resolutionFailed": "The conflict could not be resolved. Refresh the calendar and try again."
         },
         "generated": {
             "k_00001da4b7fd": "Dashboard",

@@ -11,6 +11,7 @@ defineProps({
     endDate: String,
     visibleDays: { type: Number, default: 14 },
     channelFees: { type: Object, default: () => ({}) },
+    conflicts: { type: Array, default: () => [] },
 });
 
 function navigate({ start, days }) {
@@ -29,6 +30,7 @@ function navigate({ start, days }) {
             :end-date="endDate"
             :visible-days="visibleDays"
             :channel-fees="channelFees"
+            :conflicts="conflicts"
             :available-day-ranges="[7, 14, 30]"
             @navigate="navigate"
         />

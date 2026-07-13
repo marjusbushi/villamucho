@@ -144,6 +144,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/reservations/{reservation}/request-cleaning', [ReservationController::class, 'requestCleaning'])->middleware('permission:update_reservations')->name('reservations.request-cleaning');
         Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])->middleware('permission:update_reservations')->name('reservations.cancel');
         Route::post('/reservations/{reservation}/move-room', [ReservationController::class, 'moveRoom'])->middleware('permission:update_reservations')->name('reservations.move-room');
+        Route::post('/reservations/{reservation}/resolve-conflict', [ReservationController::class, 'resolveConflict'])->middleware('permission:update_reservations')->name('reservations.resolve-conflict');
         Route::post('/reservations/{reservation}/folio', [ReservationController::class, 'addFolioLine'])->middleware('permission:update_reservations')->name('reservations.folio.add');
         Route::post('/reservations/{reservation}/payment', [ReservationController::class, 'recordPayment'])->middleware('permission:update_reservations')->name('reservations.payment');
     });

@@ -55,6 +55,7 @@ const query = ref('');
 const statusFilter = ref('all');
 const showConflictCenter = ref(false);
 const resolvedConflictIds = ref([]);
+const resolvingReservationId = ref(null);
 
 const activeConflicts = computed(() => (props.conflicts || []).filter((conflict) => !resolvedConflictIds.value.includes(conflict.id)));
 const conflictingReservationIds = computed(() => new Set(activeConflicts.value.flatMap((conflict) => conflict.reservations.map((reservation) => reservation.id))));
@@ -218,11 +219,26 @@ function openConflictReservation(reservationId) {
     openDetail(reservation);
 }
 
-function applyConflictSuggestion({ conflictId, room }) {
-    if (!props.demo) return;
-    resolvedConflictIds.value = [...resolvedConflictIds.value, conflictId];
-    showConflictCenter.value = false;
-    toasts.value?.success(translate('admin.calendarConflicts.demoApplied', { room: room.room_number }));
+function applyConflictSuggestion({ conflictId, reservationId, room }) {
+    if (props.demo) {
+        resolvedConflictIds.value = [...resolvedConflictIds.value, conflictId];
+        showConflictCenter.value = false;
+        toasts.value?.success(translate('admin.calendarConflicts.demoApplied', { room: room.room_number }));
+        return;
+    }
+
+    if (!confirm(translate('admin.calendarConflicts.confirmApply', { room: room.room_number }))) return;
+
+    resolvingReservationId.value = reservationId;
+    router.post(route('reservations.resolve-conflict', reservationId), { room_id: room.id }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showConflictCenter.value = false;
+            toasts.value?.success(translate('admin.calendarConflicts.realApplied', { room: room.room_number }));
+        },
+        onError: (errors) => toasts.value?.error(Object.values(errors)[0] || translate('admin.calendarConflicts.resolutionFailed')),
+        onFinish: () => { resolvingReservationId.value = null; },
+    });
 }
 
 function closeDetail() {
@@ -589,6 +605,8 @@ function doCheckOut(res) {
         <ReservationConflictCenter
             v-if="showConflictCenter"
             :conflicts="activeConflicts"
+            :demo="demo"
+            :resolving-reservation-id="resolvingReservationId"
             @close="showConflictCenter = false"
             @open-reservation="openConflictReservation"
             @apply-suggestion="applyConflictSuggestion"

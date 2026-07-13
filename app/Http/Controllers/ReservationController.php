@@ -13,6 +13,7 @@ use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\Setting;
 use App\Services\AuditTimeline;
+use App\Services\ReservationConflictService;
 use App\Services\RoomPricing;
 use App\Tenancy\TenantRule;
 use Illuminate\Database\Eloquent\Builder;
@@ -156,7 +157,7 @@ class ReservationController extends Controller
         ]);
     }
 
-    public function calendar(Request $request): Response
+    public function calendar(Request $request, ReservationConflictService $conflictService): Response
     {
         $visibleDays = (int) $request->input('days', 14);
         if (! in_array($visibleDays, [7, 14, 30], true)) {
@@ -226,6 +227,7 @@ class ReservationController extends Controller
             'endDate' => $endDate,
             'visibleDays' => $visibleDays,
             'channelFees' => Setting::get('financial.channel_fees', []),
+            'conflicts' => $conflictService->detect($startDate, $endDate),
         ]);
     }
 
@@ -768,6 +770,50 @@ class ReservationController extends Controller
         }
 
         return back()->with('success', "Mysafiri u zhvendos te dhoma {$newRoom->room_number}.");
+    }
+
+    public function resolveConflict(Request $request, Reservation $reservation, ReservationConflictService $conflictService): RedirectResponse
+    {
+        $data = $request->validate([
+            'room_id' => ['required', TenantRule::exists('rooms')],
+        ]);
+
+        DB::transaction(function () use ($reservation, $data, $conflictService) {
+            $lockedReservation = Reservation::query()->lockForUpdate()->findOrFail($reservation->id);
+            $newRoom = Room::query()->with('roomType')->lockForUpdate()->findOrFail($data['room_id']);
+
+            if (! in_array($lockedReservation->status, ['pending', 'confirmed'], true)) {
+                throw ValidationException::withMessages([
+                    'room_id' => 'Vetem rezervimet ne pritje ose te konfirmuara mund te zgjidhen nga qendra e konflikteve.',
+                ]);
+            }
+
+            if ((int) $newRoom->id === (int) $lockedReservation->room_id) {
+                throw ValidationException::withMessages(['room_id' => 'Zgjidh nje dhome tjeter.']);
+            }
+
+            if (! $conflictService->hasConflict($lockedReservation)) {
+                throw ValidationException::withMessages([
+                    'room_id' => 'Konflikti nuk ekziston me. Rifresko kalendarin.',
+                ]);
+            }
+
+            if (($newRoom->roomType?->max_occupancy ?? 0) < $lockedReservation->adults
+                || ! Reservation::isRoomAvailable(
+                    $newRoom->id,
+                    $lockedReservation->check_in_date->toDateString(),
+                    $lockedReservation->check_out_date->toDateString(),
+                    $lockedReservation->id
+                )) {
+                throw ValidationException::withMessages([
+                    'room_id' => "Dhoma {$newRoom->room_number} nuk eshte me e lire ose nuk ka kapacitetin e nevojshem.",
+                ]);
+            }
+
+            $lockedReservation->update(['room_id' => $newRoom->id]);
+        });
+
+        return back()->with('success', 'Konflikti u zgjidh dhe rezervimi u zhvendos.');
     }
 
     public function checkOut(Request $request, Reservation $reservation): RedirectResponse

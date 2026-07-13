@@ -5,6 +5,8 @@ import { AlertTriangle, ArrowRight, BedDouble, CheckCircle2, X } from 'lucide-vu
 
 defineProps({
     conflicts: { type: Array, default: () => [] },
+    demo: { type: Boolean, default: false },
+    resolvingReservationId: { type: Number, default: null },
 });
 
 const emit = defineEmits(['close', 'open-reservation', 'apply-suggestion']);
@@ -57,7 +59,7 @@ function guestName(reservation) {
 
                 <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
                     <div class="rounded-xl border border-info-100 bg-info-50 p-3 text-body-sm text-info-800">
-                        {{ $t('admin.calendarConflicts.demoNotice') }}
+                        {{ demo ? $t('admin.calendarConflicts.demoNotice') : $t('admin.calendarConflicts.realNotice') }}
                     </div>
 
                     <article v-for="conflict in conflicts" :key="conflict.id" class="overflow-hidden rounded-xl border border-error-200 bg-white shadow-card">
@@ -95,7 +97,7 @@ function guestName(reservation) {
                                                 <p class="text-body-sm font-bold text-primary-900">{{ $t('admin.calendarConflicts.moveToRoom', { room: room.room_number }) }}</p>
                                                 <p class="text-[10px] font-semibold" :class="room.same_type ? 'text-success-700' : 'text-warning-700'">{{ room.same_type ? $t('admin.calendarConflicts.sameType') : $t('admin.calendarConflicts.alternativeType') }} · {{ room.room_type }}</p>
                                             </div>
-                                            <Button size="sm" :variant="room.same_type ? 'success' : 'outline'" @click="emit('apply-suggestion', { conflictId: conflict.id, reservationId: reservation.id, room })">
+                                            <Button size="sm" :variant="room.same_type ? 'success' : 'outline'" :loading="resolvingReservationId === reservation.id" :disabled="resolvingReservationId !== null" @click="emit('apply-suggestion', { conflictId: conflict.id, reservationId: reservation.id, room })">
                                                 {{ $t('admin.calendarConflicts.choose') }} <ArrowRight class="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
