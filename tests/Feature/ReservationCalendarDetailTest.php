@@ -45,7 +45,7 @@ class ReservationCalendarDetailTest extends TestCase
 
         $this->actingAs($admin)->get(route('reservations.calendar'))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('Reservations/Calendar')
+                ->component('Reservations/CalendarLive')
                 ->has('reservations.0', fn (AssertableInertia $r) => $r
                     ->where('adults', 2)
                     ->where('children', 1)

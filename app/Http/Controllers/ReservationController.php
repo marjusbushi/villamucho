@@ -213,7 +213,7 @@ class ReservationController extends Controller
             ->orderBy('last_name')
             ->get();
 
-        return Inertia::render('Reservations/Calendar', [
+        return Inertia::render('Reservations/CalendarLive', [
             'rooms' => $rooms,
             'reservations' => $reservations,
             'guests' => $guests,

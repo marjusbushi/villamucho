@@ -46,7 +46,7 @@ class ReservationVisibilityTest extends TestCase
         // It must appear on the calendar (within the default window).
         $this->actingAs($admin)->get(route('reservations.calendar'))
             ->assertInertia(fn (AssertableInertia $p) => $p
-                ->component('Reservations/Calendar')
+                ->component('Reservations/CalendarLive')
                 ->has('reservations', 1));
 
         // And on the list.
