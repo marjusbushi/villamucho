@@ -16,7 +16,7 @@ import {
     Users,
     X,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
     tenants: Array,
@@ -309,6 +309,16 @@ function openBilling(tenant) {
     );
     billingForm.clearErrors();
 }
+
+onMounted(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tenantId = Number(params.get('manage'));
+    const tenant = props.tenants.find((item) => item.id === tenantId);
+    if (!tenant) return;
+
+    if (params.get('section') === 'billing') openBilling(tenant);
+    if (params.get('section') === 'config') openConfig(tenant);
+});
 
 function closeBilling() {
     if (!billingForm.processing) editingTenant.value = null;
