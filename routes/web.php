@@ -170,7 +170,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
     // Finance (module #11): NOT admin-only — the view gate is view_finance and
     // every write carries its own permission (receptionist can record an
     // arkëtim; only pay_bills/manage_transfers roles can move money out).
-    Route::prefix('finance')->middleware('permission:view_finance')->group(function () {
+    Route::prefix('finance')->middleware(['addon:finance', 'permission:view_finance'])->group(function () {
         Route::get('/', [FinanceController::class, 'index'])->name('finance.index');
         Route::get('/accounts', [FinanceController::class, 'accounts'])->name('finance.accounts');
         Route::get('/payments', [FinanceController::class, 'payments'])->name('finance.payments');
@@ -240,8 +240,8 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/settings/about', [SettingsController::class, 'updateAbout'])->name('settings.about');
         Route::put('/settings/financial', [SettingsController::class, 'updateFinancial'])->name('settings.financial');
         Route::put('/settings/market-rates', [SettingsController::class, 'updateMarketRates'])->name('settings.market-rates');
-        Route::put('/settings/currencies', [SettingsController::class, 'updateCurrencies'])->name('settings.currencies');
-        Route::post('/settings/currencies/refresh', [SettingsController::class, 'refreshCurrencies'])->name('settings.currencies.refresh');
+        Route::put('/settings/currencies', [SettingsController::class, 'updateCurrencies'])->middleware('addon:finance')->name('settings.currencies');
+        Route::post('/settings/currencies/refresh', [SettingsController::class, 'refreshCurrencies'])->middleware('addon:finance')->name('settings.currencies.refresh');
         Route::put('/settings/pricing-programs', [SettingsController::class, 'updatePricingPrograms'])->name('settings.pricing-programs');
         Route::put('/settings/housekeeping', [SettingsController::class, 'updateHousekeeping'])->name('settings.housekeeping');
         Route::put('/settings/ai', [SettingsController::class, 'updateAi'])->name('settings.ai');

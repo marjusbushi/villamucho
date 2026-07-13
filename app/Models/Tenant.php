@@ -29,6 +29,46 @@ class Tenant extends Model
         ];
     }
 
+    /**
+     * Paid add-on catalog (price is metadata — billing is manual for now).
+     * A tenant's granted add-ons live in metadata['addons'].
+     */
+    public const ADDONS = [
+        'finance' => [
+            'name' => 'Financa',
+            'price_eur' => 29,
+            'period' => 'muaj',
+            'description' => 'Arka & Banka · Pagesat · Blerjet · Furnitorët · Monedhat',
+        ],
+    ];
+
+    /** @return list<string> */
+    public function addons(): array
+    {
+        $addons = $this->metadata['addons'] ?? [];
+
+        return is_array($addons) ? array_values($addons) : [];
+    }
+
+    public function hasAddon(string $key): bool
+    {
+        return in_array($key, $this->addons(), true);
+    }
+
+    public function grantAddon(string $key): void
+    {
+        $meta = $this->metadata ?? [];
+        $meta['addons'] = array_values(array_unique([...$this->addons(), $key]));
+        $this->update(['metadata' => $meta]);
+    }
+
+    public function revokeAddon(string $key): void
+    {
+        $meta = $this->metadata ?? [];
+        $meta['addons'] = array_values(array_diff($this->addons(), [$key]));
+        $this->update(['metadata' => $meta]);
+    }
+
     public function domains(): HasMany
     {
         return $this->hasMany(TenantDomain::class);

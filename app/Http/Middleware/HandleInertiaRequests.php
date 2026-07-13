@@ -53,6 +53,7 @@ class HandleInertiaRequests extends Middleware
                 'slug' => $tenant->slug,
                 'timezone' => $tenant->timezone,
                 'currency' => $tenant->currency,
+                'addons' => $tenant->addons(),
             ] : null,
             // Cached so the shared prop costs one cache lookup, not 6 SELECTs per request.
             // Invalidated in Setting::set().
