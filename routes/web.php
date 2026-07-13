@@ -107,6 +107,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
     // Guest Profiles
     Route::middleware('permission:view_guests')->group(function () {
         Route::get('/guests', [GuestController::class, 'index'])->name('guests.index');
+        Route::get('/guests/profile-design', fn () => Inertia::render('Guests/ProfileDesign'))->name('guests.profile-design');
         Route::get('/guests/{guest}', [GuestController::class, 'show'])->name('guests.show');
         Route::post('/guests', [GuestController::class, 'store'])->middleware('permission:create_guests')->name('guests.store');
         Route::put('/guests/{guest}', [GuestController::class, 'update'])->middleware('permission:update_guests')->name('guests.update');
