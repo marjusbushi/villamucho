@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Tenant;
 use App\Services\TenantBillingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,7 +16,7 @@ class DashboardController extends Controller
     public function index(TenantBillingService $billing): Response
     {
         $tenants = Tenant::query()
-            ->with(['subscription', 'moduleEntitlements', 'domains'])
+            ->with(['subscription', 'moduleEntitlements', 'domains', 'integrations'])
             ->withCount('users')
             ->latest()
             ->get();
@@ -28,6 +29,32 @@ class DashboardController extends Controller
                 : ($summary['billing_cycle'] === 'annual'
                     ? (int) round($summary['annual_cents'] / 12)
                     : $summary['monthly_fixed_cents']);
+            $enabledModules = collect($summary['modules'])
+                ->filter(fn (array $module) => $module['enabled'])
+                ->keys()
+                ->values();
+            $requiredProviders = collect([
+                'channex' => $enabledModules->contains('channel_manager'),
+                'pok' => $enabledModules->contains('booking_engine'),
+            ])->filter()->keys();
+            $readyProviders = $requiredProviders->filter(function (string $provider) use ($tenant) {
+                $integration = $tenant->integrations->firstWhere('provider', $provider);
+                if (! $integration?->enabled) {
+                    return false;
+                }
+
+                $credentials = $integration->credentials ?? [];
+                $configuration = $integration->configuration ?? [];
+
+                return match ($provider) {
+                    'channex' => filled($credentials['api_key'] ?? null)
+                        && filled($configuration['property_id'] ?? null),
+                    'pok' => filled($credentials['key_id'] ?? null)
+                        && filled($credentials['key_secret'] ?? null)
+                        && filled($configuration['merchant_id'] ?? null),
+                    default => true,
+                };
+            });
 
             return [
                 'id' => $tenant->id,
@@ -40,12 +67,11 @@ class DashboardController extends Controller
                 'users_count' => $tenant->users_count,
                 'domain' => $tenant->domains->firstWhere('is_primary', true)?->domain
                     ?? $tenant->domains->first()?->domain,
+                'integrations_ready' => $readyProviders->count(),
+                'integrations_total' => $requiredProviders->count(),
                 'created_at' => $tenant->created_at?->toIso8601String(),
                 'period_ends_at' => $summary['current_period_ends_at'] ?? null,
-                'modules' => collect($summary['modules'])
-                    ->filter(fn (array $module) => $module['enabled'])
-                    ->keys()
-                    ->values(),
+                'modules' => $enabledModules,
             ];
         });
 
@@ -63,7 +89,7 @@ class DashboardController extends Controller
                     $reason = 'Pagesë e vonuar';
                     $severity = 'danger';
                 } elseif ($row['period_ends_at']
-                    && \Illuminate\Support\Carbon::parse($row['period_ends_at'])->lte($soon)) {
+                    && Carbon::parse($row['period_ends_at'])->lte($soon)) {
                     $reason = $row['subscription_status'] === 'trialing'
                         ? 'Prova mbaron së shpejti'
                         : 'Abonimi rinovohet së shpejti';
@@ -93,20 +119,39 @@ class DashboardController extends Controller
             ];
         })->values();
 
+        $hotelsTotal = $rows->count();
+        $hotelsActive = $rows->where('status', 'active')->count();
+        $subscriptionsActive = $rows->whereIn('subscription_status', ['active', 'trialing'])->count();
+        $domainsConfigured = $rows->filter(fn (array $row) => filled($row['domain']))->count();
+        $integrationsReady = $rows->sum('integrations_ready');
+        $integrationsTotal = $rows->sum('integrations_total');
+        $ratio = static fn (int $value, int $total): float => $total > 0 ? $value / $total : 1;
+        $healthScore = (int) round(
+            ($ratio($hotelsActive, $hotelsTotal) * 35)
+            + ($ratio($subscriptionsActive, $hotelsTotal) * 35)
+            + ($ratio($domainsConfigured, $hotelsTotal) * 15)
+            + ($ratio($integrationsReady, $integrationsTotal) * 15)
+        );
+
         return Inertia::render('SuperAdmin/Dashboard', [
             'stats' => [
-                'hotels_total' => $rows->count(),
-                'hotels_active' => $rows->where('status', 'active')->count(),
-                'subscriptions_active' => $rows->whereIn('subscription_status', ['active', 'trialing'])->count(),
+                'hotels_total' => $hotelsTotal,
+                'hotels_active' => $hotelsActive,
+                'subscriptions_active' => $subscriptionsActive,
                 'subscriptions_attention' => $rows->whereIn('subscription_status', ['past_due', 'suspended'])->count(),
                 'mrr_cents' => $rows->sum('mrr_cents'),
                 'users_total' => $rows->sum('users_count'),
+                'domains_configured' => $domainsConfigured,
+                'integrations_ready' => $integrationsReady,
+                'integrations_total' => $integrationsTotal,
+                'health_score' => $healthScore,
             ],
             'moduleAdoption' => $moduleAdoption,
             'needsAttention' => $needsAttention,
             'recentTenants' => $rows->take(5)->values(),
         ]);
     }
+
     /**
      * Platform-wide activity feed for the control plane. AuditLog is a
      * TenantModel, but the control panel is TENANTLESS by design (context is
@@ -117,10 +162,36 @@ class DashboardController extends Controller
     public function activity(Request $request): Response
     {
         $action = (string) $request->query('action', '');
+        $search = trim((string) $request->query('q', ''));
+        $tenantId = $request->integer('tenant') ?: null;
+        $range = in_array((string) $request->query('range', '7'), ['today', '7', '30'], true)
+            ? (string) $request->query('range', '7')
+            : '7';
+        $rangeStart = match ($range) {
+            'today' => now()->startOfDay(),
+            '30' => now()->subDays(30),
+            default => now()->subDays(7),
+        };
 
-        $logs = AuditLog::withoutGlobalScopes()
+        $logsQuery = AuditLog::withoutGlobalScopes()
             ->where('action', 'like', 'tenant.%')
             ->when($action !== '', fn ($query) => $query->where('action', $action))
+            ->when($tenantId, fn ($query) => $query->where('tenant_id', $tenantId))
+            ->where('created_at', '>=', $rangeStart)
+            ->when($search !== '', function ($query) use ($search) {
+                $like = '%'.$search.'%';
+                $query->where(function ($query) use ($like) {
+                    $query->where('ip_address', 'like', $like)
+                        ->orWhereHas('causer', fn ($query) => $query
+                            ->where('name', 'like', $like)
+                            ->orWhere('email', 'like', $like))
+                        ->orWhereHas('tenant', fn ($query) => $query
+                            ->where('name', 'like', $like)
+                            ->orWhere('slug', 'like', $like));
+                });
+            });
+
+        $logs = $logsQuery
             ->with(['causer:id,name,email', 'tenant:id,name,slug'])
             ->orderByDesc('id')
             ->paginate(30)
@@ -138,6 +209,10 @@ class DashboardController extends Controller
                 'summary' => $this->summarizeAudit($log),
             ]);
 
+        $lastDay = AuditLog::withoutGlobalScopes()
+            ->where('action', 'like', 'tenant.%')
+            ->where('created_at', '>=', now()->subDay());
+
         $actions = AuditLog::withoutGlobalScopes()
             ->where('action', 'like', 'tenant.%')
             ->distinct()
@@ -147,7 +222,18 @@ class DashboardController extends Controller
         return Inertia::render('SuperAdmin/Activity', [
             'logs' => $logs,
             'actions' => $actions,
-            'filter' => ['action' => $action],
+            'hotels' => Tenant::query()->orderBy('name')->get(['id', 'name']),
+            'stats' => [
+                'actions_24h' => (clone $lastDay)->count(),
+                'hotels_24h' => (clone $lastDay)->whereNotNull('tenant_id')->distinct()->count('tenant_id'),
+                'admins_24h' => (clone $lastDay)->whereNotNull('causer_id')->distinct()->count('causer_id'),
+            ],
+            'filter' => [
+                'action' => $action,
+                'q' => $search,
+                'tenant' => $tenantId,
+                'range' => $range,
+            ],
         ]);
     }
 

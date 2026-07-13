@@ -118,6 +118,7 @@ class ControlPanelIsolationTest extends TestCase
             'password' => 'password',
         ])->assertRedirect('https://admin.lorapms.test/super-admin');
     }
+
     public function test_hotel_pms_is_unreachable_on_product_hosts(): void
     {
         $staff = User::factory()->create(['is_super_admin' => false]);
@@ -159,10 +160,11 @@ class ControlPanelIsolationTest extends TestCase
             ->assertOk()
             ->assertSee('super-admin.tenants', false);
     }
+
     public function test_activity_feed_shows_platform_actions_to_super_admin_only(): void
     {
         $tenant = Tenant::query()->sole();
-        app(\App\Tenancy\TenantContext::class)->run($tenant, function () use ($tenant) {
+        app(TenantContext::class)->run($tenant, function () use ($tenant) {
             AuditLog::record('tenant.integration.update', $tenant, [
                 'provider' => 'channex',
                 'enabled' => true,
@@ -178,7 +180,19 @@ class ControlPanelIsolationTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('SuperAdmin/Activity')
                 ->has('logs.data', 1)
-                ->where('logs.data.0.action', 'tenant.integration.update'));
+                ->where('logs.data.0.action', 'tenant.integration.update')
+                ->where('stats.actions_24h', 1)
+                ->where('stats.hotels_24h', 1)
+                ->has('hotels', 1));
+
+        $this->actingAs($superAdmin)
+            ->get('https://admin.lorapms.test/super-admin/activity?q='.urlencode($tenant->name).'&tenant='.$tenant->id.'&range=30')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('logs.data', 1)
+                ->where('filter.q', $tenant->name)
+                ->where('filter.tenant', $tenant->id)
+                ->where('filter.range', '30'));
 
         // Field NAMES may show; secret VALUES must never reach the page.
         $this->assertStringNotContainsString('api_key_value', $response->getContent());
@@ -192,6 +206,7 @@ class ControlPanelIsolationTest extends TestCase
             ->get('https://admin.lorapms.test/super-admin/activity')
             ->assertForbidden();
     }
+
     public function test_tenant_detail_page_shows_members_domains_and_integrations_to_super_admin(): void
     {
         $tenant = Tenant::factory()->create(['name' => 'Hotel Detail']);
@@ -241,6 +256,7 @@ class ControlPanelIsolationTest extends TestCase
             ->get("https://admin.lorapms.test/super-admin/tenants/{$tenant->id}")
             ->assertForbidden();
     }
+
     public function test_dashboard_flags_hotels_that_need_attention(): void
     {
         // A suspended hotel.
