@@ -22,7 +22,7 @@ const stays = [
     { id: 164, room: '203', room_type: 'Deluxe Sea View', check_in: '01 Jul 2026', check_out: '07 Jul 2026', status: 'cancelled', total: '200.00' },
 ];
 const documents = [
-    { id: 1, type: 'passport', name: 'passport_marjus_bushi.jpg', size: '1.8 MB', status: 'ready', uploaded_at: '14 Jul 2026' },
+    { id: 1, type: 'passport', name: 'passport_marjus_bushi.jpg', size: 1887436, mime: 'image/jpeg', status: 'ready', uploaded_at: '14 Jul 2026' },
 ];
 const activities = [
     { id: 1, title_key: 'documentUploaded', meta: '14 Jul 2026, 10:42 · Marjus Bushi', tone: 'info' },

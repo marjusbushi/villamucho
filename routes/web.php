@@ -115,6 +115,8 @@ Route::middleware('auth')->prefix('pms')->group(function () {
 
         // Identity documents (passport/ID/…) — private storage, served only here.
         Route::post('/guests/{guest}/documents', [GuestController::class, 'storeDocument'])->middleware('permission:update_guests')->name('guests.documents.store');
+        Route::post('/guests/{guest}/documents/{document}/analyze', [GuestController::class, 'analyzeDocument'])->middleware('permission:update_guests')->name('guests.documents.analyze');
+        Route::put('/guests/{guest}/documents/{document}/apply-ai', [GuestController::class, 'applyDocumentAnalysis'])->middleware('permission:update_guests')->name('guests.documents.apply-ai');
         Route::get('/guests/documents/{document}', [GuestController::class, 'downloadDocument'])->name('guests.documents.show');
         Route::delete('/guests/documents/{document}', [GuestController::class, 'destroyDocument'])->middleware('permission:update_guests')->name('guests.documents.destroy');
     });

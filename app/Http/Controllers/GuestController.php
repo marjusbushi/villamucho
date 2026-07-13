@@ -9,12 +9,17 @@ use App\Models\Guest;
 use App\Models\GuestDocument;
 use App\Models\Reservation;
 use App\Services\AuditTimeline;
+use App\Services\GeminiClient;
+use App\Services\GuestDocumentAiExtractor;
+use App\Tenancy\TenantRule;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -387,9 +392,16 @@ class GuestController extends Controller
                 'uploaded_by' => $d->uploader?->name,
                 'created_at' => $d->created_at?->toDateString(),
                 'url' => route('guests.documents.show', $d->id),
+                'ai_status' => $d->ai_status,
+                'ai_extraction' => $d->ai_extraction,
+                'ai_model' => $d->ai_model,
+                'ai_error' => $d->ai_error,
+                'ai_extracted_at' => $d->ai_extracted_at?->toIso8601String(),
+                'ai_reviewed_at' => $d->ai_reviewed_at?->toIso8601String(),
             ]),
             'duplicates' => $duplicates,
             'history' => $timeline->entries($historyLogs, $historySubjects),
+            'aiConfigured' => app(GeminiClient::class)->configured(),
         ]);
     }
 
@@ -467,6 +479,103 @@ class GuestController extends Controller
         $document->delete();
 
         return back()->with('success', 'Dokumenti u fshi.');
+    }
+
+    public function analyzeDocument(Guest $guest, GuestDocument $document, GuestDocumentAiExtractor $extractor): JsonResponse
+    {
+        abort_unless($document->guest_id === $guest->id, 404);
+
+        $document->update(['ai_status' => 'processing', 'ai_error' => null]);
+
+        try {
+            $extraction = $extractor->extract($document);
+            $document->update([
+                'ai_status' => 'ready',
+                'ai_extraction' => $extraction,
+                'ai_model' => $extractor->model(),
+                'ai_extracted_at' => now(),
+                'ai_reviewed_at' => null,
+                'ai_reviewed_by' => null,
+            ]);
+
+            return response()->json([
+                'document' => [
+                    'id' => $document->id,
+                    'ai_status' => $document->ai_status,
+                    'ai_extraction' => $document->ai_extraction,
+                    'ai_model' => $document->ai_model,
+                    'ai_extracted_at' => $document->ai_extracted_at?->toIso8601String(),
+                ],
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+            $message = $exception instanceof \RuntimeException
+                ? $exception->getMessage()
+                : 'Dokumenti nuk u analizua. Provo sërish.';
+            $document->update(['ai_status' => 'failed', 'ai_error' => $message]);
+
+            return response()->json(['message' => $message], 422);
+        }
+    }
+
+    public function applyDocumentAnalysis(Request $request, Guest $guest, GuestDocument $document): JsonResponse
+    {
+        abort_unless($document->guest_id === $guest->id, 404);
+
+        $allowed = ['first_name', 'last_name', 'nationality', 'date_of_birth', 'document_type', 'document_number'];
+        $validated = $request->validate([
+            'fields' => ['required', 'array', 'min:1'],
+            'fields.*' => ['required', 'string', 'distinct', 'in:'.implode(',', $allowed)],
+        ]);
+
+        abort_unless($document->ai_status === 'ready' && is_array($document->ai_extraction), 422, 'Analiza AI nuk është gati për konfirmim.');
+
+        $extracted = $document->ai_extraction['fields'] ?? [];
+        $updates = [];
+        foreach ($validated['fields'] as $field) {
+            $value = $extracted[$field]['value'] ?? null;
+            if ($value !== null && $value !== '') {
+                $updates[$field] = $value;
+            }
+        }
+
+        abort_if($updates === [], 422, 'Fushat e zgjedhura nuk kanë të dhëna të lexueshme.');
+
+        Validator::make($updates, [
+            'first_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'last_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'nationality' => ['sometimes', 'nullable', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
+            'date_of_birth' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before:today'],
+            'document_type' => ['sometimes', 'nullable', 'in:id_card,passport,drivers_license'],
+            'document_number' => ['sometimes', 'nullable', 'string', 'max:50', TenantRule::unique('guests', 'document_number')->ignore($guest->id)],
+        ])->validate();
+
+        DB::transaction(function () use ($guest, $document, $updates, $request) {
+            $guest->update($updates);
+            $document->update([
+                'ai_status' => 'reviewed',
+                'ai_reviewed_at' => now(),
+                'ai_reviewed_by' => $request->user()->id,
+                'ai_error' => null,
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Të dhënat e konfirmuara u aplikuan në profil.',
+            'guest' => [
+                'first_name' => $guest->first_name,
+                'last_name' => $guest->last_name,
+                'nationality' => $guest->nationality,
+                'date_of_birth' => $guest->date_of_birth?->toDateString(),
+                'document_type' => $guest->document_type,
+                'document_number' => $guest->document_number,
+            ],
+            'document' => [
+                'id' => $document->id,
+                'ai_status' => $document->ai_status,
+                'ai_reviewed_at' => $document->ai_reviewed_at?->toIso8601String(),
+            ],
+        ]);
     }
 
     private function visitKeySql(): string
