@@ -6,7 +6,7 @@ use App\Models\FinanceAccount;
 use App\Models\FinancePayment;
 use App\Models\Payment;
 use App\Models\PosShift;
-use App\Models\Setting;
+
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -109,12 +109,12 @@ class FinanceLedger
             ->delete();
     }
 
-    /** ALL-per-EUR rate from Settings (frozen onto rows at write time). */
+    /** ALL-per-EUR rate: the daily API rate first, manual Settings fallback. */
     protected function fxRate(): float
     {
-        $fx = (float) Setting::get('financial.fx_all_per_eur', 0);
+        $fx = (float) (CurrencyRates::rate('ALL') ?? 0);
         if ($fx <= 0) {
-            throw new \RuntimeException('Kursi ALL/EUR mungon te Settings (financial.fx_all_per_eur).');
+            throw new \RuntimeException('Kursi ALL/EUR mungon — aktivizo Settings → Monedhat ose vendos financial.fx_all_per_eur.');
         }
 
         return $fx;

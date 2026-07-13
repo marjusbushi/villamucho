@@ -934,7 +934,8 @@ class FinanceController extends Controller
     {
         return [
             'baseCurrency' => 'EUR',
-            'fxRate' => (float) Setting::get('financial.fx_all_per_eur', 0) ?: null,
+            'fxRate' => CurrencyRates::rate('ALL'),
+            'fxUpdatedAt' => CurrencyRates::updatedAt(),
             'can' => [
                 'createPayment' => $request->user()->can('create_payment'),
                 'payBills' => $request->user()->can('pay_bills'),
