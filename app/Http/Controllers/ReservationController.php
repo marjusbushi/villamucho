@@ -221,7 +221,8 @@ class ReservationController extends Controller
             ->whereNotIn('status', ['cancelled', 'checked_out'])
             ->whereDate('check_in_date', '<=', $today)
             ->whereDate('check_out_date', '>', $today)
-            ->count();
+            ->distinct('room_id')
+            ->count('room_id');
 
         return Inertia::render('Reservations/Calendar', [
             'rooms' => $rooms,
