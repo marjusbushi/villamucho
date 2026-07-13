@@ -29,10 +29,25 @@ const billingForm = useForm({
     modules: {},
 });
 
+const showCreate = ref(false);
+
+function openCreate() {
+    form.reset('name', 'slug', 'primary_domain', 'owner_name', 'owner_email');
+    form.clearErrors();
+    showCreate.value = true;
+}
+
+function closeCreate() {
+    if (!form.processing) showCreate.value = false;
+}
+
 function createTenant() {
     form.post(route('super-admin.tenants.store'), {
         preserveScroll: true,
-        onSuccess: () => form.reset('name', 'slug', 'primary_domain', 'owner_name', 'owner_email'),
+        onSuccess: () => {
+            form.reset('name', 'slug', 'primary_domain', 'owner_name', 'owner_email');
+            showCreate.value = false;
+        },
     });
 }
 
@@ -201,13 +216,15 @@ function statusLabel(status) {
 
     <SuperAdminLayout title="Hotelet & abonimet — Lora Control Panel">
         <div class="mx-auto max-w-7xl space-y-6">
-            <PageHeader
-                title="Super Admin — Hotelet"
-                :breadcrumbs="[{ label: 'Control Panel', href: '/super-admin' }, { label: 'Hotelet & abonimet' }]"
-            />
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <PageHeader
+                    title="Super Admin — Hotelet"
+                    :breadcrumbs="[{ label: 'Control Panel', href: '/super-admin' }, { label: 'Hotelet & abonimet' }]"
+                />
+                <Button variant="primary" @click="openCreate">+ Shto hotel</Button>
+            </div>
 
-            <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-                <section class="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+            <section class="overflow-hidden rounded-xl border border-neutral-200 bg-white">
                     <div class="flex flex-col gap-3 border-b border-neutral-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h2 class="text-lg font-semibold text-neutral-900">Hotelet</h2>
@@ -291,15 +308,24 @@ function statusLabel(status) {
                     </div>
                     <div v-else class="px-5 py-16 text-center">
                         <p class="text-sm font-medium text-neutral-700">Ende asnjë hotel</p>
-                        <p class="mt-1 text-xs text-neutral-500">Krijo hotelin e parë nga forma anash.</p>
+                        <p class="mt-1 text-xs text-neutral-500">Krijo hotelin e parë të platformës.</p>
+                        <Button variant="primary" class="mt-4" @click="openCreate">+ Shto hotel</Button>
                     </div>
                 </section>
 
-                <aside class="rounded-xl border border-neutral-200 bg-white p-5">
-                    <h2 class="text-lg font-semibold text-neutral-900">Krijo hotel të ri</h2>
-                    <p class="mt-1 text-sm text-neutral-500">Krijon tenantin bosh dhe të lidh ty si owner.</p>
+        </div>
 
-                    <form class="mt-5 space-y-4" @submit.prevent="createTenant">
+        <Teleport to="body">
+            <div v-if="showCreate" class="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/50 p-0 sm:items-center sm:p-6" @click.self="closeCreate">
+                <section class="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+                    <div class="sticky top-0 z-10 flex items-start justify-between border-b border-neutral-200 bg-white px-5 py-4 sm:px-6">
+                        <div>
+                            <h2 class="text-lg font-semibold text-neutral-900">Krijo hotel të ri</h2>
+                            <p class="mt-1 text-sm text-neutral-500">Krijon tenantin dhe të lidh ty si owner.</p>
+                        </div>
+                        <button class="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" type="button" @click="closeCreate">✕</button>
+                    </div>
+                    <form class="space-y-4 p-5 sm:p-6" @submit.prevent="createTenant">
                         <label class="block text-sm font-medium text-neutral-700">
                             Emri
                             <input v-model="form.name" required class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="Hotel Riviera" />
@@ -350,9 +376,9 @@ function statusLabel(status) {
                             {{ form.processing ? 'Duke krijuar…' : 'Krijo tenant' }}
                         </Button>
                     </form>
-                </aside>
+                </section>
             </div>
-        </div>
+        </Teleport>
 
         <Teleport to="body">
             <div v-if="editingTenant" class="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/50 p-0 sm:items-center sm:p-6" @click.self="closeBilling">
