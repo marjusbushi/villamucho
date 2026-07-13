@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -15,8 +15,13 @@ const props = defineProps({
     ledger: Array,
     baseCurrency: String,
     fxRate: Number,
+    currencies: { type: Array, default: () => ['EUR', 'ALL'] },
     can: Object,
 });
+
+// The page lists every account (management view); money can only move
+// through the active ones, so the transfer dropdowns filter on is_active.
+const activeAccounts = computed(() => props.accounts.filter((a) => a.is_active));
 
 function pick(a) {
     router.get(route('finance.accounts'), { account_id: a.id }, { preserveScroll: true, preserveState: true });
@@ -30,13 +35,28 @@ function submitTransfer() {
         onSuccess: () => { showTransfer.value = false; transfer.reset(); },
     });
 }
+
+const showNewAccount = ref(false);
+const account = useForm({ name: '', type: 'cash', currency: 'EUR', iban: '' });
+function submitAccount() {
+    account.post(route('finance.accounts.store'), {
+        preserveScroll: true,
+        onSuccess: () => { showNewAccount.value = false; account.reset(); },
+    });
+}
+
+function toggleAccount(a) {
+    if (a.is_active && !confirm(`Të çaktivizohet llogaria "${a.name}"? Historiku i saj ruhet dhe mund ta riaktivizosh kurdo.`)) return;
+    router.put(route('finance.accounts.toggle', a.id), {}, { preserveScroll: true });
+}
 </script>
 
 <template>
     <AppLayout>
         <PageHeader title="Arka & Banka" :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Financa' }, { label: 'Arka & Banka' }]">
             <template #actions>
-                <Button v-if="can.transfers && accounts.length > 1" variant="secondary" @click="showTransfer = true">⇄ Transfertë</Button>
+                <Button v-if="can.transfers && activeAccounts.length > 1" variant="secondary" @click="showTransfer = true">⇄ Transfertë</Button>
+                <Button v-if="can.manageAccounts" @click="showNewAccount = true">＋ Llogari e re</Button>
             </template>
         </PageHeader>
 
@@ -45,13 +65,26 @@ function submitTransfer() {
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <button
                     v-for="a in accounts" :key="a.id" type="button"
-                    class="text-left rounded-xl border p-4 bg-white transition"
-                    :class="a.id === selectedId ? 'border-accent-500 ring-2 ring-accent-500/20' : 'border-neutral-200 hover:border-neutral-300'"
+                    class="relative text-left rounded-xl border p-4 bg-white transition"
+                    :class="[
+                        a.id === selectedId ? 'border-accent-500 ring-2 ring-accent-500/20' : 'border-neutral-200 hover:border-neutral-300',
+                        a.is_active ? '' : 'opacity-60',
+                    ]"
                     @click="pick(a)"
                 >
-                    <p class="text-tiny font-semibold text-neutral-500">{{ a.type === 'cash' ? '💵' : '🏦' }} {{ a.name }} <span class="text-neutral-400">({{ a.currency }})</span></p>
+                    <p class="text-tiny font-semibold text-neutral-500">
+                        {{ a.type === 'cash' ? '💵' : '🏦' }} {{ a.name }} <span class="text-neutral-400">({{ a.currency }})</span>
+                        <span v-if="!a.is_active" class="ml-1 rounded-full bg-neutral-200 px-2 py-0.5 text-[10px] font-bold text-neutral-600">JOAKTIVE</span>
+                    </p>
                     <p class="mt-1 text-h3 font-extrabold text-primary-900 tabular-nums">{{ money(a.balance, a.currency) }}</p>
                     <p v-if="a.iban" class="text-tiny text-neutral-400 truncate">{{ a.iban }}</p>
+                    <span
+                        v-if="can.manageAccounts"
+                        class="absolute top-3 right-3 cursor-pointer rounded-md px-2 py-1 text-[11px] font-semibold transition-colors"
+                        :class="a.is_active ? 'text-neutral-400 hover:bg-error-50 hover:text-error-600' : 'text-accent-700 hover:bg-accent-50'"
+                        :title="a.is_active ? 'Çaktivizo llogarinë' : 'Riaktivizo llogarinë'"
+                        @click.stop="toggleAccount(a)"
+                    >{{ a.is_active ? 'Çaktivizo' : 'Riaktivizo' }}</span>
                 </button>
             </div>
 
@@ -91,13 +124,13 @@ function submitTransfer() {
                     <div>
                         <label class="block text-body-sm font-semibold text-primary-900 mb-1">Nga</label>
                         <select v-model="transfer.from_account_id" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm">
-                            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }} ({{ money(a.balance, a.currency) }})</option>
+                            <option v-for="a in activeAccounts" :key="a.id" :value="a.id">{{ a.name }} ({{ money(a.balance, a.currency) }})</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-body-sm font-semibold text-primary-900 mb-1">Te</label>
                         <select v-model="transfer.to_account_id" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm">
-                            <option v-for="a in accounts.filter((x) => x.id !== transfer.from_account_id)" :key="a.id" :value="a.id">{{ a.name }}</option>
+                            <option v-for="a in activeAccounts.filter((x) => x.id !== transfer.from_account_id)" :key="a.id" :value="a.id">{{ a.name }}</option>
                         </select>
                     </div>
                 </div>
@@ -113,6 +146,43 @@ function submitTransfer() {
                 <div class="flex justify-end gap-2">
                     <Button variant="ghost" @click="showTransfer = false">Anulo</Button>
                     <Button :disabled="transfer.processing || !transfer.to_account_id || !transfer.amount" @click="submitTransfer">Kryej transfertën</Button>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- new account modal -->
+        <Modal :show="showNewAccount" @close="showNewAccount = false">
+            <div class="p-5 space-y-4">
+                <h3 class="text-h4 font-bold text-primary-900">Llogari e re</h3>
+                <div>
+                    <label class="block text-body-sm font-semibold text-primary-900 mb-1">Emri</label>
+                    <TextInput v-model="account.name" class="w-full" placeholder='p.sh. "Arka e Restorantit" ose "BKT"' maxlength="60" />
+                    <p v-if="account.errors.name" class="text-tiny text-error-600 mt-1">{{ account.errors.name }}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-body-sm font-semibold text-primary-900 mb-1">Lloji</label>
+                        <select v-model="account.type" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm">
+                            <option value="cash">💵 Arkë (kesh)</option>
+                            <option value="bank">🏦 Bankë</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-body-sm font-semibold text-primary-900 mb-1">Monedha</label>
+                        <select v-model="account.currency" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm">
+                            <option v-for="c in currencies" :key="c" :value="c">{{ c === 'ALL' ? 'ALL (Lek)' : c }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div v-if="account.type === 'bank'">
+                    <label class="block text-body-sm font-semibold text-primary-900 mb-1">IBAN (ops.)</label>
+                    <TextInput v-model="account.iban" class="w-full" placeholder="AL__ ____ ____ ____" maxlength="40" />
+                    <p v-if="account.errors.iban" class="text-tiny text-error-600 mt-1">{{ account.errors.iban }}</p>
+                </div>
+                <p class="text-tiny text-neutral-400">Llogaria e re nis me bilanc 0 — lëvizjet i regjistron te Pagesat ose me Transfertë.</p>
+                <div class="flex justify-end gap-2">
+                    <Button variant="ghost" @click="showNewAccount = false">Anulo</Button>
+                    <Button :disabled="account.processing || !account.name" @click="submitAccount">Krijo llogarinë</Button>
                 </div>
             </div>
         </Modal>

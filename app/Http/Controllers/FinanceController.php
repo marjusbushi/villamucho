@@ -83,7 +83,10 @@ class FinanceController extends Controller
     public function accounts(Request $request): Response
     {
         FinanceAccount::ensureDefaults();
-        $accounts = $this->visibleAccounts($request);
+        // This management page also lists DEACTIVATED accounts (dimmed, with
+        // their ledger still browsable); every money-moving screen elsewhere
+        // uses visibleAccounts(), which is active-only.
+        $accounts = $this->manageableAccounts($request);
         $selectedId = (int) $request->input('account_id') ?: ($accounts->first()['id'] ?? null);
         // Never leak a hidden (bank) ledger through a hand-typed account_id.
         if (! $accounts->firstWhere('id', $selectedId)) {
@@ -112,7 +115,61 @@ class FinanceController extends Controller
             'accounts' => $accounts,
             'selectedId' => $selectedId,
             'ledger' => $ledger,
+            'currencies' => ['EUR', 'ALL'],
         ]));
+    }
+
+    /** New cash box or bank account (owner-only via manage_finance_settings). */
+    public function storeAccount(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:60'],
+            'type' => ['required', 'in:cash,bank'],
+            // EUR + ALL only for now: every money screen (manual payments,
+            // bills) is built around these two; more currencies need Phase 3.
+            'currency' => ['required', 'in:EUR,ALL'],
+            'iban' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        // Unique per tenant (the model's global scope narrows the query).
+        if (FinanceAccount::where('name', $data['name'])->exists()) {
+            return back()->with('error', "Ekziston tashmë një llogari me emrin \"{$data['name']}\".");
+        }
+
+        FinanceAccount::create([
+            'name' => $data['name'],
+            'type' => $data['type'],
+            'currency' => $data['currency'],
+            'iban' => $data['type'] === 'bank' ? ($data['iban'] ?? null) : null,
+            'is_active' => true,
+        ]);
+
+        return back()->with('success', "Llogaria \"{$data['name']}\" u krijua.");
+    }
+
+    /**
+     * Deactivate / reactivate. Accounts are never DELETED (the ledger keeps
+     * pointing at them — history integrity), and the last active account of a
+     * type stays: the auto-feed (folio payments, POS shifts) deposits into the
+     * first active cash/bank account and would break without one.
+     */
+    public function toggleAccount(Request $request, FinanceAccount $account): RedirectResponse
+    {
+        if ($account->is_active) {
+            $lastOfType = ! FinanceAccount::where('type', $account->type)
+                ->where('is_active', true)->where('id', '!=', $account->id)->exists();
+            if ($lastOfType) {
+                $lloji = $account->type === 'cash' ? 'arkë' : 'bankë';
+
+                return back()->with('error', "S'mund të çaktivizohet e vetmja {$lloji} aktive — pagesat automatike derdhen aty.");
+            }
+        }
+
+        $account->update(['is_active' => ! $account->is_active]);
+
+        return back()->with('success', $account->is_active
+            ? "Llogaria \"{$account->name}\" u riaktivizua."
+            : "Llogaria \"{$account->name}\" u çaktivizua — historiku i saj ruhet.");
     }
 
     public function payments(Request $request): Response
@@ -419,7 +476,21 @@ class FinanceController extends Controller
     /** Active accounts with balances; banks hidden without view_bank_accounts. */
     protected function visibleAccounts(Request $request)
     {
-        $q = FinanceAccount::where('is_active', true)->orderBy('id');
+        return $this->accountRows($request, activeOnly: true);
+    }
+
+    /** Same, but includes deactivated accounts (Arka & Banka management page). */
+    protected function manageableAccounts(Request $request)
+    {
+        return $this->accountRows($request, activeOnly: false);
+    }
+
+    protected function accountRows(Request $request, bool $activeOnly)
+    {
+        $q = FinanceAccount::orderBy('id');
+        if ($activeOnly) {
+            $q->where('is_active', true);
+        }
         if (! $request->user()->can('view_bank_accounts')) {
             $q->where('type', 'cash');
         }
@@ -430,6 +501,7 @@ class FinanceController extends Controller
             'type' => $a->type,
             'currency' => $a->currency,
             'iban' => $a->iban,
+            'is_active' => $a->is_active,
             'balance' => $a->balance(),
         ])->values();
     }
@@ -446,6 +518,7 @@ class FinanceController extends Controller
                 'bank' => $request->user()->can('view_bank_accounts'),
                 'manageBills' => $request->user()->can('manage_bills'),
                 'manageSuppliers' => $request->user()->can('manage_suppliers'),
+                'manageAccounts' => $request->user()->can('manage_finance_settings'),
             ],
         ];
     }

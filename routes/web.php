@@ -214,6 +214,8 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
     Route::prefix('finance')->middleware('permission:view_finance')->group(function () {
         Route::get('/', [FinanceController::class, 'index'])->name('finance.index');
         Route::get('/accounts', [FinanceController::class, 'accounts'])->name('finance.accounts');
+        Route::post('/accounts', [FinanceController::class, 'storeAccount'])->middleware('permission:manage_finance_settings')->name('finance.accounts.store');
+        Route::put('/accounts/{account}/toggle', [FinanceController::class, 'toggleAccount'])->middleware('permission:manage_finance_settings')->name('finance.accounts.toggle');
         Route::get('/payments', [FinanceController::class, 'payments'])->name('finance.payments');
         Route::post('/payments', [FinanceController::class, 'storePayment'])->middleware('permission:create_payment')->name('finance.payments.store');
         Route::post('/transfers', [FinanceController::class, 'storeTransfer'])->middleware('permission:manage_transfers')->name('finance.transfers.store');
