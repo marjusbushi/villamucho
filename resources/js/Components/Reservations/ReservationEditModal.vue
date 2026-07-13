@@ -141,46 +141,46 @@ function submit() {
 </script>
 
 <template>
-    <Modal :show="show" title="Edito rezervimin" max-width="lg" @close="emit('close')">
+    <Modal :show="show" :title="$t('admin.generated.k_6df19ad54b93')" max-width="lg" @close="emit('close')">
         <form class="space-y-4" @submit.prevent="submit">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="Mysafiri" :error="form.errors.guest_id" required>
-                    <SearchableSelect v-model="form.guest_id" :options="guestOptions" placeholder="Zgjidh mysafirin..." search-placeholder="Kërko mysafir…" :error="form.errors.guest_id" />
+                <FormGroup :label="$t('admin.generated.k_5e655a9659b4')" :error="form.errors.guest_id" required>
+                    <SearchableSelect v-model="form.guest_id" :options="guestOptions" :placeholder="$t('admin.generated.k_6183b5e3f433')" :search-placeholder="$t('admin.generated.k_02bdd23af041')" :error="form.errors.guest_id" />
                 </FormGroup>
-                <FormGroup label="Dhoma" :error="form.errors.room_id" required>
+                <FormGroup :label="$t('admin.generated.k_e213eac3160a')" :error="form.errors.room_id" required>
                     <Select v-model="form.room_id" :options="roomOptions" :error="form.errors.room_id" />
                 </FormGroup>
-                <FormGroup label="Check-in" :error="form.errors.check_in_date" required>
+                <FormGroup :label="$t('admin.generated.k_679f26341e59')" :error="form.errors.check_in_date" required>
                     <DatePicker v-model="form.check_in_date" :error="form.errors.check_in_date" />
                 </FormGroup>
-                <FormGroup label="Check-out" :error="form.errors.check_out_date" required>
+                <FormGroup :label="$t('admin.generated.k_837b1fec5b7d')" :error="form.errors.check_out_date" required>
                     <DatePicker v-model="form.check_out_date" :error="form.errors.check_out_date" />
                 </FormGroup>
-                <FormGroup label="Te rritur" :error="form.errors.adults">
+                <FormGroup :label="$t('admin.generated.k_a613b28ef298')" :error="form.errors.adults">
                     <Select v-model="form.adults" :options="adultsOptions" placeholder="" :error="form.errors.adults" />
                 </FormGroup>
-                <FormGroup label="Femije" :error="form.errors.children">
+                <FormGroup :label="$t('admin.generated.k_305cf5d36909')" :error="form.errors.children">
                     <Select v-model="form.children" :options="childrenOptions" placeholder="" :error="form.errors.children" />
                 </FormGroup>
-                <FormGroup label="Burimi" :error="form.errors.channel">
+                <FormGroup :label="$t('admin.generated.k_77fb5e8d0ec8')" :error="form.errors.channel">
                     <Select v-model="form.channel" :options="channelOptions" :disabled="sourceLocked" :error="form.errors.channel" />
-                    <p v-if="sourceLocked" class="mt-1 text-tiny text-neutral-400">Burimi vendoset nga sinkronizimi dhe nuk ndryshohet.</p>
+                    <p v-if="sourceLocked" class="mt-1 text-tiny text-neutral-400">{{ $t('admin.generated.k_d038abc79301') }}</p>
                 </FormGroup>
-                <FormGroup label="Cmimi (me fee)" :error="form.errors.total_amount">
+                <FormGroup :label="$t('admin.generated.k_a6216a3caa4d')" :error="form.errors.total_amount">
                     <TextInput type="number" v-model="form.total_amount" min="0" step="0.01" placeholder="0.00" :error="form.errors.total_amount" />
                 </FormGroup>
             </div>
             <div class="rounded-lg bg-neutral-50 border border-neutral-100 px-4 py-2.5 flex items-center gap-x-6 gap-y-1 flex-wrap text-body-sm">
-                <span class="text-neutral-500">Komisioni <span class="text-neutral-400">{{ feePct(form.channel) }}%</span>: <span class="text-neutral-900 font-medium">€{{ commission.toFixed(2) }}</span></span>
-                <span class="text-neutral-500">Neto: <span class="text-accent-700 font-semibold">€{{ net.toFixed(2) }}</span></span>
+                <span class="text-neutral-500">{{ $t('admin.generated.k_3369877794e7') }} <span class="text-neutral-400">{{ feePct(form.channel) }}%</span>: <span class="text-neutral-900 font-medium">€{{ commission.toFixed(2) }}</span></span>
+                <span class="text-neutral-500">{{ $t('admin.generated.k_6ebbccfcf663') }} <span class="text-accent-700 font-semibold">€{{ net.toFixed(2) }}</span></span>
             </div>
-            <FormGroup label="Shenime">
+            <FormGroup :label="$t('admin.generated.k_d393fa8ba7bb')">
                 <Textarea v-model="form.notes" :rows="2" />
             </FormGroup>
         </form>
         <template #footer>
-            <Button variant="outline" @click="emit('close')">Anulo</Button>
-            <Button variant="primary" :loading="form.processing" @click="submit">Ruaj</Button>
+            <Button variant="outline" @click="emit('close')">{{ $t('admin.generated.k_9198cebae099') }}</Button>
+            <Button variant="primary" :loading="form.processing" @click="submit">{{ $t('admin.generated.k_df2c1decffab') }}</Button>
         </template>
     </Modal>
 </template>

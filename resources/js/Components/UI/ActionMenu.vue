@@ -78,7 +78,7 @@ onBeforeUnmount(removeListeners);
             :class="open && 'bg-neutral-100 text-neutral-700'"
             aria-haspopup="menu"
             :aria-expanded="open"
-            aria-label="Veprime"
+            :aria-label="$t('admin.generated.k_8a00babf9eb8')"
             @click.stop="toggle"
         >
             <MoreVertical class="h-[18px] w-[18px]" :stroke-width="2" />

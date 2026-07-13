@@ -70,8 +70,7 @@ function isActive(href) {
     <div class="site min-h-screen">
         <!-- Keyboard users skip the 6+ header links on every page of the booking flow -->
         <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:bg-ink focus:text-bone focus:px-4 focus:py-2 focus:rounded-md">
-            Kalo te përmbajtja
-        </a>
+{{ $t('admin.generated.k_8ee4c60d2bd8') }} </a>
         <!-- Header -->
         <header
             :class="[
@@ -203,10 +202,10 @@ function isActive(href) {
                             </a>
                         </div>
                         <div v-if="settings.instagram || settings.facebook" class="mt-5 flex items-center gap-3">
-                            <a v-if="settings.instagram" :href="settings.instagram" target="_blank" rel="noopener" aria-label="Instagram" class="text-bone/60 hover:text-brass transition-colors">
+                            <a v-if="settings.instagram" :href="settings.instagram" target="_blank" rel="noopener" :aria-label="$t('admin.generated.k_71eba557ebf7')" class="text-bone/60 hover:text-brass transition-colors">
                                 <Instagram class="h-5 w-5" :stroke-width="1.5" />
                             </a>
-                            <a v-if="settings.facebook" :href="settings.facebook" target="_blank" rel="noopener" aria-label="Facebook" class="text-bone/60 hover:text-brass transition-colors">
+                            <a v-if="settings.facebook" :href="settings.facebook" target="_blank" rel="noopener" :aria-label="$t('admin.generated.k_293104d9cd23')" class="text-bone/60 hover:text-brass transition-colors">
                                 <Facebook class="h-5 w-5" :stroke-width="1.5" />
                             </a>
                         </div>

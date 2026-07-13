@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed, watch } from 'vue';
 import { useForm, router, usePage, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -45,19 +46,19 @@ const showMoveModal = ref(false);
 const moveRes = ref(null);
 
 const statusBadge = {
-    pending: { variant: 'warning', label: 'Ne pritje' },
-    confirmed: { variant: 'info', label: 'Konfirmuar' },
-    checked_in: { variant: 'success', label: 'Brenda' },
-    checked_out: { variant: 'neutral', label: 'Larguar' },
-    cancelled: { variant: 'error', label: 'Anulluar' },
+    pending: { variant: 'warning', label: translate('admin.generated.k_9cd64da5b709') },
+    confirmed: { variant: 'info', label: translate('admin.generated.k_4238bf6b24e9') },
+    checked_in: { variant: 'success', label: translate('admin.generated.k_1ba80dcca8c6') },
+    checked_out: { variant: 'neutral', label: translate('admin.generated.k_3c1e5649d6e2') },
+    cancelled: { variant: 'error', label: translate('admin.generated.k_cefb0d283ca8') },
 };
 
 const statusFilterOptions = [
-    { value: 'pending', label: 'Ne pritje' },
-    { value: 'confirmed', label: 'Konfirmuar' },
-    { value: 'checked_in', label: 'Brenda' },
-    { value: 'checked_out', label: 'Larguar' },
-    { value: 'cancelled', label: 'Anulluar' },
+    { value: 'pending', label: translate('admin.generated.k_9cd64da5b709') },
+    { value: 'confirmed', label: translate('admin.generated.k_4238bf6b24e9') },
+    { value: 'checked_in', label: translate('admin.generated.k_1ba80dcca8c6') },
+    { value: 'checked_out', label: translate('admin.generated.k_3c1e5649d6e2') },
+    { value: 'cancelled', label: translate('admin.generated.k_cefb0d283ca8') },
 ];
 
 const perPageOptions = [
@@ -67,9 +68,9 @@ const perPageOptions = [
 ];
 
 const sortOptions = [
-    { value: 'latest', label: 'Rezervimet e fundit' },
-    { value: 'checkin', label: 'Check-in më i afërt' },
-    { value: 'checkout', label: 'Check-out më i afërt' },
+    { value: 'latest', label: translate('admin.generated.k_21a9396267ab') },
+    { value: 'checkin', label: translate('admin.generated.k_f91d07c4b978') },
+    { value: 'checkout', label: translate('admin.generated.k_20cbe51c0d42') },
 ];
 
 const roomOptions = props.rooms.map((r) => ({
@@ -143,7 +144,7 @@ function openEdit(res) {
 }
 
 function onReservationCreated() {
-    toasts.value?.success('Rezervimi u krijua.');
+    toasts.value?.success(translate('admin.generated.k_1106b8c060e4'));
 }
 
 function closeCreateModal() {
@@ -161,18 +162,18 @@ function openMove(res) {
     showMoveModal.value = true;
 }
 function onRoomMoved() {
-    toasts.value?.success('Mysafiri u zhvendos.');
+    toasts.value?.success(translate('admin.generated.k_8b9d1fd02506'));
 }
 
 function onReservationUpdated() {
-    toasts.value?.success('Rezervimi u perditesua.');
+    toasts.value?.success(translate('admin.generated.k_df1a78498bd5'));
 }
 
 function doCheckIn(res) {
     router.post(route('reservations.check-in', res.id), {}, {
         preserveScroll: true,
         onSuccess: () => toasts.value?.success(`Check-in: ${res.guest?.first_name} ${res.guest?.last_name}`),
-        onError: (errors) => toasts.value?.error(errors.check_in || 'Check-in dështoi.'),
+        onError: (errors) => toasts.value?.error(errors.check_in || translate('admin.generated.k_ecb5e9351e32')),
     });
 }
 
@@ -189,18 +190,18 @@ function doCancel(res) {
     if (!confirm('Je i sigurt qe deshiron te anulosh kete rezervim?')) return;
     router.post(route('reservations.cancel', res.id), {}, {
         preserveScroll: true,
-        onSuccess: () => toasts.value?.success('Rezervimi u anulua.'),
+        onSuccess: () => toasts.value?.success(translate('admin.generated.k_0bc44cd2259e')),
     });
 }
 
 function formatDate(d) {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sq-AL', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString(getIntlLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function formatReceivedAt(d) {
     if (!d) return '—';
-    return new Date(d).toLocaleString('sq-AL', {
+    return new Date(d).toLocaleString(getIntlLocale(), {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
@@ -218,14 +219,14 @@ function isLatest(reservation) {
 <template>
     <AppLayout>
         <PageHeader
-            title="Rezervimet"
-            :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Rezervimet' }]"
+            :title="$t('admin.generated.k_32aa82a321c8')"
+            :breadcrumbs="[{ label: $t('admin.generated.k_94dfa95ef52b'), href: '/dashboard' }, { label: $t('admin.generated.k_81ef4b98e51c') }]"
         >
             <template #actions>
                 <Link :href="route('reservations.calendar')" class="no-underline">
-                    <Button variant="outline">📅 Kalendari</Button>
+                    <Button variant="outline">{{ $t('admin.generated.k_a1cc3552b8a9') }}</Button>
                 </Link>
-                <Button v-if="canCreate" variant="primary" @click="showCreateModal = true">+ Rezervim i ri</Button>
+                <Button v-if="canCreate" variant="primary" @click="showCreateModal = true">{{ $t('admin.generated.k_c86bebe02aab') }}</Button>
             </template>
         </PageHeader>
 
@@ -235,7 +236,7 @@ function isLatest(reservation) {
                 <div class="text-center">
                     <p class="text-h3 text-primary-900">{{ val }}</p>
                     <p class="text-tiny text-neutral-500 uppercase tracking-wider mt-1">
-                        {{ key === 'total' ? 'Gjithsej' : statusBadge[key]?.label || key }}
+                        {{ key === 'total' ? $t('admin.generated.k_3cd26fa98ab4') : statusBadge[key]?.label || key }}
                     </p>
                 </div>
             </Card>
@@ -244,14 +245,14 @@ function isLatest(reservation) {
         <!-- Filters -->
         <div class="mt-6 flex flex-wrap items-end gap-3">
             <div class="w-64">
-                <TextInput v-model="searchQuery" placeholder="Kerko mysafir..." @keyup.enter="applyFilters" />
+                <TextInput v-model="searchQuery" :placeholder="$t('admin.generated.k_332691ed6c38')" @keyup.enter="applyFilters" />
             </div>
             <div class="w-40">
-                <Select v-model="filterStatus" :options="statusFilterOptions" placeholder="Statusi..." @change="applyFilters" />
+                <Select v-model="filterStatus" :options="statusFilterOptions" :placeholder="$t('admin.generated.k_95d61de37094')" @change="applyFilters" />
             </div>
-            <Button v-if="filterStatus || searchQuery" variant="ghost" size="sm" @click="clearFilters">Pastro</Button>
+            <Button v-if="filterStatus || searchQuery" variant="ghost" size="sm" @click="clearFilters">{{ $t('admin.generated.k_cc8d0cf13798') }}</Button>
             <div class="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-                <label class="whitespace-nowrap text-small text-neutral-500" for="reservations-sort">Rendit sipas</label>
+                <label class="whitespace-nowrap text-small text-neutral-500" for="reservations-sort">{{ $t('admin.generated.k_2e09a72d4504') }}</label>
                 <div class="min-w-56 flex-1 sm:flex-none">
                     <Select
                         id="reservations-sort"
@@ -271,14 +272,14 @@ function isLatest(reservation) {
                     <table class="min-w-full divide-y divide-neutral-200">
                         <thead class="bg-neutral-50">
                             <tr>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Mysafiri</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Dhoma</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Check-in</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Check-out</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Marrë më</th>
-                                <th class="px-5 py-3 text-left text-label text-neutral-600">Statusi</th>
-                                <th class="px-5 py-3 text-right text-label text-neutral-600">Total</th>
-                                <th class="px-5 py-3 text-right text-label text-neutral-600">Veprime</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_c2b667c8dae9') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_561db1279298') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_9f147d94230e') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_25e14843ee23') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_8506259273ad') }}</th>
+                                <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_e2746b4e922b') }}</th>
+                                <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_4820c39dfd13') }}</th>
+                                <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_fcae6ac1fb2d') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-100">
@@ -295,7 +296,7 @@ function isLatest(reservation) {
                                         <p class="text-body-sm text-primary-900 font-medium">
                                             {{ res.guest?.first_name }} {{ res.guest?.last_name }}
                                         </p>
-                                        <Badge v-if="isLatest(res)" variant="accent" size="sm" class="whitespace-nowrap">Më i fundit</Badge>
+                                        <Badge v-if="isLatest(res)" variant="accent" size="sm" class="whitespace-nowrap">{{ $t('admin.generated.k_c333f48f3063') }}</Badge>
                                     </div>
                                 </td>
                                 <td class="px-5 py-3 text-body-sm text-neutral-600">
@@ -313,23 +314,19 @@ function isLatest(reservation) {
                                 <td class="px-5 py-3 text-right text-body-sm text-primary-900 font-medium">€{{ res.total_amount }}</td>
                                 <td class="px-5 py-3 text-right">
                                     <div class="flex items-center justify-end gap-1.5">
-                                        <Button v-if="canUpdate && res.status === 'confirmed'" size="sm" variant="primary" @click="doCheckIn(res)">Check-in</Button>
+                                        <Button v-if="canUpdate && res.status === 'confirmed'" size="sm" variant="primary" @click="doCheckIn(res)">{{ $t('admin.generated.k_9f147d94230e') }}</Button>
                                         <Link v-if="canUpdate && res.status === 'checked_in'" :href="route('reservations.show', res.id)" class="no-underline">
-                                            <Button size="sm" variant="secondary">Check-out</Button>
+                                            <Button size="sm" variant="secondary">{{ $t('admin.generated.k_25e14843ee23') }}</Button>
                                         </Link>
                                         <ActionMenu>
                                             <Link :href="route('reservations.show', res.id)" :class="menuItemClass">
-                                                <Eye class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> Detaje
-                                            </Link>
+                                                <Eye class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> {{ $t('admin.generated.k_ca6182f62bb6') }} </Link>
                                             <button v-if="canUpdate && !['checked_in','checked_out','cancelled'].includes(res.status)" type="button" :class="menuItemClass" @click="openEdit(res)">
-                                                <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> Edito
-                                            </button>
+                                                <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> {{ $t('admin.generated.k_7483ffd68da2') }} </button>
                                             <button v-if="canUpdate && res.status === 'checked_in'" type="button" :class="menuItemClass" @click="openMove(res)">
-                                                <ArrowRightLeft class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> Zhvendos dhomën
-                                            </button>
+                                                <ArrowRightLeft class="h-4 w-4 text-neutral-400" :stroke-width="1.75" /> {{ $t('admin.generated.k_aab78f690fdb') }} </button>
                                             <button v-if="canUpdate && ['pending','confirmed'].includes(res.status)" type="button" :class="[menuItemClass, 'text-error-600']" @click="doCancel(res)">
-                                                <Ban class="h-4 w-4 text-error-500" :stroke-width="1.75" /> Anulo
-                                            </button>
+                                                <Ban class="h-4 w-4 text-error-500" :stroke-width="1.75" /> {{ $t('admin.generated.k_1c3332cbac45') }} </button>
                                         </ActionMenu>
                                     </div>
                                 </td>
@@ -339,13 +336,13 @@ function isLatest(reservation) {
                 </div>
 
                 <div v-if="!reservations.data?.length" class="px-6 py-12 text-center">
-                    <p class="text-body-sm text-neutral-500">Nuk ka rezervime.</p>
+                    <p class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_2a8d18eedccc') }}</p>
                 </div>
 
                 <!-- Pagination -->
                 <div v-if="reservations.total > 0" class="flex flex-col gap-3 border-t border-neutral-200 bg-neutral-50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex flex-wrap items-center gap-3">
-                        <label class="text-small text-neutral-500" for="reservations-per-page">Rreshta për faqe</label>
+                        <label class="text-small text-neutral-500" for="reservations-per-page">{{ $t('admin.generated.k_9ee8a26b25ab') }}</label>
                         <div class="w-20">
                             <Select
                                 id="reservations-per-page"
@@ -356,7 +353,7 @@ function isLatest(reservation) {
                             />
                         </div>
                         <p class="text-small text-neutral-500">
-                            {{ reservations.from }}–{{ reservations.to }} nga {{ reservations.total }}
+                            {{ reservations.from }}–{{ reservations.to }} {{ $t('admin.generated.k_54c01daa2f3a') }} {{ reservations.total }}
                         </p>
                     </div>
 
@@ -365,12 +362,11 @@ function isLatest(reservation) {
                             size="sm"
                             variant="outline"
                             :disabled="!reservations.prev_page_url"
-                            aria-label="Faqja e mëparshme"
+                            :aria-label="$t('admin.generated.k_e1f1fd22daea')"
                             @click="goToPage(reservations.prev_page_url)"
                         >
                             <ChevronLeft class="h-4 w-4" :stroke-width="1.8" />
-                            Mbrapa
-                        </Button>
+{{ $t('admin.generated.k_e292e87f231b') }} </Button>
                         <span class="min-w-20 text-center text-small text-neutral-500">
                             {{ reservations.current_page }} / {{ reservations.last_page }}
                         </span>
@@ -378,11 +374,10 @@ function isLatest(reservation) {
                             size="sm"
                             variant="outline"
                             :disabled="!reservations.next_page_url"
-                            aria-label="Faqja tjetër"
+                            :aria-label="$t('admin.generated.k_67ea73bdad55')"
                             @click="goToPage(reservations.next_page_url)"
                         >
-                            Para
-                            <ChevronRight class="h-4 w-4" :stroke-width="1.8" />
+{{ $t('admin.generated.k_54a87d2c29f4') }} <ChevronRight class="h-4 w-4" :stroke-width="1.8" />
                         </Button>
                     </div>
                 </div>

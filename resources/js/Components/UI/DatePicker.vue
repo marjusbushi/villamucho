@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { computed } from 'vue';
 import { VueDatePicker } from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
@@ -13,7 +14,7 @@ const props = defineProps({
     disabled: { type: Boolean, default: false },
     error: { type: String, default: '' },
     inputAttrs: { type: Object, default: () => ({}) },
-    ariaLabel: { type: String, default: 'Zgjidh datën' },
+    ariaLabel: { type: String, default: translate('admin.generated.k_63d1bbbb8ca7') },
 });
 const emit = defineEmits(['update:modelValue']);
 

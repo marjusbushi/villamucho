@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed } from 'vue';
 import { router, usePage, useForm, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -57,16 +58,16 @@ function requestCleaning() {
 }
 
 const statusBadge = {
-    pending: { variant: 'warning', label: 'Ne pritje' },
-    confirmed: { variant: 'info', label: 'Konfirmuar' },
-    checked_in: { variant: 'success', label: 'Brenda' },
-    checked_out: { variant: 'neutral', label: 'Larguar' },
-    cancelled: { variant: 'error', label: 'Anulluar' },
+    pending: { variant: 'warning', label: translate('admin.generated.k_581b54c11d72') },
+    confirmed: { variant: 'info', label: translate('admin.generated.k_06bf8410988d') },
+    checked_in: { variant: 'success', label: translate('admin.generated.k_c07aa3069fcc') },
+    checked_out: { variant: 'neutral', label: translate('admin.generated.k_023b466e7e43') },
+    cancelled: { variant: 'error', label: translate('admin.generated.k_9c647e2278f4') },
 };
 
 const typeLabel = {
-    room: 'Dhoma', restaurant: 'Restorant', bar: 'Bar',
-    minibar: 'Minibar', extra: 'Shërbim', tax: 'Taksa', discount: 'Zbritje',
+    room: translate('admin.generated.k_654e9cd3a2c4'), restaurant: 'Restorant', bar: 'Bar',
+    minibar: 'Minibar', extra: translate('admin.generated.k_d65a8958aa77'), tax: 'Taksa', discount: 'Zbritje',
 };
 const methodLabel = { cash: 'Kesh', card: 'Karte' };
 
@@ -76,8 +77,8 @@ const lineTypeOptions = computed(() => [
     { value: 'discount', label: 'Zbritje' },
 ]);
 const methodOptions = [
-    { value: 'cash', label: 'Kesh' },
-    { value: 'card', label: 'Karte' },
+    { value: 'cash', label: translate('admin.generated.k_da508864861c') },
+    { value: 'card', label: translate('admin.generated.k_6d64b27daef1') },
 ];
 
 const hasOpenOrders = computed(() => (props.openPosOrders?.length || 0) > 0);
@@ -186,7 +187,7 @@ function money(v) {
 }
 function formatDate(d) {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sq-AL', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString(getIntlLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function submitLine() {
@@ -195,16 +196,16 @@ function submitLine() {
         preserveScroll: true,
         onSuccess: () => {
             closeLineModal();
-            toasts.value?.success(addingDiscount ? 'Zbritja u shtua në llogari.' : 'Tarifa u shtua në llogari.');
+            toasts.value?.success(addingDiscount ? translate('admin.generated.k_a21ae2825f65') : translate('admin.generated.k_3bd26a9f9948'));
         },
-        onError: () => toasts.value?.error(addingDiscount ? 'Dështoi shtimi i zbritjes.' : 'Dështoi shtimi i tarifës.'),
+        onError: () => toasts.value?.error(addingDiscount ? translate('admin.generated.k_b9f48849d2d6') : translate('admin.generated.k_0c499a05caf5')),
     });
 }
 function submitPay() {
     payForm.post(route('reservations.payment', props.reservation.id), {
         preserveScroll: true,
-        onSuccess: () => { showPayModal.value = false; payForm.reset(); toasts.value?.success('Pagesa u regjistrua.'); },
-        onError: () => toasts.value?.error('Deshtoi regjistrimi i pageses.'),
+        onSuccess: () => { showPayModal.value = false; payForm.reset(); toasts.value?.success(translate('admin.generated.k_7a56956c0f26')); },
+        onError: () => toasts.value?.error(translate('admin.generated.k_039b4528088a')),
     });
 }
 // "Faturë" just views/prints the bill. "Check-out" opens the SAME invoice in checkout mode,
@@ -214,12 +215,12 @@ function openInvoice() {
     showInvoice.value = true;
 }
 function openCheckout() {
-    if (hasOpenOrders.value) { toasts.value?.error('Mbyll porosite POS te hapura perpara check-out.'); return; }
+    if (hasOpenOrders.value) { toasts.value?.error(translate('admin.generated.k_b42ad0dd36d6')); return; }
     checkoutMode.value = true;
     showInvoice.value = true;
 }
 function settleAndCheckout(method) {
-    if (hasOpenOrders.value) { toasts.value?.error('Mbyll porosite POS te hapura perpara check-out.'); return; }
+    if (hasOpenOrders.value) { toasts.value?.error(translate('admin.generated.k_b42ad0dd36d6')); return; }
     checkingOut.value = true;
     router.post(
         route('reservations.check-out', props.reservation.id),
@@ -249,74 +250,71 @@ function settleAndCheckout(method) {
             class="mb-3 inline-flex items-center gap-1.5 text-body-sm font-medium text-neutral-600 no-underline transition-colors hover:text-accent-700"
         >
             <ArrowLeft class="h-4 w-4" :stroke-width="1.75" />
-            Kthehu te lista
-        </Link>
+{{ $t('admin.generated.k_d363cf7a6377') }} </Link>
 
         <PageHeader
             :title="`Rezervimi #${reservation.id}`"
-            :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Rezervimet', href: route('reservations.index') }, { label: `#${reservation.id}` }]"
+            :breadcrumbs="[{ label: $t('admin.generated.k_00001da4b7fd'), href: '/dashboard' }, { label: $t('admin.generated.k_5c62abaa3794'), href: route('reservations.index') }, { label: `#${reservation.id}` }]"
         >
             <template #actions>
                 <Badge :variant="statusBadge[reservation.status]?.variant" dot>
                     {{ statusBadge[reservation.status]?.label }}
                 </Badge>
-                <Button v-if="canAddCharge" variant="outline" @click="openLineModal">+ Tarifë</Button>
-                <Button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" variant="success" @click="showPayModal = true">Regjistro pagesë</Button>
-                <Button variant="outline" @click="openInvoice">Fature</Button>
+                <Button v-if="canAddCharge" variant="outline" @click="openLineModal">{{ $t('admin.generated.k_1252ae021860') }}</Button>
+                <Button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" variant="success" @click="showPayModal = true">{{ $t('admin.generated.k_d22b4ace12b9') }}</Button>
+                <Button variant="outline" @click="openInvoice">{{ $t('admin.generated.k_bd826ba509ce') }}</Button>
                 <Button
                     v-if="canUpdate && housekeepingEnabled && reservation.status === 'checked_in'"
                     variant="outline"
                     :loading="requestingCleaning"
                     @click="requestCleaning"
                 >
-                    Kërko pastrim
-                </Button>
+{{ $t('admin.generated.k_779f68027976') }} </Button>
                 <Button
                     v-if="canUpdate && reservation.status === 'checked_in'"
                     variant="primary"
                     :disabled="hasOpenOrders"
                     @click="openCheckout"
                 >
-                    Check-out
-                </Button>
+{{ $t('admin.generated.k_a1fbe4f93a19') }} </Button>
             </template>
         </PageHeader>
 
         <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Reservation details -->
             <Card class="lg:col-span-1">
-                <h3 class="text-label text-neutral-600 uppercase tracking-wider mb-4">Detajet</h3>
+                <h3 class="text-label text-neutral-600 uppercase tracking-wider mb-4">{{ $t('admin.generated.k_6431140c47b8') }}</h3>
                 <dl class="space-y-3">
                     <div class="flex justify-between">
-                        <dt class="text-body-sm text-neutral-500">Mysafiri</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_93eeb8e2c428') }}</dt>
                         <dd class="text-body-sm text-primary-900 font-medium text-right">{{ reservation.guest?.name }}</dd>
                     </div>
                     <div class="flex justify-between">
-                        <dt class="text-body-sm text-neutral-500">Email</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_7b00d0ffb62a') }}</dt>
                         <dd class="text-body-sm text-neutral-700 text-right">{{ reservation.guest?.email || '—' }}</dd>
                     </div>
                     <div class="flex justify-between">
-                        <dt class="text-body-sm text-neutral-500">Telefon</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_c1cf7dda1024') }}</dt>
                         <dd class="text-body-sm text-neutral-700 text-right">{{ reservation.guest?.phone || '—' }}</dd>
                     </div>
                     <div class="flex justify-between border-t border-neutral-100 pt-3">
-                        <dt class="text-body-sm text-neutral-500">Dhoma</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_7765353fdc9c') }}</dt>
                         <dd class="text-body-sm text-primary-900 text-right">{{ reservation.room?.room_number }} — {{ reservation.room?.room_type }}</dd>
                     </div>
                     <div class="flex justify-between">
-                        <dt class="text-body-sm text-neutral-500">Check-in</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_a2d639c1c1c3') }}</dt>
                         <dd class="text-body-sm text-neutral-700 text-right">{{ formatDate(reservation.check_in_date) }}</dd>
                     </div>
                     <div class="flex justify-between">
-                        <dt class="text-body-sm text-neutral-500">Check-out</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_a1fbe4f93a19') }}</dt>
                         <dd class="text-body-sm text-neutral-700 text-right">{{ formatDate(reservation.check_out_date) }}</dd>
                     </div>
                     <div class="flex justify-between">
-                        <dt class="text-body-sm text-neutral-500">Nete</dt>
-                        <dd class="text-body-sm text-neutral-700 text-right">{{ reservation.nights }} ({{ reservation.adults }} te rritur<span v-if="reservation.children">, {{ reservation.children }} femije</span>)</dd>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_d78c3434a988') }}</dt>
+                        <dd class="text-body-sm text-neutral-700 text-right">{{ reservation.nights }} ({{ reservation.adults }} {{ $t('admin.generated.k_e3ab3e474137') }}<span v-if="reservation.children">, {{ reservation.children }} {{ $t('admin.generated.k_378a78b79218') }}</span>)</dd>
                     </div>
                     <div class="flex justify-between items-center">
-                        <dt class="text-body-sm text-neutral-500">Burimi</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_f42ad29fcb96') }}</dt>
                         <dd class="text-body-sm text-right">
                             <span class="inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-2 py-0.5 text-tiny font-medium uppercase tracking-wide text-neutral-700 ring-1 ring-neutral-200/60">
                                 <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: channelMeta(reservation.channel).color }" />
@@ -326,16 +324,16 @@ function settleAndCheckout(method) {
                         </dd>
                     </div>
                     <div v-if="reservation.payment_collect" class="flex justify-between items-center">
-                        <dt class="text-body-sm text-neutral-500">Pagesa</dt>
+                        <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_6d2bca99facc') }}</dt>
                         <dd class="text-body-sm text-right">
                             <Badge v-if="reservation.payment_collect === 'ota'" variant="success">
-                                ✓ Paguar online ({{ channelMeta(reservation.channel).label }})
+{{ $t('admin.generated.k_18e6d591784e') }}{{ channelMeta(reservation.channel).label }})
                             </Badge>
-                            <Badge v-else variant="warning">Paguhet në hotel</Badge>
+                            <Badge v-else variant="warning">{{ $t('admin.generated.k_8eda58499648') }}</Badge>
                         </dd>
                     </div>
                     <div v-if="reservation.notes" class="border-t border-neutral-100 pt-3">
-                        <dt class="text-body-sm text-neutral-500 mb-1">Shenime</dt>
+                        <dt class="text-body-sm text-neutral-500 mb-1">{{ $t('admin.generated.k_90824f450e04') }}</dt>
                         <dd class="text-body-sm text-neutral-700">{{ reservation.notes }}</dd>
                     </div>
                 </dl>
@@ -361,11 +359,10 @@ function settleAndCheckout(method) {
                 <!-- Open POS warning -->
                 <div v-if="hasOpenOrders" class="mx-5 mt-4 rounded-lg bg-warning-50 border border-warning-200 px-4 py-3">
                     <p class="text-body-sm text-warning-800 font-medium">
-                        {{ openPosOrders.length }} porosi POS te hapura — duhen mbyllur perpara check-out.
-                    </p>
+                        {{ openPosOrders.length }} {{ $t('admin.generated.k_90c0cac09e08') }} </p>
                     <ul class="mt-1 text-small text-warning-700">
                         <li v-for="o in openPosOrders" :key="o.id">
-                            Porosia #{{ o.id }}<span v-if="o.table_number"> (Tavolina {{ o.table_number }})</span> — {{ money(o.total_amount) }}
+{{ $t('admin.generated.k_89a49941efba') }}{{ o.id }}<span v-if="o.table_number"> {{ $t('admin.generated.k_dd001d55db66') }} {{ o.table_number }})</span> — {{ money(o.total_amount) }}
                         </li>
                     </ul>
                 </div>
@@ -373,15 +370,15 @@ function settleAndCheckout(method) {
                 <table class="min-w-full divide-y divide-neutral-200 mt-2">
                     <thead class="bg-neutral-50">
                         <tr>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Pershkrimi</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Lloji</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Data</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Shuma</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_aa12398d381b') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_eb57b84ec04c') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_184c1eb85e4a') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_66a4a0389558') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
                         <tr>
-                            <td class="px-5 py-3 text-body-sm text-primary-900 font-medium">Qendrimi ne dhome</td>
+                            <td class="px-5 py-3 text-body-sm text-primary-900 font-medium">{{ $t('admin.generated.k_383951845884') }}</td>
                             <td class="px-5 py-3"><Badge variant="info">{{ typeLabel.room }}</Badge></td>
                             <td class="px-5 py-3 text-body-sm text-neutral-500">{{ formatDate(reservation.check_in_date) }}</td>
                             <td class="px-5 py-3 text-right text-body-sm text-primary-900">{{ money(folio.roomCharge) }}</td>
@@ -399,7 +396,7 @@ function settleAndCheckout(method) {
 
                 <!-- Payments -->
                 <div v-if="payments.length" class="border-t border-neutral-200">
-                    <p class="px-5 pt-3 text-label text-neutral-500 uppercase tracking-wider">Pagesat</p>
+                    <p class="px-5 pt-3 text-label text-neutral-500 uppercase tracking-wider">{{ $t('admin.generated.k_dfd9fd8d57a7') }}</p>
                     <ul class="px-5 py-2 space-y-1">
                         <li v-for="p in payments" :key="p.id" class="flex justify-between text-body-sm">
                             <span class="text-neutral-600">{{ methodLabel[p.method] || p.method }} · {{ formatDate(p.date) }}</span>
@@ -411,32 +408,32 @@ function settleAndCheckout(method) {
                 <!-- Summary -->
                 <div class="border-t border-neutral-200 px-5 py-4 space-y-2">
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>Nentotali (pa TVSH)</span>
+                        <span>{{ $t('admin.generated.k_8e7d78994587') }}</span>
                         <span>{{ money(folio.net) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>TVSH ({{ folio.taxRate }}%)</span>
+                        <span>{{ $t('admin.generated.k_aca304907dc3') }}{{ folio.taxRate }}%)</span>
                         <span>{{ money(folio.taxAmount) }}</span>
                     </div>
                     <div v-if="folio.discounts > 0" class="flex justify-between text-body-sm text-success-600">
-                        <span>Zbritje</span>
+                        <span>{{ $t('admin.generated.k_43e94d66754b') }}</span>
                         <span>− {{ money(folio.discounts) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-700 border-t border-neutral-100 pt-2">
-                        <span>Total</span>
+                        <span>{{ $t('admin.generated.k_eb3e69f5ad4a') }}</span>
                         <span>{{ money(folio.gross) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>Paguar</span>
+                        <span>{{ $t('admin.generated.k_ea1bc96b45a5') }}</span>
                         <span>− {{ money(folio.paid) }}</span>
                     </div>
                     <div v-if="reservation.status !== 'cancelled'" class="flex justify-between border-t border-neutral-200 pt-2">
-                        <span class="text-label text-neutral-700">Mbetur per t'u paguar</span>
+                        <span class="text-label text-neutral-700">{{ $t('admin.generated.k_224908982d79') }}</span>
                         <span class="text-h4" :class="unsettled ? 'text-error-600' : 'text-success-600'">{{ money(folio.outstanding) }}</span>
                     </div>
                     <div v-else class="flex justify-between border-t border-neutral-200 pt-2">
-                        <span class="text-label text-neutral-700">Rezervimi</span>
-                        <span class="text-h4 text-neutral-400">Anulluar</span>
+                        <span class="text-label text-neutral-700">{{ $t('admin.generated.k_68618a4a4a50') }}</span>
+                        <span class="text-h4 text-neutral-400">{{ $t('admin.generated.k_060f31a189a6') }}</span>
                     </div>
                 </div>
             </Card>
@@ -444,8 +441,8 @@ function settleAndCheckout(method) {
 
         <Card class="mt-6" :padding="false">
             <div class="border-b border-neutral-200 px-5 py-4">
-                <h3 class="text-label uppercase tracking-wider text-neutral-600">Historia e rezervimit</h3>
-                <p class="mt-0.5 text-tiny text-neutral-400">Kush e krijoi, çfarë ndryshoi dhe kur ndodhi.</p>
+                <h3 class="text-label uppercase tracking-wider text-neutral-600">{{ $t('admin.generated.k_4b669a4a3082') }}</h3>
+                <p class="mt-0.5 text-tiny text-neutral-400">{{ $t('admin.generated.k_a5d6ddbd4f1e') }}</p>
             </div>
             <AuditTimeline :entries="history" />
         </Card>
@@ -517,72 +514,70 @@ function settleAndCheckout(method) {
         <!-- Add a hotel charge to the guest account. Food/drinks come from POS. -->
         <Modal
             :show="showLineModal"
-            :title="lineForm.type === 'discount' ? 'Shto zbritje në llogari' : 'Shto tarifë në llogari'"
+            :title="lineForm.type === 'discount' ? $t('admin.generated.k_d25a1fe93c11') : $t('admin.generated.k_36f1a2410ec6')"
             max-width="md"
             @close="closeLineModal"
         >
             <form @submit.prevent="submitLine" class="space-y-4">
                 <div v-if="lineForm.type === 'discount'" class="rounded-lg border border-success-200 bg-success-50 px-3 py-2.5 text-small text-success-800">
-                    Zbritja ul totalin e llogarisë dhe nuk mund ta kalojë vlerën aktuale.
-                </div>
+{{ $t('admin.generated.k_9bd6ffdd6412') }} </div>
                 <div v-else class="rounded-lg border border-info-200 bg-info-50 px-3 py-2.5 text-small text-info-800">
-                    Për minibar, parking, lavanderi, transfer, late check-out, krevat shtesë ose dëmtim. Porositë e barit dhe restorantit kalohen nga POS-i.
-                </div>
+{{ $t('admin.generated.k_d7c075e2b5eb') }} </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormGroup label="Kategoria" :error="lineForm.errors.type" required>
+                    <FormGroup :label="$t('admin.generated.k_db85f6c8ba94')" :error="lineForm.errors.type" required>
                         <Select v-model="lineForm.type" :options="lineTypeOptions" :error="lineForm.errors.type" />
                     </FormGroup>
                     <FormGroup :label="lineForm.type === 'discount' ? 'Shuma e zbritjes' : 'Shuma'" :error="lineForm.errors.amount" required>
                         <TextInput type="number" step="0.01" min="0.01" v-model="lineForm.amount" placeholder="0.00" :error="lineForm.errors.amount" />
                     </FormGroup>
                 </div>
-                <FormGroup label="Përshkrimi" :error="lineForm.errors.description" required>
-                    <TextInput v-model="lineForm.description" placeholder="P.sh. Lavanderi, parking, late check-out..." :error="lineForm.errors.description" />
+                <FormGroup :label="$t('admin.generated.k_35e7b7d42fdc')" :error="lineForm.errors.description" required>
+                    <TextInput v-model="lineForm.description" :placeholder="$t('admin.generated.k_31ff6e816134')" :error="lineForm.errors.description" />
                 </FormGroup>
-                <FormGroup label="Data e tarifës (opsionale)" :error="lineForm.errors.charge_date">
+                <FormGroup :label="$t('admin.generated.k_935dab229960')" :error="lineForm.errors.charge_date">
                     <DatePicker v-model="lineForm.charge_date" :error="lineForm.errors.charge_date" />
                 </FormGroup>
             </form>
             <template #footer>
-                <Button variant="outline" @click="closeLineModal">Anulo</Button>
+                <Button variant="outline" @click="closeLineModal">{{ $t('admin.generated.k_1ae76507a0e9') }}</Button>
                 <Button variant="primary" :loading="lineForm.processing" @click="submitLine">
-                    {{ lineForm.type === 'discount' ? 'Apliko zbritjen' : 'Shto në llogari' }}
+                    {{ lineForm.type === 'discount' ? $t('admin.generated.k_db58214701b8') : $t('admin.generated.k_099014d4c4c7') }}
                 </Button>
             </template>
         </Modal>
 
         <!-- Record payment modal -->
-        <Modal :show="showPayModal" title="Regjistro pagesë" max-width="sm" @close="showPayModal = false">
+        <Modal :show="showPayModal" :title="$t('admin.generated.k_d38fb40fdcb5')" max-width="sm" @close="showPayModal = false">
             <form @submit.prevent="submitPay" class="space-y-4">
-                <FormGroup label="Shuma" :error="payForm.errors.amount" required>
+                <FormGroup :label="$t('admin.generated.k_522d709a6d49')" :error="payForm.errors.amount" required>
                     <TextInput type="number" step="0.01" min="0.01" v-model="payForm.amount" placeholder="0.00" :error="payForm.errors.amount" />
                 </FormGroup>
-                <FormGroup label="Mënyra" :error="payForm.errors.method" required>
+                <FormGroup :label="$t('admin.generated.k_de3b5772305c')" :error="payForm.errors.method" required>
                     <Select v-model="payForm.method" :options="methodOptions" :error="payForm.errors.method" />
                 </FormGroup>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showPayModal = false">Anulo</Button>
-                <Button variant="primary" :loading="payForm.processing" @click="submitPay">Regjistro</Button>
+                <Button variant="outline" @click="showPayModal = false">{{ $t('admin.generated.k_1ae76507a0e9') }}</Button>
+                <Button variant="primary" :loading="payForm.processing" @click="submitPay">{{ $t('admin.generated.k_02f7c6d23f37') }}</Button>
             </template>
         </Modal>
 
         <!-- Invoice (Fature) modal — also the settle-then-checkout flow -->
-        <Modal :show="showInvoice" :title="checkoutMode ? 'Mbyll llogarine & Check-out' : 'Fature'" max-width="lg" @close="showInvoice = false">
+        <Modal :show="showInvoice" :title="checkoutMode ? $t('admin.generated.k_d0677fc34bd1') : $t('admin.generated.k_9b8aa645dbf0')" max-width="lg" @close="showInvoice = false">
             <div id="invoice" class="space-y-4 text-primary-900">
                 <div class="text-center border-b border-neutral-200 pb-3">
                     <p class="text-h3">{{ hotelName }}</p>
-                    <p class="text-body-sm text-neutral-500">Fature — Rezervimi #{{ reservation.id }}</p>
+                    <p class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_8f10080f8f3f') }}{{ reservation.id }}</p>
                 </div>
 
                 <div class="flex justify-between text-body-sm">
                     <div>
-                        <p class="text-neutral-500">Mysafiri</p>
+                        <p class="text-neutral-500">{{ $t('admin.generated.k_93eeb8e2c428') }}</p>
                         <p class="font-medium">{{ reservation.guest?.name }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-neutral-500">Dhoma {{ reservation.room?.room_number }} — {{ reservation.room?.room_type }}</p>
-                        <p>{{ formatDate(reservation.check_in_date) }} → {{ formatDate(reservation.check_out_date) }} · {{ reservation.nights }} net</p>
+                        <p class="text-neutral-500">{{ $t('admin.generated.k_7765353fdc9c') }} {{ reservation.room?.room_number }} — {{ reservation.room?.room_type }}</p>
+                        <p>{{ formatDate(reservation.check_in_date) }} → {{ formatDate(reservation.check_out_date) }} · {{ reservation.nights }} {{ $t('admin.generated.k_24dc7df026eb') }}</p>
                     </div>
                 </div>
 
@@ -596,51 +591,48 @@ function settleAndCheckout(method) {
                 </table>
 
                 <div class="space-y-1.5 text-body-sm border-t border-neutral-200 pt-3">
-                    <div class="flex justify-between text-neutral-500"><span>Nentotali (pa TVSH)</span><span>{{ money(folio.net) }}</span></div>
-                    <div class="flex justify-between text-neutral-500"><span>TVSH ({{ folio.taxRate }}%)</span><span>{{ money(folio.taxAmount) }}</span></div>
-                    <div class="flex justify-between font-medium border-t border-neutral-100 pt-1.5"><span>Total</span><span>{{ money(folio.gross) }}</span></div>
-                    <div class="flex justify-between text-neutral-500"><span>Paguar</span><span>− {{ money(folio.paid) }}</span></div>
+                    <div class="flex justify-between text-neutral-500"><span>{{ $t('admin.generated.k_8e7d78994587') }}</span><span>{{ money(folio.net) }}</span></div>
+                    <div class="flex justify-between text-neutral-500"><span>{{ $t('admin.generated.k_aca304907dc3') }}{{ folio.taxRate }}%)</span><span>{{ money(folio.taxAmount) }}</span></div>
+                    <div class="flex justify-between font-medium border-t border-neutral-100 pt-1.5"><span>{{ $t('admin.generated.k_eb3e69f5ad4a') }}</span><span>{{ money(folio.gross) }}</span></div>
+                    <div class="flex justify-between text-neutral-500"><span>{{ $t('admin.generated.k_ea1bc96b45a5') }}</span><span>− {{ money(folio.paid) }}</span></div>
                     <div class="flex justify-between border-t border-neutral-200 pt-2">
-                        <span class="font-semibold">Mbetur per t'u paguar</span>
+                        <span class="font-semibold">{{ $t('admin.generated.k_224908982d79') }}</span>
                         <span class="text-h4" :class="unsettled ? 'text-error-600' : 'text-success-600'">{{ money(folio.outstanding) }}</span>
                     </div>
                 </div>
 
-                <p class="text-tiny text-neutral-400 text-center pt-2">Faleminderit per qendrimin!</p>
+                <p class="text-tiny text-neutral-400 text-center pt-2">{{ $t('admin.generated.k_60a30ee15a06') }}</p>
             </div>
 
             <!-- Checkout call-to-action (not part of the printed invoice) -->
             <div v-if="checkoutMode" class="mt-4 rounded-lg border px-4 py-3 print:hidden"
                  :class="hasOpenOrders ? 'border-warning-200 bg-warning-50' : 'border-primary-200 bg-primary-50'">
                 <p v-if="hasOpenOrders" class="text-body-sm text-warning-800 font-medium">
-                    Ka porosi POS te hapura — mbyllini perpara se te mbyllni llogarine.
-                </p>
+{{ $t('admin.generated.k_39d843219116') }} </p>
                 <template v-else>
-                    <p class="text-body-sm text-primary-800 font-medium mb-0.5">Mbyllja e llogarise</p>
+                    <p class="text-body-sm text-primary-800 font-medium mb-0.5">{{ $t('admin.generated.k_834d441511e6') }}</p>
                     <p v-if="unsettled" class="text-small text-neutral-600">
-                        Zgjidh menyren e pageses per te shlyer <b>{{ money(folio.outstanding) }}</b> dhe per te bere check-out.
-                    </p>
+{{ $t('admin.generated.k_8a22fbc4b60e') }} <b>{{ money(folio.outstanding) }}</b> {{ $t('admin.generated.k_c463627d29e5') }} </p>
                     <p v-else class="text-small text-success-700">
-                        Llogaria eshte e shlyer plotesisht. Konfirmo check-out.
-                    </p>
+{{ $t('admin.generated.k_8c75b2887818') }} </p>
                 </template>
             </div>
 
             <template #footer>
                 <template v-if="checkoutMode">
-                    <Button variant="outline" @click="showInvoice = false">Anulo</Button>
-                    <Button variant="outline" @click="printInvoice">Printo</Button>
+                    <Button variant="outline" @click="showInvoice = false">{{ $t('admin.generated.k_1ae76507a0e9') }}</Button>
+                    <Button variant="outline" @click="printInvoice">{{ $t('admin.generated.k_e8eea0bd73c4') }}</Button>
                     <template v-if="!hasOpenOrders">
                         <template v-if="unsettled">
-                            <Button variant="outline" :loading="checkingOut" @click="settleAndCheckout('cash')">Paguaj Kesh & Check-out</Button>
-                            <Button variant="primary" :loading="checkingOut" @click="settleAndCheckout('card')">Paguaj Karte & Check-out</Button>
+                            <Button variant="outline" :loading="checkingOut" @click="settleAndCheckout('cash')">{{ $t('admin.generated.k_87a50ba2dbca') }}</Button>
+                            <Button variant="primary" :loading="checkingOut" @click="settleAndCheckout('card')">{{ $t('admin.generated.k_1ca92da022d3') }}</Button>
                         </template>
-                        <Button v-else variant="primary" :loading="checkingOut" @click="settleAndCheckout(null)">Konfirmo Check-out</Button>
+                        <Button v-else variant="primary" :loading="checkingOut" @click="settleAndCheckout(null)">{{ $t('admin.generated.k_3c2400f3c583') }}</Button>
                     </template>
                 </template>
                 <template v-else>
-                    <Button variant="outline" @click="showInvoice = false">Mbyll</Button>
-                    <Button variant="primary" @click="printInvoice">Printo</Button>
+                    <Button variant="outline" @click="showInvoice = false">{{ $t('admin.generated.k_0eccb38cb085') }}</Button>
+                    <Button variant="primary" @click="printInvoice">{{ $t('admin.generated.k_e8eea0bd73c4') }}</Button>
                 </template>
             </template>
         </Modal>

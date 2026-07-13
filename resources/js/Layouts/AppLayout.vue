@@ -62,16 +62,16 @@ const allNavItems = [
     { label: 'Mirëmbajtja', translationKey: 'maintenance.title', href: '/pms/maintenance', icon: icons.maintenance, permission: 'view_maintenance' },
     { label: 'POS Bar/Restaurant', href: '/pms/pos', icon: icons.pos, permission: 'view_pos_orders', module: 'pos' },
     {
-        label: 'Financa',
+        label: t('admin.sidebar.finance'),
         icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M20 7V6a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v8a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3V7"/><path d="M16 14h4"/></svg>',
         permission: 'view_finance',
         module: 'finance',
         children: [
-            { label: 'Paneli', href: '/pms/finance' },
-            { label: 'Arka & Banka', href: '/pms/finance/accounts' },
-            { label: 'Pagesat', href: '/pms/finance/payments' },
-            { label: 'Blerjet (Bills)', href: '/pms/finance/bills' },
-            { label: 'Furnitorët', href: '/pms/finance/suppliers' },
+            { label: t('admin.sidebar.financeDashboard'), href: '/pms/finance' },
+            { label: t('admin.sidebar.cashAndBank'), href: '/pms/finance/accounts' },
+            { label: t('admin.sidebar.payments'), href: '/pms/finance/payments' },
+            { label: t('admin.sidebar.bills'), href: '/pms/finance/bills' },
+            { label: t('admin.sidebar.suppliers'), href: '/pms/finance/suppliers' },
         ],
     },
     {
@@ -92,7 +92,7 @@ const allNavItems = [
 
 // Filter nav items based on user permissions
 const navItems = computed(() =>
-    allNavItems.filter((item) =>
+    allNavItems.value.filter((item) =>
         (!item.permission || can(item.permission))
         && hasModule(item.module)
         && (!item.role || page.props.auth.user?.role === item.role)

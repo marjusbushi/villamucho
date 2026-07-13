@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { Link } from '@inertiajs/vue3';
 import ReportShell from '@/Components/UI/ReportShell.vue';
 import Card from '@/Components/UI/Card.vue';
@@ -12,17 +13,17 @@ const props = defineProps({
     currency: { type: String, default: '€' },
 });
 
-const money = (v) => `${props.currency}${Number(v ?? 0).toLocaleString('sq-AL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmt = (d) => d ? new Date(d).toLocaleDateString('sq-AL', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const money = (v) => `${props.currency}${Number(v ?? 0).toLocaleString(getIntlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmt = (d) => d ? new Date(d).toLocaleDateString(getIntlLocale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const kpis = [
-    { label: 'Zbritje totale', value: () => money(props.total), tone: 'warning', icon: CirclePercent, detail: 'Të ardhura të lëshuara' },
-    { label: 'Veprime me zbritje', value: () => props.rows.length, tone: 'neutral', icon: ReceiptText },
+    { label: translate('admin.generated.k_7d7c3d8cf59a'), value: () => money(props.total), tone: 'warning', icon: CirclePercent, detail: translate('admin.generated.k_5e647bde93cd') },
+    { label: translate('admin.generated.k_68380b30a8e5'), value: () => props.rows.length, tone: 'neutral', icon: ReceiptText },
 ];
 </script>
 
 <template>
-    <ReportShell title="Zbritje të Dhëna" route-name="reports.discounts" :filters="filters">
+    <ReportShell :title="$t('admin.generated.k_e1727c5d2583')" route-name="reports.discounts" :filters="filters">
         <ReportKpiGrid :items="kpis" />
 
         <Card :padding="false" class="mt-5">
@@ -30,11 +31,11 @@ const kpis = [
                 <table class="min-w-full divide-y divide-neutral-200">
                     <thead class="bg-neutral-50">
                         <tr>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Data</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Mysafiri</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Dhoma</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">Përshkrimi</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">Shuma</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_50366838fb70') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_3dc089a1e4d7') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_0140ed98479e') }}</th>
+                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_844bb423b643') }}</th>
+                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_8f9b96778f44') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
@@ -51,13 +52,13 @@ const kpis = [
                     </tbody>
                     <tfoot v-if="rows.length" class="bg-neutral-50 border-t-2 border-neutral-200">
                         <tr>
-                            <td class="px-5 py-3 text-body-sm font-semibold text-primary-900" colspan="4">Totali</td>
+                            <td class="px-5 py-3 text-body-sm font-semibold text-primary-900" colspan="4">{{ $t('admin.generated.k_ae8a9088aea4') }}</td>
                             <td class="px-5 py-3 text-right text-body-sm font-semibold text-warning-600">−{{ money(total) }}</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
-            <div v-if="!rows.length" class="px-6 py-12 text-center text-body-sm text-neutral-500">Asnjë zbritje në këtë periudhë.</div>
+            <div v-if="!rows.length" class="px-6 py-12 text-center text-body-sm text-neutral-500">{{ $t('admin.generated.k_03d4e4dee89a') }}</div>
         </Card>
     </ReportShell>
 </template>

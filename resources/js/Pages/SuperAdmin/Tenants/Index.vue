@@ -352,7 +352,7 @@ function statusLabel(status) {
 </script>
 
 <template>
-    <Head title="Super Admin — Hotelet" />
+    <Head :title="$t('admin.generated.k_0f144fdc6f3c')" />
 
     <SuperAdminLayout title="Hotelet & abonimet — Lora Control Panel">
         <div class="mx-auto max-w-[1480px] space-y-6">
@@ -615,31 +615,26 @@ function statusLabel(status) {
                     </div>
                     <form class="space-y-4 p-5 sm:p-6" @submit.prevent="createTenant">
                         <label class="block text-sm font-medium text-neutral-700">
-                            Emri
-                            <input v-model="form.name" required class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="Hotel Riviera" />
+{{ $t('admin.generated.k_576b58fc705e') }} <input v-model="form.name" required class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="$t('admin.generated.k_e47fcc86e582')" />
                             <span v-if="form.errors.name" class="mt-1 block text-xs text-danger-600">{{ form.errors.name }}</span>
                         </label>
 
                         <label class="block text-sm font-medium text-neutral-700">
-                            Slug
-                            <input v-model="form.slug" required class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="hotel-riviera" />
+{{ $t('admin.generated.k_e8913516cd11') }} <input v-model="form.slug" required class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="$t('admin.generated.k_05d2f8add0d6')" />
                             <span v-if="form.errors.slug" class="mt-1 block text-xs text-danger-600">{{ form.errors.slug }}</span>
                         </label>
 
                         <label class="block text-sm font-medium text-neutral-700">
-                            Domain primar (opsional)
-                            <input v-model="form.primary_domain" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="riviera.lorapms.com" />
+{{ $t('admin.generated.k_1c5756d1cdd0') }} <input v-model="form.primary_domain" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="$t('admin.generated.k_20a434fbd3d4')" />
                             <span v-if="form.errors.primary_domain" class="mt-1 block text-xs text-danger-600">{{ form.errors.primary_domain }}</span>
                         </label>
 
                         <div class="grid grid-cols-2 gap-3">
                             <label class="block text-sm font-medium text-neutral-700">
-                                Timezone
-                                <input v-model="form.timezone" required class="mt-1 w-full rounded-lg border-neutral-300 text-sm" />
+{{ $t('admin.generated.k_209467b9eba8') }} <input v-model="form.timezone" required class="mt-1 w-full rounded-lg border-neutral-300 text-sm" />
                             </label>
                             <label class="block text-sm font-medium text-neutral-700">
-                                Monedha
-                                <input v-model="form.currency" required maxlength="3" class="mt-1 w-full rounded-lg border-neutral-300 text-sm uppercase" />
+{{ $t('admin.generated.k_265099595021') }} <input v-model="form.currency" required maxlength="3" class="mt-1 w-full rounded-lg border-neutral-300 text-sm uppercase" />
                             </label>
                         </div>
 
@@ -661,7 +656,7 @@ function statusLabel(status) {
                         </div>
 
                         <Button type="submit" class="w-full justify-center" :disabled="form.processing">
-                            {{ form.processing ? 'Duke krijuar…' : 'Krijo tenant' }}
+                            {{ form.processing ? $t('admin.generated.k_f0c3ff038037') : $t('admin.generated.k_da7ad2a15d4e') }}
                         </Button>
                     </form>
                 </section>

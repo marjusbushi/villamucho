@@ -12,11 +12,11 @@ const replyForm = useForm({ body: '' });
 const filter = ref('all'); // all | unread | booking.com | airbnb
 
 const CHANNELS = {
-    'booking.com': { label: 'Booking', badge: 'bg-[#eaf0fb] text-[#1a4fa0]', grad: 'linear-gradient(145deg,#2f6fd0,#1a4fa0)' },
-    booking: { label: 'Booking', badge: 'bg-[#eaf0fb] text-[#1a4fa0]', grad: 'linear-gradient(145deg,#2f6fd0,#1a4fa0)' },
-    airbnb: { label: 'Airbnb', badge: 'bg-[#fdeded] text-[#e0565b]', grad: 'linear-gradient(145deg,#ec7a7e,#e0565b)' },
-    expedia: { label: 'Expedia', badge: 'bg-[#f9f1da] text-[#a9790a]', grad: 'linear-gradient(145deg,#caa031,#a9790a)' },
-    agoda: { label: 'Agoda', badge: 'bg-neutral-100 text-neutral-600', grad: 'linear-gradient(145deg,#7c8b85,#556059)' },
+    'booking.com': { label: translate('admin.generated.k_7df81535b928'), badge: 'bg-[#eaf0fb] text-[#1a4fa0]', grad: 'linear-gradient(145deg,#2f6fd0,#1a4fa0)' },
+    booking: { label: translate('admin.generated.k_7df81535b928'), badge: 'bg-[#eaf0fb] text-[#1a4fa0]', grad: 'linear-gradient(145deg,#2f6fd0,#1a4fa0)' },
+    airbnb: { label: translate('admin.generated.k_a52540094dea'), badge: 'bg-[#fdeded] text-[#e0565b]', grad: 'linear-gradient(145deg,#ec7a7e,#e0565b)' },
+    expedia: { label: translate('admin.generated.k_9ccffb2c9d20'), badge: 'bg-[#f9f1da] text-[#a9790a]', grad: 'linear-gradient(145deg,#caa031,#a9790a)' },
+    agoda: { label: translate('admin.generated.k_d10d71d623eb'), badge: 'bg-neutral-100 text-neutral-600', grad: 'linear-gradient(145deg,#7c8b85,#556059)' },
 };
 function chan(c) {
     return CHANNELS[c] || { label: c || 'OTA', badge: 'bg-neutral-100 text-neutral-600', grad: 'linear-gradient(145deg,#7c8b85,#556059)' };
@@ -43,11 +43,11 @@ function time(value) {
     const d = new Date(value);
     const sameDay = d.toDateString() === new Date().toDateString();
     return sameDay
-        ? new Intl.DateTimeFormat('sq-AL', { hour: '2-digit', minute: '2-digit' }).format(d)
-        : new Intl.DateTimeFormat('sq-AL', { day: '2-digit', month: 'short' }).format(d);
+        ? new Intl.DateTimeFormat(getIntlLocale(), { hour: '2-digit', minute: '2-digit' }).format(d)
+        : new Intl.DateTimeFormat(getIntlLocale(), { day: '2-digit', month: 'short' }).format(d);
 }
 function clock(value) {
-    return value ? new Intl.DateTimeFormat('sq-AL', { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '';
+    return value ? new Intl.DateTimeFormat(getIntlLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '';
 }
 function dayLabel(value) {
     if (!value) return '';
@@ -55,13 +55,13 @@ function dayLabel(value) {
     const y = new Date(); y.setDate(y.getDate() - 1);
     if (d.toDateString() === new Date().toDateString()) return 'Sot';
     if (d.toDateString() === y.toDateString()) return 'Dje';
-    return new Intl.DateTimeFormat('sq-AL', { day: '2-digit', month: 'long', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat(getIntlLocale(), { day: '2-digit', month: 'long', year: 'numeric' }).format(d);
 }
 function fdate(value) {
-    return value ? new Intl.DateTimeFormat('sq-AL', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
+    return value ? new Intl.DateTimeFormat(getIntlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
 }
 function money(v) {
-    return new Intl.NumberFormat('sq-AL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v || 0);
+    return new Intl.NumberFormat(getIntlLocale(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v || 0);
 }
 
 const messageRows = computed(() => {
@@ -89,17 +89,17 @@ function sendReply() {
     });
 }
 function statusLabel(s) {
-    return { confirmed: 'Konfirmuar', checked_in: 'Në hotel', checked_out: 'Larguar', pending: 'Në pritje', cancelled: 'Anuluar' }[s] || s;
+    return { confirmed: translate('admin.generated.k_fbcc078dd3d9'), checked_in: translate('admin.generated.k_f6f991a4a716'), checked_out: 'Larguar', pending: translate('admin.generated.k_11b738a1d1e0'), cancelled: 'Anuluar' }[s] || s;
 }
 </script>
 
 <template>
-    <Head title="Mesazhet" />
+    <Head :title="$t('admin.generated.k_4ac431fb7a6a')" />
 
     <AppLayout>
         <div v-if="!threads.length" class="rounded-2xl border border-neutral-200 bg-white px-6 py-20 text-center">
-            <p class="text-base font-semibold text-neutral-800">Ende asnjë bisedë</p>
-            <p class="mt-1 text-sm text-neutral-500">Kur një mysafir të shkruajë nga Booking, Airbnb ose Expedia, biseda do të shfaqet këtu.</p>
+            <p class="text-base font-semibold text-neutral-800">{{ $t('admin.generated.k_c1a352b0ed55') }}</p>
+            <p class="mt-1 text-sm text-neutral-500">{{ $t('admin.generated.k_8b0d77615032') }}</p>
         </div>
 
         <div v-else class="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
@@ -189,7 +189,7 @@ function statusLabel(s) {
                                 </button>
                             </form>
                         </template>
-                        <p v-else class="border-t border-neutral-200 bg-white px-5 py-3 text-xs text-neutral-400">Kjo bisedë s'lejon përgjigje.</p>
+                        <p v-else class="border-t border-neutral-200 bg-white px-5 py-3 text-xs text-neutral-400">{{ $t('admin.generated.k_865e02e384a1') }}</p>
                     </template>
                     <div v-else class="flex flex-1 items-center justify-center text-sm text-neutral-400">Zgjidh një bisedë majtas.</div>
                 </div>
@@ -197,7 +197,7 @@ function statusLabel(s) {
                 <!-- Context panel -->
                 <aside v-if="selected" class="hidden flex-col gap-5 border-l border-neutral-200 bg-white p-5 lg:flex">
                     <div>
-                        <h3 class="text-[10.5px] font-bold uppercase tracking-widest text-neutral-400">Mysafiri</h3>
+                        <h3 class="text-[10.5px] font-bold uppercase tracking-widest text-neutral-400">{{ $t('admin.generated.k_6390faaf7843') }}</h3>
                         <div class="mt-2.5 flex items-center gap-3">
                             <span class="grid h-12 w-12 place-items-center rounded-2xl text-base font-bold text-white" :style="{ background: chan(selected.channel).grad }">{{ initials(selected.guest_name) }}</span>
                             <div class="min-w-0">
@@ -208,7 +208,7 @@ function statusLabel(s) {
                     </div>
 
                     <div v-if="selected.reservation">
-                        <h3 class="text-[10.5px] font-bold uppercase tracking-widest text-neutral-400">Rezervimi</h3>
+                        <h3 class="text-[10.5px] font-bold uppercase tracking-widest text-neutral-400">{{ $t('admin.generated.k_f89498e544a1') }}</h3>
                         <div class="mt-2.5 overflow-hidden rounded-2xl border border-neutral-200">
                             <div class="flex items-center justify-between border-b border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 text-xs font-semibold">
                                 <span>{{ selected.reservation.ref || ('#' + selected.reservation.id) }}</span>
@@ -222,14 +222,12 @@ function statusLabel(s) {
                         </div>
                         <Link :href="route('reservations.index')" class="mt-2.5 flex items-center justify-center gap-2 rounded-xl border border-neutral-200 py-2.5 text-xs font-semibold text-[#0c5a3e] no-underline transition hover:border-[#83dcb2] hover:bg-[#f2faf6]">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h4a.75.75 0 010 1.5h-4z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" clip-rule="evenodd" /></svg>
-                            Hap rezervimet
-                        </Link>
+{{ $t('admin.generated.k_89ea48f92ccf') }} </Link>
                     </div>
                     <div v-else>
-                        <h3 class="text-[10.5px] font-bold uppercase tracking-widest text-neutral-400">Rezervimi</h3>
+                        <h3 class="text-[10.5px] font-bold uppercase tracking-widest text-neutral-400">{{ $t('admin.generated.k_f89498e544a1') }}</h3>
                         <p class="mt-2.5 rounded-2xl border border-neutral-200 bg-neutral-50/60 px-3.5 py-4 text-xs text-neutral-500">
-                            Kjo bisedë s'u lidh dot me një rezervim. Do të lidhet automatikisht kur rezervimi i OTA-s të mbërrijë.
-                        </p>
+{{ $t('admin.generated.k_8be48630bdff') }} </p>
                     </div>
                 </aside>
             </div>

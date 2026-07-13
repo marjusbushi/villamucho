@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -78,45 +79,45 @@ const hasActiveFilters = computed(() => Boolean(
 ));
 
 const docTypeOptions = [
-    { value: 'id_card', label: 'Kartë identiteti' },
-    { value: 'passport', label: 'Pasaportë' },
-    { value: 'drivers_license', label: 'Patentë' },
+    { value: 'id_card', label: translate('admin.generated.k_9edeb34c5008') },
+    { value: 'passport', label: translate('admin.generated.k_78716f596fbe') },
+    { value: 'drivers_license', label: translate('admin.generated.k_d590ae0df75a') },
 ];
 
 const nationalityFilterOptions = [
-    { value: '', label: 'Të gjitha kombësitë' },
+    { value: '', label: translate('admin.generated.k_f6da25f7fa37') },
     ...countryOptions,
 ];
 
 const sortOptions = [
-    { value: 'last_stay', label: 'Aktiviteti i fundit' },
-    { value: 'next_stay', label: 'Mbërritja më e afërt' },
-    { value: 'stays', label: 'Më shumë qëndrime' },
-    { value: 'name', label: 'Emri A–Z' },
+    { value: 'last_stay', label: translate('admin.generated.k_b79195c5331a') },
+    { value: 'next_stay', label: translate('admin.generated.k_8de09a0a891d') },
+    { value: 'stays', label: translate('admin.generated.k_85f782701312') },
+    { value: 'name', label: translate('admin.generated.k_65a65a4974fd') },
 ];
 
 const stateMeta = {
-    in_house: { label: 'Brenda', variant: 'success' },
-    arriving_today: { label: 'Mbërrin sot', variant: 'info' },
-    arriving_soon: { label: 'Mbërrin së shpejti', variant: 'accent' },
-    upcoming: { label: 'Rezervim i ardhshëm', variant: 'accent' },
-    past: { label: 'Vizitë e kaluar', variant: 'neutral' },
-    new: { label: 'Profil i ri', variant: 'neutral' },
+    in_house: { label: translate('admin.generated.k_17e41bcc53f0'), variant: 'success' },
+    arriving_today: { label: translate('admin.generated.k_e19a4364a716'), variant: 'info' },
+    arriving_soon: { label: translate('admin.generated.k_2c3bbb2e77c7'), variant: 'accent' },
+    upcoming: { label: translate('admin.generated.k_3e257c51a300'), variant: 'accent' },
+    past: { label: translate('admin.generated.k_c103d38f0f65'), variant: 'neutral' },
+    new: { label: translate('admin.generated.k_2688685ae535'), variant: 'neutral' },
 };
 
 const segmentOptions = computed(() => [
-    { value: 'all', label: 'Të gjithë', count: number(props.stats.total) },
-    { value: 'in_house', label: 'Brenda', count: number(props.stats.in_house) },
-    { value: 'arriving_7_days', label: 'Mbërrijnë', count: number(props.stats.arriving_7_days) },
-    { value: 'returning', label: 'Kthyes', count: number(props.stats.returning) },
-    { value: 'incomplete', label: 'Të paplotë', count: number(props.stats.incomplete) },
-    { value: 'attention', label: 'Vëmendje', count: number(props.stats.attention) },
+    { value: 'all', label: translate('admin.generated.k_c74e497a03cb'), count: number(props.stats.total) },
+    { value: 'in_house', label: translate('admin.generated.k_17e41bcc53f0'), count: number(props.stats.in_house) },
+    { value: 'arriving_7_days', label: translate('admin.generated.k_47415767fa47'), count: number(props.stats.arriving_7_days) },
+    { value: 'returning', label: translate('admin.generated.k_9d14592446ea'), count: number(props.stats.returning) },
+    { value: 'incomplete', label: translate('admin.generated.k_0a2615079eb7'), count: number(props.stats.incomplete) },
+    { value: 'attention', label: translate('admin.generated.k_459c401727be'), count: number(props.stats.attention) },
 ]);
 
 const metrics = computed(() => [
     {
         key: 'total',
-        label: 'Gjithsej',
+        label: translate('admin.generated.k_16e8b6cf9ffb'),
         value: number(props.stats.total),
         help: 'profile aktive',
         icon: Users,
@@ -125,27 +126,27 @@ const metrics = computed(() => [
     },
     {
         key: 'in_house',
-        label: 'Brenda hotelit',
+        label: translate('admin.generated.k_f63cf80f1ba5'),
         value: number(props.stats.in_house),
-        help: 'mysafirë aktualisht',
+        help: translate('admin.generated.k_4be32d4f6673'),
         icon: BedDouble,
         iconClass: 'bg-info-50 text-info-700',
         segment: 'in_house',
     },
     {
         key: 'arriving',
-        label: 'Mbërrijnë · 7 ditë',
+        label: translate('admin.generated.k_cfbfcfa4b6f4'),
         value: number(props.stats.arriving_7_days),
-        help: `${number(props.stats.arriving_returning)} janë klientë kthyes`,
+        help: translate('admin.generated.k_724cd811a715', { p0: number(props.stats.arriving_returning) }),
         icon: CalendarDays,
         iconClass: 'bg-primary-50 text-primary-700',
         segment: 'arriving_7_days',
     },
     {
         key: 'incomplete',
-        label: 'Profile për plotësim',
+        label: translate('admin.generated.k_0f218be47b55'),
         value: number(props.stats.incomplete),
-        help: 'mungon kontakt ose kombësi',
+        help: translate('admin.generated.k_d0c1bb2ce171'),
         icon: CircleAlert,
         iconClass: 'bg-warning-50 text-warning-700',
         segment: 'incomplete',
@@ -259,7 +260,7 @@ function openEdit(guest) {
 
 function openDelete(guest) {
     if (!guest.can_delete) {
-        toasts.value?.warning('Ky profil ka rezervime ose dokumente private dhe nuk mund të fshihet.');
+        toasts.value?.warning(translate('admin.generated.k_14353f767290'));
         return;
     }
     selectedGuest.value = guest;
@@ -272,7 +273,7 @@ function submitCreate() {
         onSuccess: () => {
             showCreateModal.value = false;
             createForm.reset();
-            toasts.value?.success('Mysafiri u regjistrua.');
+            toasts.value?.success(translate('admin.generated.k_30061b716a71'));
         },
     });
 }
@@ -283,7 +284,7 @@ function submitEdit() {
         preserveScroll: true,
         onSuccess: () => {
             showEditModal.value = false;
-            toasts.value?.success('Të dhënat u përditësuan.');
+            toasts.value?.success(translate('admin.generated.k_536989bb21a7'));
         },
     });
 }
@@ -297,11 +298,11 @@ function submitDelete() {
         },
         onSuccess: () => {
             showDeleteModal.value = false;
-            toasts.value?.success('Mysafiri u fshi.');
+            toasts.value?.success(translate('admin.generated.k_0ccd35e8c7a4'));
         },
         onError: (errors) => {
             showDeleteModal.value = false;
-            toasts.value?.error(errors.guest || 'Mysafiri nuk mund të fshihet.');
+            toasts.value?.error(errors.guest || translate('admin.generated.k_58bdc74ed5bb'));
         },
         onFinish: () => {
             deleting.value = false;
@@ -327,7 +328,7 @@ function formatDate(value, includeYear = false) {
     if (!value) return '—';
     const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return '—';
-    const months = ['jan', 'shk', 'mar', 'pri', 'maj', 'qer', 'kor', 'gus', 'sht', 'tet', 'nën', 'dhj'];
+    const months = ['jan', 'shk', 'mar', 'pri', 'maj', 'qer', 'kor', 'gus', 'sht', 'tet', translate('admin.generated.k_7708ca7100af'), 'dhj'];
     const date = `${Number(match[3])} ${months[Number(match[2]) - 1]}`;
     const showYear = includeYear || Number(match[1]) !== new Date().getFullYear();
     return showYear ? `${date} ${match[1]}` : date;
@@ -339,9 +340,9 @@ function activeStay(guest) {
 
 function stayTitle(guest) {
     const stay = activeStay(guest);
-    if (!stay) return 'Pa qëndrim';
+    if (!stay) return translate('admin.generated.k_7e2a2d48aac3');
     if (stay.room_number) return `Dhoma ${stay.room_number}`;
-    return stay.room_type || 'Qëndrim';
+    return stay.room_type || translate('admin.generated.k_b3390251ed7b');
 }
 
 function staySubtitle(guest) {
@@ -354,7 +355,7 @@ function staySubtitle(guest) {
 function stateDetail(guest) {
     if (guest.state === 'in_house') return `Largohet ${formatDate(guest.current_stay?.check_out_date)}`;
     if (guest.state === 'arriving_today') return `Hyrje sot · ${guest.next_stay?.room_number ? `Dhoma ${guest.next_stay.room_number}` : 'dhoma e caktuar'}`;
-    if (['arriving_soon', 'upcoming'].includes(guest.state)) return `Mbërrin ${formatDate(guest.next_stay?.check_in_date)}`;
+    if (['arriving_soon', 'upcoming'].includes(guest.state)) return translate('admin.generated.k_eb2b509909ff', { p0: formatDate(guest.next_stay?.check_in_date) });
     if (guest.state === 'past') return `Larguar ${formatDate(guest.last_stay?.check_out_date)}`;
     return `Krijuar ${formatDate(guest.created_at, true)}`;
 }
@@ -363,20 +364,20 @@ function profileLabel(guest) {
     const labels = {
         email: 'emaili',
         phone: 'telefoni',
-        nationality: 'kombësia',
+        nationality: translate('admin.generated.k_b7287a0f91df'),
     };
     const missing = guest.missing_fields || [];
-    if (!missing.length) return 'I plotë';
+    if (!missing.length) return translate('admin.generated.k_9e1982834dbd');
     if (missing.length === 1) return `Mungon ${labels[missing[0]]}`;
-    return `Mungojnë ${missing.length} fusha`;
+    return translate('admin.generated.k_3a1e5f11c90b', { p0: missing.length });
 }
 
 function historyLabel(guest) {
     const stays = number(guest.completed_stays);
-    if (stays === 1) return '1 qëndrim';
-    if (stays > 1) return `${stays} qëndrime`;
-    if (['in_house', 'arriving_today', 'arriving_soon', 'upcoming'].includes(guest.state)) return 'Vizita e parë';
-    return 'Pa histori';
+    if (stays === 1) return translate('admin.generated.k_a371458a79f3');
+    if (stays > 1) return translate('admin.generated.k_07592003b8c8', { p0: stays });
+    if (['in_house', 'arriving_today', 'arriving_soon', 'upcoming'].includes(guest.state)) return translate('admin.generated.k_eccdf0918a2b');
+    return translate('admin.generated.k_c9d12638c4cb');
 }
 
 function profileBarClass(guest) {
@@ -387,25 +388,23 @@ function profileBarClass(guest) {
 </script>
 
 <template>
-    <Head title="Mysafirët" />
+    <Head :title="$t('admin.generated.k_217989292171')" />
 
     <AppLayout>
         <PageHeader
-            title="Mysafirët"
-            :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Mysafirët' }]"
+            :title="$t('admin.generated.k_217989292171')"
+            :breadcrumbs="[{ label: $t('admin.generated.k_452f95ca2fe9'), href: '/dashboard' }, { label: $t('admin.generated.k_b9ab6cf932ab') }]"
         >
             <template #actions>
                 <Button v-if="canCreate" variant="primary" @click="showCreateModal = true">
                     <UserPlus class="h-4 w-4" :stroke-width="1.8" />
-                    Mysafir i ri
-                </Button>
+{{ $t('admin.generated.k_68f0775c9293') }} </Button>
             </template>
         </PageHeader>
         <p class="mt-1 text-body-sm text-neutral-500">
-            Gjej shpejt profilin, qëndrimin dhe informacionin që kërkon veprim.
-        </p>
+{{ $t('admin.generated.k_873a4442a8af') }} </p>
 
-        <section class="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Përmbledhja e mysafirëve">
+        <section class="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4" :aria-label="$t('admin.generated.k_da4e5132ece6')">
             <button
                 v-for="metric in metrics"
                 :key="metric.key"
@@ -428,30 +427,28 @@ function profileBarClass(guest) {
         <section
             v-if="number(stats.duplicate_profiles) > 0"
             class="mt-4 flex flex-col gap-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-            aria-label="Profile që duhen kontrolluar"
+            :aria-label="$t('admin.generated.k_442d258c031f')"
         >
             <div class="flex items-start gap-3">
                 <Copy class="mt-0.5 h-5 w-5 shrink-0 text-warning-700" :stroke-width="1.8" />
                 <div>
                     <p class="text-body-sm font-semibold text-warning-800">
-                        {{ stats.duplicate_profiles }} profile mund të jenë dublikate
-                    </p>
-                    <p class="mt-0.5 text-small text-warning-700">Kontrolloji para se të krijosh profil të ri.</p>
+                        {{ stats.duplicate_profiles }} {{ $t('admin.generated.k_a16b227de68c') }} </p>
+                    <p class="mt-0.5 text-small text-warning-700">{{ $t('admin.generated.k_a155229f2afb') }}</p>
                 </div>
             </div>
             <Button size="sm" variant="outline" class="border-warning-300 bg-transparent text-warning-800" @click="showAttention">
-                Shiko profilet
-            </Button>
+{{ $t('admin.generated.k_561cfaccc25e') }} </Button>
         </section>
 
         <section class="mt-4 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-card">
             <div class="border-b border-neutral-200 px-4 pt-4 sm:px-5">
                 <div>
-                    <h2 class="text-body font-semibold text-primary-900">Lista e mysafirëve</h2>
-                    <p class="mt-1 text-small text-neutral-500">Statusi, kontakti dhe historiku i qëndrimeve në një vend.</p>
+                    <h2 class="text-body font-semibold text-primary-900">{{ $t('admin.generated.k_0f587c037f8d') }}</h2>
+                    <p class="mt-1 text-small text-neutral-500">{{ $t('admin.generated.k_a23995c0946d') }}</p>
                 </div>
 
-                <nav class="-mb-px mt-4 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Segmentet e mysafirëve">
+                <nav class="-mb-px mt-4 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" :aria-label="$t('admin.generated.k_c280132cefb0')">
                     <button
                         v-for="option in segmentOptions"
                         :key="option.value"
@@ -480,22 +477,22 @@ function profileBarClass(guest) {
 
             <div class="grid gap-2 border-b border-neutral-200 bg-neutral-50/70 px-4 py-3 sm:grid-cols-2 sm:px-5 xl:grid-cols-[minmax(280px,1fr)_210px_210px_auto]">
                 <label class="relative sm:col-span-2 xl:col-span-1">
-                    <span class="sr-only">Kërko mysafir</span>
+                    <span class="sr-only">{{ $t('admin.generated.k_1c8dfa33a340') }}</span>
                     <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" :stroke-width="1.8" />
-                    <TextInput v-model="searchQuery" class="pl-9" placeholder="Kërko emër, email ose telefon…" />
+                    <TextInput v-model="searchQuery" class="pl-9" :placeholder="$t('admin.generated.k_9bd69cdf42d0')" />
                 </label>
                 <Select
                     v-model="nationality"
                     :options="nationalityFilterOptions"
                     placeholder=""
-                    aria-label="Filtro sipas kombësisë"
+                    :aria-label="$t('admin.generated.k_74e4e7d5a9a8')"
                     @change="refreshList"
                 />
                 <Select
                     v-model="sortBy"
                     :options="sortOptions"
                     placeholder=""
-                    aria-label="Rendit mysafirët"
+                    :aria-label="$t('admin.generated.k_d57ffb821f4c')"
                     @change="refreshList"
                 />
                 <div class="flex items-center justify-end gap-3 self-center sm:col-span-2 xl:col-span-1">
@@ -505,11 +502,10 @@ function profileBarClass(guest) {
                         class="text-small font-medium text-accent-700 underline-offset-2 hover:underline"
                         @click="clearFilters"
                     >
-                        Pastro filtrat
-                    </button>
+{{ $t('admin.generated.k_0aec64036fdf') }} </button>
                     <p class="text-right text-small text-neutral-500">
-                        <template v-if="guests.total">{{ guests.from }}–{{ guests.to }} nga {{ guests.total }}</template>
-                        <template v-else>0 rezultate</template>
+                        <template v-if="guests.total">{{ guests.from }}–{{ guests.to }} {{ $t('admin.generated.k_1260698259a8') }} {{ guests.total }}</template>
+                        <template v-else>{{ $t('admin.generated.k_30893807fc56') }}</template>
                     </p>
                 </div>
             </div>
@@ -518,13 +514,13 @@ function profileBarClass(guest) {
                 <table class="w-full table-fixed">
                     <thead class="bg-neutral-50">
                         <tr class="border-b border-neutral-200">
-                            <th class="w-[18%] px-4 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">Mysafiri</th>
-                            <th class="w-[15%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">Gjendja</th>
-                            <th class="w-[18%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">Kontakti</th>
-                            <th class="w-[16%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">Qëndrimi</th>
-                            <th class="w-[10%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">Historiku</th>
-                            <th class="w-[10%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">Profili</th>
-                            <th class="w-[13%] px-3 py-3 text-right text-tiny font-semibold uppercase tracking-wider text-neutral-500">Veprime</th>
+                            <th class="w-[18%] px-4 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">{{ $t('admin.generated.k_fbae5b8b5dd7') }}</th>
+                            <th class="w-[15%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">{{ $t('admin.generated.k_9c1e15798ac4') }}</th>
+                            <th class="w-[18%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">{{ $t('admin.generated.k_097264fd69a0') }}</th>
+                            <th class="w-[16%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">{{ $t('admin.generated.k_916b06acfc18') }}</th>
+                            <th class="w-[10%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">{{ $t('admin.generated.k_242fedf08680') }}</th>
+                            <th class="w-[10%] px-3 py-3 text-left text-tiny font-semibold uppercase tracking-wider text-neutral-500">{{ $t('admin.generated.k_aeea7e2148ff') }}</th>
+                            <th class="w-[13%] px-3 py-3 text-right text-tiny font-semibold uppercase tracking-wider text-neutral-500">{{ $t('admin.generated.k_2d593b4fa500') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
@@ -539,25 +535,25 @@ function profileBarClass(guest) {
                                             <Link :href="route('guests.show', guest.id)" class="truncate text-body-sm font-semibold text-primary-900 no-underline hover:text-accent-700">
                                                 {{ guest.first_name }} {{ guest.last_name }}
                                             </Link>
-                                            <Badge v-if="guest.completed_stays >= 2" variant="accent" size="sm" class="shrink-0">Kthyes</Badge>
+                                            <Badge v-if="guest.completed_stays >= 2" variant="accent" size="sm" class="shrink-0">{{ $t('admin.generated.k_09dacc1c522c') }}</Badge>
                                         </div>
                                         <div class="mt-1 flex items-center gap-1.5 text-tiny text-neutral-400">
-                                            <span>{{ guest.nationality_label || (guest.nationality ? countryName(guest.nationality) : 'Pa kombësi') }}</span>
-                                            <Badge v-if="guest.is_duplicate" variant="warning" size="sm">Dublikatë</Badge>
+                                            <span>{{ guest.nationality_label || (guest.nationality ? countryName(guest.nationality) : $t('admin.generated.k_4e076dab2210')) }}</span>
+                                            <Badge v-if="guest.is_duplicate" variant="warning" size="sm">{{ $t('admin.generated.k_3fb8721c9958') }}</Badge>
                                         </div>
                                     </div>
                                 </div>
                             </td>
                             <td class="px-3 py-3 align-middle">
                                 <Badge :variant="stateMeta[guest.state]?.variant || 'neutral'" dot>
-                                    {{ stateMeta[guest.state]?.label || 'Profil' }}
+                                    {{ stateMeta[guest.state]?.label || $t('admin.generated.k_817bd53a0658') }}
                                 </Badge>
                                 <p class="mt-1.5 truncate text-tiny text-neutral-500">{{ stateDetail(guest) }}</p>
                             </td>
                             <td class="px-3 py-3">
-                                <p class="truncate text-small text-neutral-700">{{ guest.email || 'Email i paplotësuar' }}</p>
+                                <p class="truncate text-small text-neutral-700">{{ guest.email || $t('admin.generated.k_92c8e3444edd') }}</p>
                                 <p :class="['mt-1 truncate text-small', guest.phone ? 'text-neutral-600' : 'text-warning-700']">
-                                    {{ guest.phone || 'Telefon i paplotësuar' }}
+                                    {{ guest.phone || $t('admin.generated.k_825d491e3df0') }}
                                 </p>
                             </td>
                             <td class="px-3 py-3">
@@ -566,7 +562,7 @@ function profileBarClass(guest) {
                             </td>
                             <td class="px-3 py-3">
                                 <p class="text-body-sm font-semibold text-primary-900">{{ historyLabel(guest) }}</p>
-                                <p class="mt-1 text-tiny text-neutral-500">{{ guest.total_nights }} net gjithsej</p>
+                                <p class="mt-1 text-tiny text-neutral-500">{{ guest.total_nights }} {{ $t('admin.generated.k_4431f29e4b5f') }}</p>
                             </td>
                             <td class="px-3 py-3">
                                 <div class="flex items-center justify-between gap-2 text-tiny">
@@ -579,20 +575,17 @@ function profileBarClass(guest) {
                             </td>
                             <td class="px-3 py-3 text-right">
                                 <div class="flex items-center justify-end gap-1">
-                                    <Link :href="route('guests.show', guest.id)" :class="profileLinkClass">Hap profilin</Link>
+                                    <Link :href="route('guests.show', guest.id)" :class="profileLinkClass">{{ $t('admin.generated.k_cf07d8096920') }}</Link>
                                     <ActionMenu v-if="canUpdate || (canDelete && guest.can_delete)">
                                         <Link :href="route('guests.show', guest.id)" :class="menuItemClass">
                                             <Eye class="h-4 w-4 text-neutral-400" :stroke-width="1.8" />
-                                            Detaje
-                                        </Link>
+{{ $t('admin.generated.k_116bb2ab4d73') }} </Link>
                                         <button v-if="canUpdate && guest.edit_data" type="button" :class="menuItemClass" @click="openEdit(guest)">
                                             <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.8" />
-                                            Edito
-                                        </button>
+{{ $t('admin.generated.k_4e4d83631bf8') }} </button>
                                         <button v-if="canDelete && guest.can_delete" type="button" :class="[menuItemClass, 'text-error-600']" @click="openDelete(guest)">
                                             <Trash2 class="h-4 w-4 text-error-500" :stroke-width="1.8" />
-                                            Fshi
-                                        </button>
+{{ $t('admin.generated.k_68d8443c77a5') }} </button>
                                     </ActionMenu>
                                 </div>
                             </td>
@@ -613,14 +606,14 @@ function profileBarClass(guest) {
                                     {{ guest.first_name }} {{ guest.last_name }}
                                 </Link>
                                 <div class="mt-1 flex flex-wrap items-center gap-1.5 text-tiny text-neutral-500">
-                                    <span>{{ guest.nationality_label || (guest.nationality ? countryName(guest.nationality) : 'Pa kombësi') }}</span>
-                                    <Badge v-if="guest.completed_stays >= 2" variant="accent" size="sm">Kthyes</Badge>
-                                    <Badge v-if="guest.is_duplicate" variant="warning" size="sm">Dublikatë</Badge>
+                                    <span>{{ guest.nationality_label || (guest.nationality ? countryName(guest.nationality) : $t('admin.generated.k_4e076dab2210')) }}</span>
+                                    <Badge v-if="guest.completed_stays >= 2" variant="accent" size="sm">{{ $t('admin.generated.k_09dacc1c522c') }}</Badge>
+                                    <Badge v-if="guest.is_duplicate" variant="warning" size="sm">{{ $t('admin.generated.k_3fb8721c9958') }}</Badge>
                                 </div>
                             </div>
                         </div>
                         <Badge :variant="stateMeta[guest.state]?.variant || 'neutral'" dot class="shrink-0">
-                            {{ stateMeta[guest.state]?.label || 'Profil' }}
+                            {{ stateMeta[guest.state]?.label || $t('admin.generated.k_817bd53a0658') }}
                         </Badge>
                     </div>
 
@@ -628,31 +621,29 @@ function profileBarClass(guest) {
 
                     <dl class="mt-3 grid grid-cols-2 gap-2">
                         <div class="rounded-md bg-neutral-50 px-3 py-2.5">
-                            <dt class="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Qëndrimi</dt>
+                            <dt class="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">{{ $t('admin.generated.k_916b06acfc18') }}</dt>
                             <dd class="mt-1 text-small font-medium text-primary-900">{{ stayTitle(guest) }}</dd>
                             <dd class="mt-0.5 text-tiny text-neutral-500">{{ staySubtitle(guest) }}</dd>
                         </div>
                         <div class="rounded-md bg-neutral-50 px-3 py-2.5">
-                            <dt class="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Historiku</dt>
+                            <dt class="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">{{ $t('admin.generated.k_242fedf08680') }}</dt>
                             <dd class="mt-1 text-small font-medium text-primary-900">{{ historyLabel(guest) }}</dd>
-                            <dd class="mt-0.5 text-tiny text-neutral-500">{{ guest.total_nights }} net gjithsej</dd>
+                            <dd class="mt-0.5 text-tiny text-neutral-500">{{ guest.total_nights }} {{ $t('admin.generated.k_4431f29e4b5f') }}</dd>
                         </div>
                         <div class="min-w-0 rounded-md bg-neutral-50 px-3 py-2.5">
                             <dt class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
                                 <Mail class="h-3 w-3" :stroke-width="1.8" />
-                                Email
-                            </dt>
+{{ $t('admin.generated.k_727be14dc8c6') }} </dt>
                             <dd :class="['mt-1 truncate text-small', guest.email ? 'text-neutral-700' : 'text-warning-700']">
-                                {{ guest.email || 'I paplotësuar' }}
+                                {{ guest.email || $t('admin.generated.k_8c6f8618243d') }}
                             </dd>
                         </div>
                         <div class="min-w-0 rounded-md bg-neutral-50 px-3 py-2.5">
                             <dt class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
                                 <Phone class="h-3 w-3" :stroke-width="1.8" />
-                                Telefon
-                            </dt>
+{{ $t('admin.generated.k_4847b0efdb8e') }} </dt>
                             <dd :class="['mt-1 truncate text-small', guest.phone ? 'text-neutral-700' : 'text-warning-700']">
-                                {{ guest.phone || 'I paplotësuar' }}
+                                {{ guest.phone || $t('admin.generated.k_8c6f8618243d') }}
                             </dd>
                         </div>
                     </dl>
@@ -668,20 +659,17 @@ function profileBarClass(guest) {
                     </div>
 
                     <div class="mt-3 flex items-center gap-2">
-                        <Link :href="route('guests.show', guest.id)" :class="[profileLinkClass, 'min-w-0 flex-1']">Hap profilin</Link>
+                        <Link :href="route('guests.show', guest.id)" :class="[profileLinkClass, 'min-w-0 flex-1']">{{ $t('admin.generated.k_cf07d8096920') }}</Link>
                         <ActionMenu v-if="canUpdate || (canDelete && guest.can_delete)">
                             <Link :href="route('guests.show', guest.id)" :class="menuItemClass">
                                 <Eye class="h-4 w-4 text-neutral-400" :stroke-width="1.8" />
-                                Detaje
-                            </Link>
+{{ $t('admin.generated.k_116bb2ab4d73') }} </Link>
                             <button v-if="canUpdate && guest.edit_data" type="button" :class="menuItemClass" @click="openEdit(guest)">
                                 <Pencil class="h-4 w-4 text-neutral-400" :stroke-width="1.8" />
-                                Edito
-                            </button>
+{{ $t('admin.generated.k_4e4d83631bf8') }} </button>
                             <button v-if="canDelete && guest.can_delete" type="button" :class="[menuItemClass, 'text-error-600']" @click="openDelete(guest)">
                                 <Trash2 class="h-4 w-4 text-error-500" :stroke-width="1.8" />
-                                Fshi
-                            </button>
+{{ $t('admin.generated.k_68d8443c77a5') }} </button>
                         </ActionMenu>
                     </div>
                 </article>
@@ -690,126 +678,123 @@ function profileBarClass(guest) {
             <div v-if="!guests.data?.length" class="px-6 py-14 text-center">
                 <Users class="mx-auto h-9 w-9 text-neutral-300" :stroke-width="1.5" />
                 <p class="mt-3 text-body-sm font-medium text-neutral-700">
-                    {{ searchQuery || segment !== 'all' || nationality ? 'Nuk u gjet asnjë mysafir.' : 'Nuk ka mysafirë akoma.' }}
+                    {{ searchQuery || segment !== 'all' || nationality ? $t('admin.generated.k_f5743ef4d767') : $t('admin.generated.k_3fe179690d97') }}
                 </p>
-                <p class="mt-1 text-small text-neutral-500">Provo një kërkim ose filtër tjetër.</p>
-                <Button v-if="hasActiveFilters" size="sm" variant="outline" class="mt-4" @click="clearFilters">Pastro filtrat</Button>
+                <p class="mt-1 text-small text-neutral-500">{{ $t('admin.generated.k_db419780a74c') }}</p>
+                <Button v-if="hasActiveFilters" size="sm" variant="outline" class="mt-4" @click="clearFilters">{{ $t('admin.generated.k_0aec64036fdf') }}</Button>
             </div>
 
             <footer
                 v-if="guests.total > 0"
                 class="flex flex-col gap-3 border-t border-neutral-200 bg-neutral-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
             >
-                <p class="text-small text-neutral-500">{{ guests.from }}–{{ guests.to }} nga {{ guests.total }} mysafirë</p>
+                <p class="text-small text-neutral-500">{{ guests.from }}–{{ guests.to }} {{ $t('admin.generated.k_1260698259a8') }} {{ guests.total }} {{ $t('admin.generated.k_46c4969f93cf') }}</p>
                 <div class="flex items-center gap-2">
                     <Button
                         size="sm"
                         variant="outline"
                         :disabled="!guests.prev_page_url"
-                        aria-label="Faqja e mëparshme"
+                        :aria-label="$t('admin.generated.k_3bacd2d18f4d')"
                         @click="goToPage(guests.prev_page_url)"
                     >
-                        Mbrapa
-                    </Button>
+{{ $t('admin.generated.k_0d876b774e7b') }} </Button>
                     <span class="min-w-16 text-center text-small text-neutral-600">{{ guests.current_page }} / {{ guests.last_page }}</span>
                     <Button
                         size="sm"
                         variant="outline"
                         :disabled="!guests.next_page_url"
-                        aria-label="Faqja tjetër"
+                        :aria-label="$t('admin.generated.k_9bc9a35115b3')"
                         @click="goToPage(guests.next_page_url)"
                     >
-                        Para
-                    </Button>
+{{ $t('admin.generated.k_c92fdcb63eb1') }} </Button>
                 </div>
             </footer>
         </section>
 
-        <Modal :show="showCreateModal" title="Regjistro mysafir të ri" max-width="lg" @close="showCreateModal = false">
+        <Modal :show="showCreateModal" :title="$t('admin.generated.k_a8941b093c41')" max-width="lg" @close="showCreateModal = false">
             <form class="space-y-4" @submit.prevent="submitCreate">
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormGroup label="Emri" html-for="create-first-name" :error="createForm.errors.first_name" required>
-                        <TextInput id="create-first-name" v-model="createForm.first_name" placeholder="Emri" autocomplete="given-name" :error="createForm.errors.first_name" />
+                    <FormGroup :label="$t('admin.generated.k_38482ed383e6')" html-for="create-first-name" :error="createForm.errors.first_name" required>
+                        <TextInput id="create-first-name" v-model="createForm.first_name" :placeholder="$t('admin.generated.k_38482ed383e6')" autocomplete="given-name" :error="createForm.errors.first_name" />
                     </FormGroup>
-                    <FormGroup label="Mbiemri" html-for="create-last-name" :error="createForm.errors.last_name" required>
-                        <TextInput id="create-last-name" v-model="createForm.last_name" placeholder="Mbiemri" autocomplete="family-name" :error="createForm.errors.last_name" />
+                    <FormGroup :label="$t('admin.generated.k_29badb49c546')" html-for="create-last-name" :error="createForm.errors.last_name" required>
+                        <TextInput id="create-last-name" v-model="createForm.last_name" :placeholder="$t('admin.generated.k_29badb49c546')" autocomplete="family-name" :error="createForm.errors.last_name" />
                     </FormGroup>
-                    <FormGroup label="Email" html-for="create-email" :error="createForm.errors.email">
-                        <TextInput id="create-email" v-model="createForm.email" type="email" placeholder="email@example.com" autocomplete="email" :error="createForm.errors.email" />
+                    <FormGroup :label="$t('admin.generated.k_3704e3d60a4d')" html-for="create-email" :error="createForm.errors.email">
+                        <TextInput id="create-email" v-model="createForm.email" type="email" :placeholder="$t('admin.generated.k_1a260b326283')" autocomplete="email" :error="createForm.errors.email" />
                     </FormGroup>
-                    <FormGroup label="Telefon" html-for="create-phone" :error="createForm.errors.phone">
+                    <FormGroup :label="$t('admin.generated.k_ca2435f3926c')" html-for="create-phone" :error="createForm.errors.phone">
                         <TextInput id="create-phone" v-model="createForm.phone" placeholder="+355 69…" autocomplete="tel" :error="createForm.errors.phone" />
                     </FormGroup>
-                    <FormGroup label="Tipi i dokumentit" html-for="create-document-type" :error="createForm.errors.document_type">
-                        <Select id="create-document-type" v-model="createForm.document_type" :options="docTypeOptions" placeholder="Zgjidh…" :error="createForm.errors.document_type" />
+                    <FormGroup :label="$t('admin.generated.k_8e39d3fc5cb5')" html-for="create-document-type" :error="createForm.errors.document_type">
+                        <Select id="create-document-type" v-model="createForm.document_type" :options="docTypeOptions" :placeholder="$t('admin.generated.k_3555aeb55e32')" :error="createForm.errors.document_type" />
                     </FormGroup>
-                    <FormGroup label="Nr. i dokumentit" html-for="create-document-number" :error="createForm.errors.document_number">
-                        <TextInput id="create-document-number" v-model="createForm.document_number" placeholder="I12345678" :error="createForm.errors.document_number" />
+                    <FormGroup :label="$t('admin.generated.k_b4d40453767d')" html-for="create-document-number" :error="createForm.errors.document_number">
+                        <TextInput id="create-document-number" v-model="createForm.document_number" :placeholder="$t('admin.generated.k_b6e083bfd8dd')" :error="createForm.errors.document_number" />
                     </FormGroup>
-                    <FormGroup label="Kombësia" html-for="create-nationality" :error="createForm.errors.nationality">
-                        <Select id="create-nationality" v-model="createForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin…" :error="createForm.errors.nationality" />
+                    <FormGroup :label="$t('admin.generated.k_3de0940e65af')" html-for="create-nationality" :error="createForm.errors.nationality">
+                        <Select id="create-nationality" v-model="createForm.nationality" :options="countryOptions" :placeholder="$t('admin.generated.k_e2cf67b6dd47')" :error="createForm.errors.nationality" />
                     </FormGroup>
-                    <FormGroup label="Data e lindjes" html-for="create-date-of-birth" :error="createForm.errors.date_of_birth">
-                        <DatePicker v-model="createForm.date_of_birth" :input-attrs="{ id: 'create-date-of-birth' }" aria-label="Data e lindjes" :error="createForm.errors.date_of_birth" />
+                    <FormGroup :label="$t('admin.generated.k_7f9a0b01a9b3')" html-for="create-date-of-birth" :error="createForm.errors.date_of_birth">
+                        <DatePicker v-model="createForm.date_of_birth" :input-attrs="{ id: 'create-date-of-birth' }" :aria-label="$t('admin.generated.k_7f9a0b01a9b3')" :error="createForm.errors.date_of_birth" />
                     </FormGroup>
                 </div>
-                <FormGroup label="Shënime" html-for="create-notes" :error="createForm.errors.notes">
-                    <Textarea id="create-notes" v-model="createForm.notes" placeholder="Shënime shtesë…" :rows="2" />
+                <FormGroup :label="$t('admin.generated.k_fb09e70ce276')" html-for="create-notes" :error="createForm.errors.notes">
+                    <Textarea id="create-notes" v-model="createForm.notes" :placeholder="$t('admin.generated.k_c78c256a983c')" :rows="2" />
                 </FormGroup>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showCreateModal = false">Anulo</Button>
-                <Button variant="primary" :loading="createForm.processing" @click="submitCreate">Regjistro</Button>
+                <Button variant="outline" @click="showCreateModal = false">{{ $t('admin.generated.k_cceaaefe021c') }}</Button>
+                <Button variant="primary" :loading="createForm.processing" @click="submitCreate">{{ $t('admin.generated.k_5b517ae37b5e') }}</Button>
             </template>
         </Modal>
 
-        <Modal :show="showEditModal" title="Edito mysafirin" max-width="lg" @close="showEditModal = false">
+        <Modal :show="showEditModal" :title="$t('admin.generated.k_b5014763ba76')" max-width="lg" @close="showEditModal = false">
             <form class="space-y-4" @submit.prevent="submitEdit">
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormGroup label="Emri" html-for="edit-first-name" :error="editForm.errors.first_name" required>
+                    <FormGroup :label="$t('admin.generated.k_38482ed383e6')" html-for="edit-first-name" :error="editForm.errors.first_name" required>
                         <TextInput id="edit-first-name" v-model="editForm.first_name" autocomplete="given-name" :error="editForm.errors.first_name" />
                     </FormGroup>
-                    <FormGroup label="Mbiemri" html-for="edit-last-name" :error="editForm.errors.last_name" required>
+                    <FormGroup :label="$t('admin.generated.k_29badb49c546')" html-for="edit-last-name" :error="editForm.errors.last_name" required>
                         <TextInput id="edit-last-name" v-model="editForm.last_name" autocomplete="family-name" :error="editForm.errors.last_name" />
                     </FormGroup>
-                    <FormGroup label="Email" html-for="edit-email" :error="editForm.errors.email">
+                    <FormGroup :label="$t('admin.generated.k_3704e3d60a4d')" html-for="edit-email" :error="editForm.errors.email">
                         <TextInput id="edit-email" v-model="editForm.email" type="email" autocomplete="email" :error="editForm.errors.email" />
                     </FormGroup>
-                    <FormGroup label="Telefon" html-for="edit-phone" :error="editForm.errors.phone">
+                    <FormGroup :label="$t('admin.generated.k_ca2435f3926c')" html-for="edit-phone" :error="editForm.errors.phone">
                         <TextInput id="edit-phone" v-model="editForm.phone" autocomplete="tel" :error="editForm.errors.phone" />
                     </FormGroup>
-                    <FormGroup label="Tipi i dokumentit" html-for="edit-document-type" :error="editForm.errors.document_type">
-                        <Select id="edit-document-type" v-model="editForm.document_type" :options="docTypeOptions" placeholder="Zgjidh…" :error="editForm.errors.document_type" />
+                    <FormGroup :label="$t('admin.generated.k_8e39d3fc5cb5')" html-for="edit-document-type" :error="editForm.errors.document_type">
+                        <Select id="edit-document-type" v-model="editForm.document_type" :options="docTypeOptions" :placeholder="$t('admin.generated.k_3555aeb55e32')" :error="editForm.errors.document_type" />
                     </FormGroup>
-                    <FormGroup label="Nr. i dokumentit" html-for="edit-document-number" :error="editForm.errors.document_number">
+                    <FormGroup :label="$t('admin.generated.k_b4d40453767d')" html-for="edit-document-number" :error="editForm.errors.document_number">
                         <TextInput id="edit-document-number" v-model="editForm.document_number" :error="editForm.errors.document_number" />
                     </FormGroup>
-                    <FormGroup label="Kombësia" html-for="edit-nationality" :error="editForm.errors.nationality">
-                        <Select id="edit-nationality" v-model="editForm.nationality" :options="countryOptions" placeholder="Zgjidh shtetin…" :error="editForm.errors.nationality" />
+                    <FormGroup :label="$t('admin.generated.k_3de0940e65af')" html-for="edit-nationality" :error="editForm.errors.nationality">
+                        <Select id="edit-nationality" v-model="editForm.nationality" :options="countryOptions" :placeholder="$t('admin.generated.k_e2cf67b6dd47')" :error="editForm.errors.nationality" />
                     </FormGroup>
-                    <FormGroup label="Data e lindjes" html-for="edit-date-of-birth" :error="editForm.errors.date_of_birth">
-                        <DatePicker v-model="editForm.date_of_birth" :input-attrs="{ id: 'edit-date-of-birth' }" aria-label="Data e lindjes" :error="editForm.errors.date_of_birth" />
+                    <FormGroup :label="$t('admin.generated.k_7f9a0b01a9b3')" html-for="edit-date-of-birth" :error="editForm.errors.date_of_birth">
+                        <DatePicker v-model="editForm.date_of_birth" :input-attrs="{ id: 'edit-date-of-birth' }" :aria-label="$t('admin.generated.k_7f9a0b01a9b3')" :error="editForm.errors.date_of_birth" />
                     </FormGroup>
                 </div>
-                <FormGroup label="Shënime" html-for="edit-notes" :error="editForm.errors.notes">
+                <FormGroup :label="$t('admin.generated.k_fb09e70ce276')" html-for="edit-notes" :error="editForm.errors.notes">
                     <Textarea id="edit-notes" v-model="editForm.notes" :rows="2" />
                 </FormGroup>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showEditModal = false">Anulo</Button>
-                <Button variant="primary" :loading="editForm.processing" @click="submitEdit">Ruaj</Button>
+                <Button variant="outline" @click="showEditModal = false">{{ $t('admin.generated.k_cceaaefe021c') }}</Button>
+                <Button variant="primary" :loading="editForm.processing" @click="submitEdit">{{ $t('admin.generated.k_c2f369bcec26') }}</Button>
             </template>
         </Modal>
 
-        <Modal :show="showDeleteModal" title="Fshi mysafirin" max-width="sm" @close="showDeleteModal = false">
+        <Modal :show="showDeleteModal" :title="$t('admin.generated.k_1998f5e083f2')" max-width="sm" @close="showDeleteModal = false">
             <p class="text-body-sm text-neutral-600">
-                Je i sigurt që dëshiron të fshish
-                <strong>{{ selectedGuest?.first_name }} {{ selectedGuest?.last_name }}</strong>?
+{{ $t('admin.generated.k_2f59991405c2') }} <strong>{{ selectedGuest?.first_name }} {{ selectedGuest?.last_name }}</strong>?
             </p>
-            <p class="mt-2 text-small text-neutral-500">Ky veprim lejohet vetëm për profile pa rezervime dhe pa dokumente private.</p>
+            <p class="mt-2 text-small text-neutral-500">{{ $t('admin.generated.k_8ff652ae4fc3') }}</p>
             <template #footer>
-                <Button variant="outline" :disabled="deleting" @click="showDeleteModal = false">Anulo</Button>
-                <Button variant="danger" :loading="deleting" @click="submitDelete">Fshi</Button>
+                <Button variant="outline" :disabled="deleting" @click="showDeleteModal = false">{{ $t('admin.generated.k_cceaaefe021c') }}</Button>
+                <Button variant="danger" :loading="deleting" @click="submitDelete">{{ $t('admin.generated.k_68d8443c77a5') }}</Button>
             </template>
         </Modal>
 

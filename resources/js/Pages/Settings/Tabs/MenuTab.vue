@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { ref } from 'vue';
 import { useForm, router } from '@inertiajs/vue3';
 import Card from '@/Components/UI/Card.vue';
@@ -28,11 +29,11 @@ function openEditCat(cat) { editingCat.value = cat; Object.assign(catForm, { nam
 function submitCat() {
     if (editingCat.value) {
         catForm.put(route('settings.menu-categories.update', editingCat.value.id), {
-            onSuccess: () => { showCatModal.value = false; props.toasts?.success('Kategoria u perditesua.'); },
+            onSuccess: () => { showCatModal.value = false; props.toasts?.success(translate('admin.generated.k_98bda6c4106b')); },
         });
     } else {
         catForm.post(route('settings.menu-categories.store'), {
-            onSuccess: () => { showCatModal.value = false; catForm.reset(); props.toasts?.success('Kategoria u shtua.'); },
+            onSuccess: () => { showCatModal.value = false; catForm.reset(); props.toasts?.success(translate('admin.generated.k_bffb68e4eb11')); },
         });
     }
 }
@@ -41,8 +42,8 @@ function deleteCat(cat) {
     if (!confirm(`Fshi kategorine "${cat.name}"?`)) return;
     router.delete(route('settings.menu-categories.destroy', cat.id), {
         preserveScroll: true,
-        onSuccess: () => props.toasts?.success('Kategoria u fshi.'),
-        onError: () => props.toasts?.error('Ka artikuj brenda — fshij ata fillimisht.'),
+        onSuccess: () => props.toasts?.success(translate('admin.generated.k_4d43fb45068e')),
+        onError: () => props.toasts?.error(translate('admin.generated.k_5af41fa6dae3')),
     });
 }
 
@@ -115,14 +116,14 @@ function submitItem() {
         router.post(route('settings.menu-items.update', editingItem.value.id), formData, {
             forceFormData: true,
             preserveScroll: true,
-            onSuccess: () => { showItemModal.value = false; props.toasts?.success('Artikulli u perditesua.'); },
+            onSuccess: () => { showItemModal.value = false; props.toasts?.success(translate('admin.generated.k_147fcb2c4362')); },
         });
     } else {
         formData.append('menu_category_id', itemForm.menu_category_id);
         router.post(route('settings.menu-items.store'), formData, {
             forceFormData: true,
             preserveScroll: true,
-            onSuccess: () => { showItemModal.value = false; itemForm.reset(); imagePreview.value = null; props.toasts?.success('Artikulli u shtua.'); },
+            onSuccess: () => { showItemModal.value = false; itemForm.reset(); imagePreview.value = null; props.toasts?.success(translate('admin.generated.k_6b6864ab7265')); },
         });
     }
 }
@@ -138,7 +139,7 @@ function deleteItem(item) {
     if (!confirm(`Fshi "${item.name}"?`)) return;
     router.delete(route('settings.menu-items.destroy', item.id), {
         preserveScroll: true,
-        onSuccess: () => props.toasts?.success('Artikulli u fshi.'),
+        onSuccess: () => props.toasts?.success(translate('admin.generated.k_8ee8e0129285')),
     });
 }
 </script>
@@ -146,8 +147,8 @@ function deleteItem(item) {
 <template>
     <div class="space-y-4">
         <div class="flex items-center justify-between">
-            <h3 class="text-h4 text-primary-900">Menu POS</h3>
-            <Button size="sm" variant="primary" @click="openCreateCat">+ Kategori e re</Button>
+            <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_78be5e1611cb') }}</h3>
+            <Button size="sm" variant="primary" @click="openCreateCat">{{ $t('admin.generated.k_8b3808420dbb') }}</Button>
         </div>
 
         <Card v-for="cat in categories" :key="cat.id">
@@ -159,9 +160,9 @@ function deleteItem(item) {
                         <Badge v-if="inventoryEnabled && cat.warehouse_id" variant="success" size="sm"><Package class="h-3 w-3" /> {{ warehouses.find(warehouse => warehouse.id === cat.warehouse_id)?.name }}</Badge>
                     </div>
                     <div class="flex gap-1.5">
-                        <Button size="sm" variant="ghost" @click="openCreateItem(cat.id)">+ Artikull</Button>
-                        <Button size="sm" variant="ghost" @click="openEditCat(cat)">Edito</Button>
-                        <Button size="sm" variant="ghost" class="text-error-600" @click="deleteCat(cat)">Fshi</Button>
+                        <Button size="sm" variant="ghost" @click="openCreateItem(cat.id)">{{ $t('admin.generated.k_3acd3ffafdb5') }}</Button>
+                        <Button size="sm" variant="ghost" @click="openEditCat(cat)">{{ $t('admin.generated.k_69b7a8e80aee') }}</Button>
+                        <Button size="sm" variant="ghost" class="text-error-600" @click="deleteCat(cat)">{{ $t('admin.generated.k_94078f0402e2') }}</Button>
                     </div>
                 </div>
             </template>
@@ -172,28 +173,28 @@ function deleteItem(item) {
                         <!-- Thumbnail -->
                         <div class="h-10 w-10 rounded-md bg-neutral-100 overflow-hidden shrink-0 flex items-center justify-center">
                             <img v-if="item.image_path" :src="`/storage/${item.image_path}`" :alt="item.name" class="h-full w-full object-cover" />
-                            <span v-else class="text-neutral-300 text-small">IMG</span>
+                            <span v-else class="text-neutral-300 text-small">{{ $t('admin.generated.k_67905075c031') }}</span>
                         </div>
                         <div>
                             <span class="text-body-sm text-primary-900 font-medium">{{ item.name }}</span>
                             <span class="text-body-sm text-accent-600 font-medium ml-2">€{{ item.price }}</span>
                             <span v-if="item.inventory_components?.length" class="mt-0.5 block text-tiny text-neutral-400">{{ item.inventory_components.length }} {{ $t('inventory.pos.components') }}</span>
                         </div>
-                        <Badge v-if="!item.is_available" variant="error" size="sm">Jo disponueshem</Badge>
+                        <Badge v-if="!item.is_available" variant="error" size="sm">{{ $t('admin.generated.k_0389a69f50e1') }}</Badge>
                     </div>
                     <div class="flex gap-1">
                         <Button size="sm" variant="ghost" @click="toggleItem(item)">
-                            {{ item.is_available ? 'Caktivizo' : 'Aktivizo' }}
+                            {{ item.is_available ? $t('admin.generated.k_fe06b9e8b743') : $t('admin.generated.k_31730ad3e645') }}
                         </Button>
-                        <Button size="sm" variant="ghost" @click="openEditItem(item)">Edito</Button>
-                        <Button size="sm" variant="ghost" class="text-error-600" @click="deleteItem(item)">Fshi</Button>
+                        <Button size="sm" variant="ghost" @click="openEditItem(item)">{{ $t('admin.generated.k_69b7a8e80aee') }}</Button>
+                        <Button size="sm" variant="ghost" class="text-error-600" @click="deleteItem(item)">{{ $t('admin.generated.k_94078f0402e2') }}</Button>
                     </div>
                 </div>
             </div>
-            <div v-else class="py-4 text-center text-small text-neutral-400">Asnje artikull ne kete kategori.</div>
+            <div v-else class="py-4 text-center text-small text-neutral-400">{{ $t('admin.generated.k_d0282acd6842') }}</div>
         </Card>
 
-        <div v-if="!categories?.length" class="py-8 text-center text-body-sm text-neutral-500">Nuk ka kategori.</div>
+        <div v-if="!categories?.length" class="py-8 text-center text-body-sm text-neutral-500">{{ $t('admin.generated.k_52da55b20bb5') }}</div>
     </div>
 
     <!-- Category Modal -->
@@ -216,21 +217,21 @@ function deleteItem(item) {
             </div>
         </div>
         <template #footer>
-            <Button variant="outline" @click="showCatModal = false">Anulo</Button>
-            <Button variant="primary" :loading="catForm.processing" @click="submitCat">{{ editingCat ? 'Ruaj' : 'Shto' }}</Button>
+            <Button variant="outline" @click="showCatModal = false">{{ $t('admin.generated.k_71826e412580') }}</Button>
+            <Button variant="primary" :loading="catForm.processing" @click="submitCat">{{ editingCat ? $t('admin.generated.k_f5ca5b683c10') : $t('admin.generated.k_be09ce96c961') }}</Button>
         </template>
     </Modal>
 
     <!-- Item Modal -->
-    <Modal :show="showItemModal" :title="editingItem ? 'Edito artikullin' : 'Artikull i ri'" max-width="md" @close="showItemModal = false">
+    <Modal :show="showItemModal" :title="editingItem ? $t('admin.generated.k_dc12cbb9ca67') : $t('admin.generated.k_3f2634bc8442')" max-width="md" @close="showItemModal = false">
         <div class="space-y-4">
             <!-- Image upload -->
-            <FormGroup label="Foto" :error="itemForm.errors?.image">
+            <FormGroup :label="$t('admin.generated.k_597b519bb7dc')" :error="itemForm.errors?.image">
                 <div class="flex items-start gap-4">
                     <!-- Preview -->
                     <div class="h-24 w-24 rounded-lg bg-neutral-100 overflow-hidden shrink-0 flex items-center justify-center border border-neutral-200">
                         <img v-if="imagePreview" :src="imagePreview" class="h-full w-full object-cover" />
-                        <span v-else class="text-neutral-300 text-small">Foto</span>
+                        <span v-else class="text-neutral-300 text-small">{{ $t('admin.generated.k_cc3b3e50f9f1') }}</span>
                     </div>
                     <div class="flex-1 space-y-2">
                         <input
@@ -240,17 +241,17 @@ function deleteItem(item) {
                             class="block w-full text-small text-neutral-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-neutral-200 file:text-body-sm file:font-medium file:bg-white file:text-neutral-700 hover:file:bg-neutral-50 file:cursor-pointer"
                             @change="onImageChange"
                         />
-                        <p class="text-tiny text-neutral-400">JPG, PNG ose WebP. Max 2MB.</p>
-                        <button v-if="imagePreview" type="button" class="text-small text-error-500 hover:text-error-700" @click="removeImage">Hiq foton</button>
+                        <p class="text-tiny text-neutral-400">{{ $t('admin.generated.k_4095b5a673fa') }}</p>
+                        <button v-if="imagePreview" type="button" class="text-small text-error-500 hover:text-error-700" @click="removeImage">{{ $t('admin.generated.k_18511e519313') }}</button>
                     </div>
                 </div>
             </FormGroup>
 
             <div class="grid grid-cols-2 gap-4">
-                <FormGroup label="Emri" :error="itemForm.errors?.name" required>
-                    <TextInput v-model="itemForm.name" placeholder="psh. Mojito" :error="itemForm.errors?.name" />
+                <FormGroup :label="$t('admin.generated.k_588dd1daa42d')" :error="itemForm.errors?.name" required>
+                    <TextInput v-model="itemForm.name" :placeholder="$t('admin.generated.k_f52281cd0a63')" :error="itemForm.errors?.name" />
                 </FormGroup>
-                <FormGroup label="Cmimi (€)" :error="itemForm.errors?.price" required>
+                <FormGroup :label="$t('admin.generated.k_0b3c36d88455')" :error="itemForm.errors?.price" required>
                     <TextInput type="number" v-model="itemForm.price" min="0.01" step="0.01" :error="itemForm.errors?.price" />
                 </FormGroup>
             </div>
@@ -275,8 +276,8 @@ function deleteItem(item) {
             </section>
         </div>
         <template #footer>
-            <Button variant="outline" @click="showItemModal = false">Anulo</Button>
-            <Button variant="primary" @click="submitItem">{{ editingItem ? 'Ruaj' : 'Shto' }}</Button>
+            <Button variant="outline" @click="showItemModal = false">{{ $t('admin.generated.k_71826e412580') }}</Button>
+            <Button variant="primary" @click="submitItem">{{ editingItem ? $t('admin.generated.k_f5ca5b683c10') : $t('admin.generated.k_be09ce96c961') }}</Button>
         </template>
     </Modal>
 </template>

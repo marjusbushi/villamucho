@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { computed } from 'vue';
 import Card from '@/Components/UI/Card.vue';
 
@@ -6,7 +7,7 @@ const props = defineProps({
     title: { type: String, required: true },
     description: { type: String, default: '' },
     rows: { type: Array, default: () => [] },
-    emptyText: { type: String, default: 'Nuk ka të dhëna për periudhën e zgjedhur.' },
+    emptyText: { type: String, default: translate('admin.generated.k_c96d012aeaab') },
 });
 
 const maxValue = computed(() => Math.max(0, ...props.rows.map((row) => Number(row.value || 0))));

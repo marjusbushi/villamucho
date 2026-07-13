@@ -43,9 +43,9 @@ const reservationOptions = props.activeReservations.map((r) => ({
 }));
 
 const paymentOptions = [
-    { value: 'cash', label: 'Cash' },
-    { value: 'card', label: 'Karte' },
-    { value: 'room_charge', label: 'Room Charge' },
+    { value: 'cash', label: translate('admin.generated.k_a378b744f8ce') },
+    { value: 'card', label: translate('admin.generated.k_94a332f07750') },
+    { value: 'room_charge', label: translate('admin.generated.k_31417756fe7f') },
 ];
 const paymentMethod = ref('');
 const selectedPayReservation = ref('');
@@ -65,8 +65,8 @@ function money(v) {
 function submitOpenShift() {
     openShiftForm.post(route('pos.shift.open'), {
         preserveScroll: true,
-        onSuccess: () => { showOpenShift.value = false; toasts.value?.success('Turni u hap 🟢'); },
-        onError: () => toasts.value?.error('Hapja e turnit dështoi.'),
+        onSuccess: () => { showOpenShift.value = false; toasts.value?.success(translate('admin.generated.k_e69c80a44157')); },
+        onError: () => toasts.value?.error(translate('admin.generated.k_384ff02204f8')),
     });
 }
 
@@ -91,9 +91,9 @@ const variance = computed(() =>
 );
 const varianceLabel = computed(() => {
     if (variance.value === null) return '';
-    if (Math.abs(variance.value) < 0.01) return 'Kasa përputhet ✅';
-    if (variance.value < 0) return `Mungesë €${Math.abs(variance.value).toFixed(2)} 🔴`;
-    return `Tepricë €${variance.value.toFixed(2)} 🟡`;
+    if (Math.abs(variance.value) < 0.01) return translate('admin.generated.k_2445edbe9bf2');
+    if (variance.value < 0) return translate('admin.generated.k_f7bfd0e453ec', { p0: Math.abs(variance.value).toFixed(2) });
+    return translate('admin.generated.k_b6f99488d300', { p0: variance.value.toFixed(2) });
 });
 const varianceClass = computed(() => {
     if (variance.value === null) return 'text-neutral-400';
@@ -103,11 +103,11 @@ const varianceClass = computed(() => {
 });
 
 function submitCloseShift() {
-    if (countedNum.value === null) { toasts.value?.error('Shëno sa kesh ke numëruar.'); return; }
+    if (countedNum.value === null) { toasts.value?.error(translate('admin.generated.k_af8603fe2aff')); return; }
     closeShiftForm.post(route('pos.shift.close', props.currentShift.id), {
         preserveScroll: true,
-        onSuccess: () => { showCloseShift.value = false; toasts.value?.success('Turni u mbyll — Z-Report gati 🧾'); },
-        onError: () => toasts.value?.error('Mbyllja e turnit dështoi.'),
+        onSuccess: () => { showCloseShift.value = false; toasts.value?.success(translate('admin.generated.k_f49b27350297')); },
+        onError: () => toasts.value?.error(translate('admin.generated.k_59a4e2c1c1c1')),
     });
 }
 
@@ -160,7 +160,7 @@ function getItemEmoji(item) {
 }
 
 function addToCart(menuItem) {
-    if (!hasOpenShift.value) { toasts.value?.error('Hap një turn së pari.'); return; }
+    if (!hasOpenShift.value) { toasts.value?.error(translate('admin.generated.k_d4d2e4579cbb')); return; }
     const existing = cart.value.find((c) => c.id === menuItem.id);
     if (menuItem.inventory_tracked && menuItem.available_portions !== null
         && Number(existing?.qty || 0) >= Math.max(0, Number(menuItem.available_portions))) {
@@ -204,7 +204,7 @@ function clearCart() {
 
 function submitOrder() {
     if (!cart.value.length) return;
-    if (!hasOpenShift.value) { toasts.value?.error('Hap një turn së pari.'); return; }
+    if (!hasOpenShift.value) { toasts.value?.error(translate('admin.generated.k_d4d2e4579cbb')); return; }
     const form = useForm({
         table_number: tableNumber.value || null,
         reservation_id: selectedReservation.value || null,
@@ -220,7 +220,7 @@ function submitOrder() {
 }
 
 function openPay(order) {
-    if (!hasOpenShift.value) { toasts.value?.error('Hap një turn së pari.'); return; }
+    if (!hasOpenShift.value) { toasts.value?.error(translate('admin.generated.k_d4d2e4579cbb')); return; }
     selectedOrder.value = order;
     paymentMethod.value = '';
     selectedPayReservation.value = order.reservation_id || '';
@@ -235,7 +235,7 @@ function submitPay() {
         preserveScroll: true,
         onSuccess: () => {
             showPayModal.value = false;
-            toasts.value?.success('Pagesa u regjistrua.');
+            toasts.value?.success(translate('admin.generated.k_4d1af80f8706'));
         },
         onError: (errors) => {
             if (errors.inventory) toasts.value?.error(errors.inventory);
@@ -244,23 +244,23 @@ function submitPay() {
 }
 
 function cancelOrder(order) {
-    if (!confirm('Anulo porosine?')) return;
+    if (!confirm(translate('admin.generated.k_1b7f971e087e'))) return;
     router.post(route('pos.cancel', order.id), {}, {
         preserveScroll: true,
-        onSuccess: () => toasts.value?.success('Porosia u anulua.'),
+        onSuccess: () => toasts.value?.success(translate('admin.generated.k_0d9b1bd67bed')),
     });
 }
 
 const statusBadge = {
-    open: { variant: 'warning', label: 'E hapur' },
-    completed: { variant: 'success', label: 'Paguar' },
-    cancelled: { variant: 'error', label: 'Anulluar' },
+    open: { variant: 'warning', label: translate('admin.generated.k_35a3565ef9b7') },
+    completed: { variant: 'success', label: translate('admin.generated.k_5a7f6ed24307') },
+    cancelled: { variant: 'error', label: translate('admin.generated.k_a870d7f3f846') },
 };
 
 const payLabel = { cash: 'Cash', card: 'Karte', room_charge: 'Room Charge' };
 
 function formatTime(d) {
-    return new Date(d).toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleTimeString(getIntlLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 </script>
 
@@ -278,16 +278,16 @@ function formatTime(d) {
             <!-- LEFT: Menu area -->
             <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between mb-4">
-                    <h1 class="text-h2 text-primary-900">POS Bar/Restaurant</h1>
+                    <h1 class="text-h2 text-primary-900">{{ $t('admin.generated.k_873a47ba63fd') }}</h1>
                     <div class="flex items-center gap-3">
                         <!-- Stats mini -->
                         <div class="hidden sm:flex items-center gap-4 text-body-sm">
-                            <span class="text-warning-600 font-medium">{{ stats.open }} hapur</span>
-                            <span class="text-success-600 font-medium">{{ stats.today_completed }} sot</span>
+                            <span class="text-warning-600 font-medium">{{ stats.open }} {{ $t('admin.generated.k_5ec9ca07dbde') }}</span>
+                            <span class="text-success-600 font-medium">{{ stats.today_completed }} {{ $t('admin.generated.k_962d3b64587d') }}</span>
                             <span class="text-accent-600 font-medium">€{{ Number(stats.today_revenue).toFixed(2) }}</span>
                         </div>
                         <Button variant="outline" size="sm" @click="showOrdersPanel = !showOrdersPanel">
-                            {{ showOrdersPanel ? 'Menu' : 'Porosite' }}
+                            {{ showOrdersPanel ? $t('admin.generated.k_43b39fe2d555') : $t('admin.generated.k_8dcaac4afed2') }}
                         </Button>
                     </div>
                 </div>
@@ -300,10 +300,10 @@ function formatTime(d) {
                                 <thead class="bg-neutral-50">
                                     <tr>
                                         <th class="px-4 py-2.5 text-left text-label text-neutral-600">#</th>
-                                        <th class="px-4 py-2.5 text-left text-label text-neutral-600">Ora</th>
-                                        <th class="px-4 py-2.5 text-left text-label text-neutral-600">Artikuj</th>
-                                        <th class="px-4 py-2.5 text-left text-label text-neutral-600">Status</th>
-                                        <th class="px-4 py-2.5 text-right text-label text-neutral-600">Total</th>
+                                        <th class="px-4 py-2.5 text-left text-label text-neutral-600">{{ $t('admin.generated.k_7b1cf144b998') }}</th>
+                                        <th class="px-4 py-2.5 text-left text-label text-neutral-600">{{ $t('admin.generated.k_2ade15d943c4') }}</th>
+                                        <th class="px-4 py-2.5 text-left text-label text-neutral-600">{{ $t('admin.generated.k_d936f6a10e13') }}</th>
+                                        <th class="px-4 py-2.5 text-right text-label text-neutral-600">{{ $t('admin.generated.k_85f1cb8f5091') }}</th>
                                         <th class="px-4 py-2.5 text-right text-label text-neutral-600"></th>
                                     </tr>
                                 </thead>
@@ -322,8 +322,8 @@ function formatTime(d) {
                                         <td class="px-4 py-2.5 text-right text-body-sm font-medium">€{{ order.total_amount }}</td>
                                         <td class="px-4 py-2.5 text-right">
                                             <div v-if="order.status === 'open'" class="flex justify-end gap-1">
-                                                <Button size="sm" variant="primary" :disabled="!hasOpenShift" @click="openPay(order)">Paguaj</Button>
-                                                <Button size="sm" variant="ghost" class="text-error-600" @click="cancelOrder(order)">×</Button>
+                                                <Button size="sm" variant="primary" :disabled="!hasOpenShift" @click="openPay(order)">{{ $t('admin.generated.k_c0bc68ffb628') }}</Button>
+                                                <Button size="sm" variant="ghost" class="text-error-600" @click="cancelOrder(order)">{{ $t('admin.generated.k_28cc20e7fd5b') }}</Button>
                                             </div>
                                             <Badge v-else-if="order.payment_method" variant="neutral" size="sm">{{ payLabel[order.payment_method] }}</Badge>
                                         </td>
@@ -331,7 +331,7 @@ function formatTime(d) {
                                 </tbody>
                             </table>
                         </div>
-                        <div v-if="!orders.data?.length" class="px-6 py-8 text-center text-body-sm text-neutral-400">Nuk ka porosi.</div>
+                        <div v-if="!orders.data?.length" class="px-6 py-8 text-center text-body-sm text-neutral-400">{{ $t('admin.generated.k_32ade96872ce') }}</div>
                     </Card>
                 </div>
 
@@ -358,7 +358,7 @@ function formatTime(d) {
 
                     <!-- Locked when no shift is open -->
                     <div v-if="!hasOpenShift" class="mb-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-center">
-                        <span class="text-body-sm font-medium text-warning-900">🔒 Hap turnin për të filluar porositë</span>
+                        <span class="text-body-sm font-medium text-warning-900">{{ $t('admin.generated.k_b9030406c1c4') }}</span>
                     </div>
 
                     <!-- Item grid -->
@@ -398,7 +398,7 @@ function formatTime(d) {
                             </div>
                             <!-- Not available overlay -->
                             <div v-if="!item.is_available" class="absolute inset-0 bg-white/60 flex items-center justify-center">
-                                <Badge variant="error" size="sm">Jo disponueshem</Badge>
+                                <Badge variant="error" size="sm">{{ $t('admin.generated.k_6cf4092df322') }}</Badge>
                             </div>
                         </button>
                     </div>
@@ -411,16 +411,15 @@ function formatTime(d) {
                     <!-- Cart header -->
                     <div class="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
                         <h3 class="text-label text-primary-900">
-                            Porosia
-                            <span v-if="cartCount" class="ml-1 text-accent-600">({{ cartCount }})</span>
+{{ $t('admin.generated.k_79d933c19a68') }} <span v-if="cartCount" class="ml-1 text-accent-600">({{ cartCount }})</span>
                         </h3>
-                        <button v-if="cart.length" class="text-small text-error-500 hover:text-error-700" @click="clearCart">Pastro</button>
+                        <button v-if="cart.length" class="text-small text-error-500 hover:text-error-700" @click="clearCart">{{ $t('admin.generated.k_84ff89a2eb33') }}</button>
                     </div>
 
                     <!-- Table/Room selection -->
                     <div class="px-4 py-3 border-b border-neutral-100 flex gap-2">
-                        <TextInput v-model="tableNumber" placeholder="Tav. #" class="w-20" />
-                        <Select v-model="selectedReservation" :options="reservationOptions" placeholder="Room..." class="flex-1" />
+                        <TextInput v-model="tableNumber" :placeholder="$t('admin.generated.k_bcf7bb395b30')" class="w-20" />
+                        <Select v-model="selectedReservation" :options="reservationOptions" :placeholder="$t('admin.generated.k_05eff1c0fb1b')" class="flex-1" />
                     </div>
 
                     <!-- Cart items -->
@@ -443,30 +442,29 @@ function formatTime(d) {
 
                         <div v-else class="py-12 text-center">
                             <p class="text-3xl mb-2">🛒</p>
-                            <p class="text-body-sm text-neutral-400">Kliko artikujt per ti shtuar</p>
+                            <p class="text-body-sm text-neutral-400">{{ $t('admin.generated.k_13f1d61f5589') }}</p>
                         </div>
                     </div>
 
                     <!-- Cart footer / total -->
                     <div v-if="cart.length" class="border-t border-neutral-200 px-4 py-4 space-y-3">
                         <div class="flex items-center justify-between">
-                            <span class="text-label text-neutral-500">Total</span>
+                            <span class="text-label text-neutral-500">{{ $t('admin.generated.k_85f1cb8f5091') }}</span>
                             <span class="text-h3 text-primary-900">€{{ cartTotal.toFixed(2) }}</span>
                         </div>
                         <Button variant="primary" size="lg" class="w-full" :disabled="!hasOpenShift" @click="submitOrder">
-                            Krijo porosine
-                        </Button>
+{{ $t('admin.generated.k_3cb850ba15e6') }} </Button>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Payment Modal -->
-        <Modal :show="showPayModal" title="Perfundo pagesen" max-width="sm" @close="showPayModal = false">
+        <Modal :show="showPayModal" :title="$t('admin.generated.k_b5f8a9103278')" max-width="sm" @close="showPayModal = false">
             <div class="space-y-4">
                 <div class="text-center py-2">
                     <p class="text-h2 text-primary-900">€{{ selectedOrder?.total_amount }}</p>
-                    <p class="text-body-sm text-neutral-500 mt-1">Porosia #{{ selectedOrder?.id }}</p>
+                    <p class="text-body-sm text-neutral-500 mt-1">{{ $t('admin.generated.k_2df88c398727') }}{{ selectedOrder?.id }}</p>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                     <button
@@ -487,55 +485,55 @@ function formatTime(d) {
 
                 <!-- Room picker (when charging to a room) -->
                 <div v-if="paymentMethod === 'room_charge'">
-                    <label class="block text-label text-neutral-600 mb-1.5">Ngarko ne dhomen</label>
-                    <Select v-model="selectedPayReservation" :options="reservationOptions" placeholder="Zgjidh dhomen / mysafirin..." />
-                    <p v-if="!reservationOptions.length" class="text-small text-error-500 mt-1">Asnje mysafir brenda (check-in) per te ngarkuar.</p>
+                    <label class="block text-label text-neutral-600 mb-1.5">{{ $t('admin.generated.k_66a76c99d2ff') }}</label>
+                    <Select v-model="selectedPayReservation" :options="reservationOptions" :placeholder="$t('admin.generated.k_b6c2dcec536d')" />
+                    <p v-if="!reservationOptions.length" class="text-small text-error-500 mt-1">{{ $t('admin.generated.k_0732d0e36b56') }}</p>
                 </div>
             </div>
             <template #footer>
-                <Button variant="outline" @click="showPayModal = false">Anulo</Button>
-                <Button variant="primary" :disabled="!paymentMethod || (paymentMethod === 'room_charge' && !selectedPayReservation)" @click="submitPay">Paguaj €{{ selectedOrder?.total_amount }}</Button>
+                <Button variant="outline" @click="showPayModal = false">{{ $t('admin.generated.k_182fb16b9fb0') }}</Button>
+                <Button variant="primary" :disabled="!paymentMethod || (paymentMethod === 'room_charge' && !selectedPayReservation)" @click="submitPay">{{ $t('admin.generated.k_e58a8793ac5d') }}{{ selectedOrder?.total_amount }}</Button>
             </template>
         </Modal>
 
         <!-- Open shift modal -->
-        <Modal :show="showOpenShift" title="Hap Turn" max-width="sm" @close="showOpenShift = false">
+        <Modal :show="showOpenShift" :title="$t('admin.generated.k_b8387a4701eb')" max-width="sm" @close="showOpenShift = false">
             <div class="space-y-4">
                 <div class="text-center py-1"><span class="text-4xl">🔓</span></div>
-                <FormGroup label="Para në kasë (fillestare)" :error="openShiftForm.errors.opening_float" required>
+                <FormGroup :label="$t('admin.generated.k_7ebbd21c8fab')" :error="openShiftForm.errors.opening_float" required>
                     <TextInput type="number" step="0.01" min="0" v-model="openShiftForm.opening_float" placeholder="0.00" :error="openShiftForm.errors.opening_float" />
                 </FormGroup>
-                <p class="text-small text-neutral-500">Shëno sa para cash ke në sirtar tani, në fillim të turnit.</p>
+                <p class="text-small text-neutral-500">{{ $t('admin.generated.k_069e17f28ade') }}</p>
             </div>
             <template #footer>
-                <Button variant="outline" @click="showOpenShift = false">Anulo</Button>
-                <Button variant="primary" :loading="openShiftForm.processing" @click="submitOpenShift">Hap Turnin</Button>
+                <Button variant="outline" @click="showOpenShift = false">{{ $t('admin.generated.k_182fb16b9fb0') }}</Button>
+                <Button variant="primary" :loading="openShiftForm.processing" @click="submitOpenShift">{{ $t('admin.generated.k_09427f425cef') }}</Button>
             </template>
         </Modal>
 
         <!-- Close shift modal (Z-Report) -->
-        <Modal :show="showCloseShift" title="Mbyll Turn — Raporti i Turnit" max-width="md" @close="showCloseShift = false">
+        <Modal :show="showCloseShift" :title="$t('admin.generated.k_d693052380a0')" max-width="md" @close="showCloseShift = false">
             <div v-if="currentShift" class="space-y-4">
                 <div id="zreport" class="space-y-4">
                     <!-- Drawer expected -->
                     <div class="rounded-lg bg-neutral-50 border border-neutral-200 p-4 space-y-1.5 text-body-sm">
-                        <div class="flex justify-between text-neutral-600"><span>Para në kasë (fillestare)</span><span>{{ money(currentShift.opening_float) }}</span></div>
-                        <div class="flex justify-between text-neutral-600"><span>💶 Shitje kesh</span><span>{{ money(currentShift.cash_sales) }}</span></div>
-                        <div class="flex justify-between font-semibold text-primary-900 border-t border-neutral-200 pt-1.5"><span>= Arkë e pritur</span><span>{{ money(expectedCash) }}</span></div>
+                        <div class="flex justify-between text-neutral-600"><span>{{ $t('admin.generated.k_afaffdd6fba2') }}</span><span>{{ money(currentShift.opening_float) }}</span></div>
+                        <div class="flex justify-between text-neutral-600"><span>{{ $t('admin.generated.k_880339104862') }}</span><span>{{ money(currentShift.cash_sales) }}</span></div>
+                        <div class="flex justify-between font-semibold text-primary-900 border-t border-neutral-200 pt-1.5"><span>{{ $t('admin.generated.k_81ed24491855') }}</span><span>{{ money(expectedCash) }}</span></div>
                     </div>
 
                     <!-- Reported but not in drawer -->
                     <div class="rounded-lg bg-neutral-50/70 px-4 py-3 text-small text-neutral-500 space-y-1">
-                        <p class="font-medium text-neutral-600">Për informacion — s'prekin kasën:</p>
-                        <div class="flex justify-between"><span>💳 Kartë</span><span>{{ money(currentShift.card_sales) }}</span></div>
-                        <div class="flex justify-between"><span>🏨 Në folio (dhomë)</span><span>{{ money(currentShift.room_charge_sales) }}</span></div>
-                        <div class="flex justify-between border-t border-neutral-200 pt-1 text-neutral-600"><span>Shitje gjithsej · {{ currentShift.completed_orders }} porosi</span><span>{{ money(totalSales) }}</span></div>
+                        <p class="font-medium text-neutral-600">{{ $t('admin.generated.k_fc36fa7bd197') }}</p>
+                        <div class="flex justify-between"><span>{{ $t('admin.generated.k_af92a6e399a8') }}</span><span>{{ money(currentShift.card_sales) }}</span></div>
+                        <div class="flex justify-between"><span>{{ $t('admin.generated.k_2ed6d0f4fac5') }}</span><span>{{ money(currentShift.room_charge_sales) }}</span></div>
+                        <div class="flex justify-between border-t border-neutral-200 pt-1 text-neutral-600"><span>{{ $t('admin.generated.k_d11885dd3f1b') }} {{ currentShift.completed_orders }} {{ $t('admin.generated.k_d422b6155234') }}</span><span>{{ money(totalSales) }}</span></div>
                     </div>
 
                     <!-- counted result (prints with the report once typed) -->
                     <div v-if="countedNum !== null" class="space-y-1 border-t border-neutral-100 pt-2">
                         <div class="flex justify-between text-body-sm">
-                            <span class="text-neutral-600">Kesh i numëruar</span>
+                            <span class="text-neutral-600">{{ $t('admin.generated.k_d914e17d696d') }}</span>
                             <span class="text-primary-900 font-medium">{{ money(countedNum) }}</span>
                         </div>
                         <p class="text-center text-body-sm font-semibold" :class="varianceClass">{{ varianceLabel }}</p>
@@ -544,28 +542,27 @@ function formatTime(d) {
 
                 <!-- open orders warning -->
                 <div v-if="currentShift.open_orders" class="rounded-lg bg-warning-50 border border-warning-200 px-3 py-2 text-small text-warning-800 print:hidden">
-                    ⚠️ {{ currentShift.open_orders }} porosi të pambyllura në këtë turn — mbyllja nuk i fshin, por kontrolloji.
-                </div>
+                    ⚠️ {{ currentShift.open_orders }} {{ $t('admin.generated.k_6b58c32bad4e') }} </div>
 
                 <!-- mandatory count input -->
-                <FormGroup label="Numëro kesh-in në sirtar" :error="closeShiftForm.errors.counted_cash" required class="print:hidden">
+                <FormGroup :label="$t('admin.generated.k_bce57025cf34')" :error="closeShiftForm.errors.counted_cash" required class="print:hidden">
                     <TextInput type="number" step="0.01" min="0" v-model="closeShiftForm.counted_cash" placeholder="0.00" :error="closeShiftForm.errors.counted_cash" />
                 </FormGroup>
 
-                <FormGroup label="Shënim (opsional)" :error="closeShiftForm.errors.closing_note" class="print:hidden">
+                <FormGroup :label="$t('admin.generated.k_fd404602b8ba')" :error="closeShiftForm.errors.closing_note" class="print:hidden">
                     <textarea
                         v-model="closeShiftForm.closing_note"
                         rows="2"
                         maxlength="500"
                         class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-body-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
-                        placeholder="P.sh. arsye për mungesë/tepricë..."
+                        :placeholder="$t('admin.generated.k_5dc7ffcf092f')"
                     ></textarea>
                 </FormGroup>
             </div>
             <template #footer>
-                <Button variant="outline" @click="showCloseShift = false">Anulo</Button>
-                <Button variant="outline" :disabled="countedNum === null" @click="printZReport">🖨️ Printo</Button>
-                <Button variant="primary" :loading="closeShiftForm.processing" :disabled="countedNum === null" @click="submitCloseShift">Mbyll Turnin</Button>
+                <Button variant="outline" @click="showCloseShift = false">{{ $t('admin.generated.k_182fb16b9fb0') }}</Button>
+                <Button variant="outline" :disabled="countedNum === null" @click="printZReport">{{ $t('admin.generated.k_95ddf85f4a7e') }}</Button>
+                <Button variant="primary" :loading="closeShiftForm.processing" :disabled="countedNum === null" @click="submitCloseShift">{{ $t('admin.generated.k_aca11a3b5c75') }}</Button>
             </template>
         </Modal>
 

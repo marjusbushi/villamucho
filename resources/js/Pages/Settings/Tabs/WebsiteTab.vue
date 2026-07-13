@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { ref, computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/UI/Card.vue';
@@ -46,7 +47,7 @@ function submit() {
             heroPreview.value = null;
             if (logoInput.value) logoInput.value.value = '';
             if (heroInput.value) heroInput.value.value = '';
-            props.toasts?.success('Faqja web u ruajt.');
+            props.toasts?.success(translate('admin.generated.k_e06fb28b0cde'));
         },
     });
 }
@@ -58,8 +59,8 @@ const fileInputClass = 'block w-full text-small text-neutral-500 file:mr-3 file:
     <Card>
         <template #header>
             <div>
-                <h3 class="text-h4 text-primary-900">Faqja Web</h3>
-                <p class="text-small text-neutral-500 mt-0.5">Logo, foto kryesore, rrjete sociale dhe harta — dalin direkt te faqja publike.</p>
+                <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_a9ee30a94e50') }}</h3>
+                <p class="text-small text-neutral-500 mt-0.5">{{ $t('admin.generated.k_59eb2806c5fc') }}</p>
             </div>
         </template>
 
@@ -67,15 +68,15 @@ const fileInputClass = 'block w-full text-small text-neutral-500 file:mr-3 file:
             <!-- Logo -->
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-4 items-start">
                 <div>
-                    <p class="text-label text-neutral-700 mb-2">Logo</p>
+                    <p class="text-label text-neutral-700 mb-2">{{ $t('admin.generated.k_e22257c4e7e2') }}</p>
                     <div class="h-20 w-40 rounded-lg border border-neutral-200 bg-neutral-50 flex items-center justify-center overflow-hidden">
-                        <img v-if="logoPreview || currentLogo" :src="logoPreview || currentLogo" alt="Logo" class="max-h-full max-w-full object-contain" />
-                        <span v-else class="text-tiny text-neutral-400">Pa logo</span>
+                        <img v-if="logoPreview || currentLogo" :src="logoPreview || currentLogo" :alt="$t('admin.generated.k_609a78feecd9')" class="max-h-full max-w-full object-contain" />
+                        <span v-else class="text-tiny text-neutral-400">{{ $t('admin.generated.k_d972a5fbe9b4') }}</span>
                     </div>
                 </div>
                 <div>
                     <input ref="logoInput" type="file" accept="image/jpeg,image/png,image/webp" :class="fileInputClass" @change="onLogo" />
-                    <p class="text-tiny text-neutral-400 mt-2">PNG me sfond transparent funksionon më mirë. JPG/PNG/WebP, max 3MB.</p>
+                    <p class="text-tiny text-neutral-400 mt-2">{{ $t('admin.generated.k_2a9cf67162c7') }}</p>
                     <p v-if="form.errors.logo" class="text-small text-error-600 mt-1">{{ form.errors.logo }}</p>
                 </div>
             </div>
@@ -83,15 +84,15 @@ const fileInputClass = 'block w-full text-small text-neutral-500 file:mr-3 file:
             <!-- Hero image -->
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-4 items-start">
                 <div>
-                    <p class="text-label text-neutral-700 mb-2">Foto kryesore (hero)</p>
+                    <p class="text-label text-neutral-700 mb-2">{{ $t('admin.generated.k_eae91369c464') }}</p>
                     <div class="h-24 w-40 rounded-lg border border-neutral-200 bg-neutral-50 overflow-hidden">
-                        <img v-if="heroPreview || currentHero" :src="heroPreview || currentHero" alt="Hero" class="h-full w-full object-cover" />
-                        <div v-else class="h-full w-full flex items-center justify-center text-tiny text-neutral-400">Foto e parazgjedhur</div>
+                        <img v-if="heroPreview || currentHero" :src="heroPreview || currentHero" :alt="$t('admin.generated.k_168fb000ef34')" class="h-full w-full object-cover" />
+                        <div v-else class="h-full w-full flex items-center justify-center text-tiny text-neutral-400">{{ $t('admin.generated.k_d460f12dfc4d') }}</div>
                     </div>
                 </div>
                 <div>
                     <input ref="heroInput" type="file" accept="image/jpeg,image/png,image/webp" :class="fileInputClass" @change="onHero" />
-                    <p class="text-tiny text-neutral-400 mt-2">Foto e gjerë (landscape), ideal ≥1920px. Max 6MB. Shfaqet në krye të faqes Home.</p>
+                    <p class="text-tiny text-neutral-400 mt-2">{{ $t('admin.generated.k_1eae0c21e873') }}</p>
                     <p v-if="form.errors.hero_image" class="text-small text-error-600 mt-1">{{ form.errors.hero_image }}</p>
                 </div>
             </div>
@@ -100,21 +101,21 @@ const fileInputClass = 'block w-full text-small text-neutral-500 file:mr-3 file:
 
             <!-- Social + map -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="Instagram (URL)" :error="form.errors.instagram">
+                <FormGroup :label="$t('admin.generated.k_684fb1aff3da')" :error="form.errors.instagram">
                     <TextInput v-model="form.instagram" placeholder="https://instagram.com/villamucho" :error="form.errors.instagram" />
                 </FormGroup>
-                <FormGroup label="Facebook (URL)" :error="form.errors.facebook">
+                <FormGroup :label="$t('admin.generated.k_070692b87434')" :error="form.errors.facebook">
                     <TextInput v-model="form.facebook" placeholder="https://facebook.com/villamucho" :error="form.errors.facebook" />
                 </FormGroup>
             </div>
 
-            <FormGroup label="Vendndodhja (adresa ose emri i vendit)" :error="form.errors.maps_url">
-                <TextInput v-model="form.maps_url" placeholder="psh. Villa Mucho, Ksamil  ose  Rruga Mitat Hoxha, Ksamil" :error="form.errors.maps_url" />
-                <p class="text-tiny text-neutral-400 mt-1.5">Shkruaj adresën ose emrin e vendit — harta ndërtohet vetë dhe shfaqet te faqja Kontakt. (Mund të ngjisësh edhe një URL 'embed' nga Google Maps nëse do saktësi më të madhe.)</p>
+            <FormGroup :label="$t('admin.generated.k_8174f9a4f0b0')" :error="form.errors.maps_url">
+                <TextInput v-model="form.maps_url" :placeholder="$t('admin.generated.k_080ff7e9e6ce')" :error="form.errors.maps_url" />
+                <p class="text-tiny text-neutral-400 mt-1.5">{{ $t('admin.generated.k_b338b59f1a88') }}</p>
             </FormGroup>
 
             <div class="flex justify-end pt-2">
-                <Button type="submit" variant="primary" :loading="form.processing">Ruaj ndryshimet</Button>
+                <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_1620bd2141ad') }}</Button>
             </div>
         </form>
     </Card>

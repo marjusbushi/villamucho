@@ -140,6 +140,40 @@ class FinanceBillsTest extends TestCase
         ])->assertForbidden();
 
         $this->actingAs($rec)->post(route('finance.suppliers.store'), ['name' => 'X'])->assertForbidden();
+        $this->actingAs($rec)->post(route('finance.bill-categories.store'), ['name' => 'Pajisje'])->assertForbidden();
+    }
+
+    public function test_bill_form_can_create_dynamic_categories_and_suppliers(): void
+    {
+        $this->withoutVite();
+        $admin = $this->role('admin');
+
+        $this->actingAs($admin)->from(route('finance.bills'))
+            ->post(route('finance.bill-categories.store'), ['name' => 'Pajisje hoteli'])
+            ->assertRedirect(route('finance.bills'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertContains('Pajisje hoteli', Setting::get('financial.expense_categories'));
+
+        $this->actingAs($admin)->from(route('finance.bills'))
+            ->post(route('finance.bill-categories.store'), ['name' => '  PAJISJE HOTELI  '])
+            ->assertRedirect(route('finance.bills'))
+            ->assertSessionHasErrors('name');
+
+        $this->actingAs($admin)->from(route('finance.bills'))
+            ->post(route('finance.suppliers.store'), [
+                'name' => 'Tekno Hotel',
+                'category' => 'Pajisje hoteli',
+                'payment_terms_days' => 15,
+                'is_active' => true,
+            ])->assertRedirect(route('finance.bills'))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($admin)->get(route('finance.bills'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('categories.6', 'Pajisje hoteli')
+                ->where('suppliers.0.name', 'Tekno Hotel'));
     }
 
     public function test_bills_page_ships_rows_and_category_totals(): void

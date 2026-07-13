@@ -1,4 +1,5 @@
 <script setup>
+import { getIntlLocale, translate } from '@/i18n';
 import { computed, onMounted, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -49,24 +50,24 @@ const categories = computed(() => allCategories.filter((category) => category.ke
 const groups = [
     {
         key: 'revenue',
-        name: 'Të ardhura & performanca',
+        name: translate('admin.generated.k_9487e3b868dd'),
         category: 'finance',
         icon: ChartNoAxesCombined,
         reports: [
-            { name: 'Pasqyra ekzekutive', desc: 'Pamja e plotë e të ardhurave dhe performancës.', to: 'reports.executive', icon: BarChart3 },
-            { name: 'ADR / RevPAR / Mbushja', desc: 'Çmimi mesatar, të ardhurat dhe mbushja.', to: 'reports.performance', icon: TrendingUp },
-            { name: 'Tempo & Pickup', desc: 'Ritmi i rezervimeve për ditët në vijim.', to: 'reports.pace', icon: Clock3 },
+            { name: 'Pasqyra ekzekutive', desc: translate('admin.generated.k_ae504df14db4'), to: 'reports.executive', icon: BarChart3 },
+            { name: 'ADR / RevPAR / Mbushja', desc: translate('admin.generated.k_ad4fb73d0b26'), to: 'reports.performance', icon: TrendingUp },
+            { name: 'Tempo & Pickup', desc: translate('admin.generated.k_cce552012b85'), to: 'reports.pace', icon: Clock3 },
         ],
     },
     {
         key: 'channels',
-        name: 'Rezervime & kanale',
+        name: translate('admin.generated.k_bddfc1890264'),
         category: 'reservations',
         icon: CalendarCheck,
         reports: [
-            { name: 'Prodhimi sipas kanaleve', desc: 'Rezervime, të ardhura dhe kosto sipas kanalit.', to: 'reports.channels', icon: ChartNoAxesCombined },
-            { name: 'Anulime & No-Show', desc: 'Anulimet dhe rezervimet me rrezik mosparaqitjeje.', to: 'reports.cancellations', icon: CalendarX },
-            { name: 'Sjellja e rezervimit', desc: 'Lead time dhe kohëzgjatja sipas kanalit.', to: 'reports.bookingBehavior', icon: ClipboardList },
+            { name: 'Prodhimi sipas kanaleve', desc: translate('admin.generated.k_6d6dfc8c5f41'), to: 'reports.channels', icon: ChartNoAxesCombined },
+            { name: 'Anulime & No-Show', desc: translate('admin.generated.k_c895712ad4ee'), to: 'reports.cancellations', icon: CalendarX },
+            { name: 'Sjellja e rezervimit', desc: translate('admin.generated.k_2d1fcb13fa71'), to: 'reports.bookingBehavior', icon: ClipboardList },
         ],
     },
     {
@@ -84,26 +85,26 @@ const groups = [
     },
     {
         key: 'finance',
-        name: 'Financë & arka',
+        name: translate('admin.generated.k_e4080b3d1c44'),
         category: 'finance',
         icon: Banknote,
         reports: [
-            { name: 'Bilance të papaguara', desc: 'Qëndrimet me detyrim ende të hapur.', to: 'reports.outstanding', icon: ReceiptText },
-            { name: 'Z-Report / Mbyllje turni', desc: 'Pajtimi i arkës për çdo turn.', to: 'reports.shifts', icon: WalletCards },
-            { name: 'Arkëtime & Cash', desc: 'Paratë e mbledhura sipas metodës dhe ditës.', to: 'reports.payments', icon: HandCoins },
-            { name: 'Raport TVSH', desc: 'TVSH-ja sipas burimit për periudhën.', to: 'reports.vat', icon: Percent },
-            { name: 'Zbritje të dhëna', desc: 'Zbritjet dhe vlera e të ardhurave të lëshuara.', to: 'reports.discounts', icon: CircleDollarSign },
+            { name: translate('admin.generated.k_9510fd30116d'), desc: translate('admin.generated.k_958f73cee249'), to: 'reports.outstanding', icon: ReceiptText },
+            { name: 'Z-Report / Mbyllje turni', desc: translate('admin.generated.k_bf9a4f411063'), to: 'reports.shifts', icon: WalletCards },
+            { name: translate('admin.generated.k_176dd4832014'), desc: translate('admin.generated.k_d0dd07049135'), to: 'reports.payments', icon: HandCoins },
+            { name: 'Raport TVSH', desc: translate('admin.generated.k_a1af7e68c583'), to: 'reports.vat', icon: Percent },
+            { name: translate('admin.generated.k_c1b454fb69dd'), desc: translate('admin.generated.k_c2bfd6b01875'), to: 'reports.discounts', icon: CircleDollarSign },
         ],
     },
     {
         key: 'guests',
-        name: 'Mysafirë',
+        name: translate('admin.generated.k_86478512913f'),
         category: 'guests',
         icon: Users,
         reports: [
-            { name: 'Direktoria e mysafirëve', desc: 'Statistikat e qëndrimeve për çdo mysafir.', to: 'reports.guests', icon: Users },
-            { name: 'Kthyes & top sipas vlerës', desc: 'Mysafirët besnikë dhe më me vlerë.', to: 'reports.repeatGuests', icon: UserRoundCheck },
-            { name: 'Përbërja sipas kombësisë', desc: 'Netët dhe të ardhurat sipas vendit.', to: 'reports.nationality', icon: FileBarChart },
+            { name: translate('admin.generated.k_584ca6441f0e'), desc: translate('admin.generated.k_b87974bf40e5'), to: 'reports.guests', icon: Users },
+            { name: translate('admin.generated.k_ca09b5b0faab'), desc: translate('admin.generated.k_fc6ec82726f1'), to: 'reports.repeatGuests', icon: UserRoundCheck },
+            { name: translate('admin.generated.k_71151c9f50b0'), desc: translate('admin.generated.k_261a465a8096'), to: 'reports.nationality', icon: FileBarChart },
         ],
     },
     {
@@ -113,10 +114,10 @@ const groups = [
         module: 'pos',
         icon: Utensils,
         reports: [
-            { name: 'Shitjet sipas kategorisë', desc: 'Të ardhurat dhe sasitë sipas artikullit.', to: 'reports.posSales', icon: ShoppingBasket },
-            { name: 'Shitjet sipas orës & ditës', desc: 'Oraret dhe ditët më të ngarkuara.', to: 'reports.posHourly', icon: Clock3 },
-            { name: 'Mix i pagesave POS', desc: 'Kesh, kartë dhe pagesa në folio.', to: 'reports.posPaymentMix', icon: CreditCard },
-            { name: 'Anulime & Voids POS', desc: 'Porositë e anuluara dhe vlera e humbur.', to: 'reports.posVoids', icon: CalendarX },
+            { name: translate('admin.generated.k_443dc45fa745'), desc: translate('admin.generated.k_f8476b1b0151'), to: 'reports.posSales', icon: ShoppingBasket },
+            { name: translate('admin.generated.k_598ef37ef3c9'), desc: translate('admin.generated.k_5c43b8be2406'), to: 'reports.posHourly', icon: Clock3 },
+            { name: 'Mix i pagesave POS', desc: translate('admin.generated.k_fe6e775c6227'), to: 'reports.posPaymentMix', icon: CreditCard },
+            { name: 'Anulime & Voids POS', desc: translate('admin.generated.k_22c51f5e6a35'), to: 'reports.posVoids', icon: CalendarX },
         ],
     },
 ];
@@ -131,7 +132,7 @@ const query = ref('');
 const activeCategory = ref('all');
 const recentRouteNames = ref([]);
 
-const normalizedQuery = computed(() => query.value.trim().toLocaleLowerCase('sq-AL'));
+const normalizedQuery = computed(() => query.value.trim().toLocaleLowerCase(getIntlLocale()));
 
 const visibleGroups = computed(() => groups
     .filter((group) => hasModule(group.module))
@@ -141,7 +142,7 @@ const visibleGroups = computed(() => groups
         reports: group.reports.filter((report) => {
             if (!hasModule(report.module)) return false;
             if (!normalizedQuery.value) return true;
-            return `${report.name} ${report.desc}`.toLocaleLowerCase('sq-AL').includes(normalizedQuery.value);
+            return `${report.name} ${report.desc}`.toLocaleLowerCase(getIntlLocale()).includes(normalizedQuery.value);
         }),
     }))
     .filter((group) => group.reports.length));
@@ -173,8 +174,8 @@ onMounted(() => {
 
 <template>
     <AppLayout>
-        <PageHeader title="Qendra e raporteve" :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Raporte' }]" />
-        <p class="mt-1 text-body-sm text-neutral-500">Gjej shpejt informacionin që të duhet për hotelin.</p>
+        <PageHeader :title="$t('admin.generated.k_1477015f4b65')" :breadcrumbs="[{ label: $t('admin.generated.k_6f271027930d'), href: '/dashboard' }, { label: $t('admin.generated.k_6126cf019460') }]" />
+        <p class="mt-1 text-body-sm text-neutral-500">{{ $t('admin.generated.k_35ab85603dcf') }}</p>
 
         <div :class="['mt-6 grid gap-4', !normalizedQuery && activeCategory === 'all' && 'xl:grid-cols-[minmax(0,1fr)_280px]']">
             <section class="rounded-lg border border-neutral-200 bg-white shadow-card">
@@ -184,12 +185,12 @@ onMounted(() => {
                         <input
                             v-model="query"
                             type="search"
-                            aria-label="Kërko raport"
-                            placeholder="Kërko raport..."
+                            :aria-label="$t('admin.generated.k_9d9f9f376c62')"
+                            :placeholder="$t('admin.generated.k_35c4f0cc1bd2')"
                             class="w-full rounded-md border border-neutral-200 bg-white py-2.5 pl-10 pr-3 text-body-sm text-neutral-900 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
                         />
                     </label>
-                    <div class="flex flex-wrap gap-2" aria-label="Filtro raportet sipas kategorisë">
+                    <div class="flex flex-wrap gap-2" :aria-label="$t('admin.generated.k_0d55dde24525')">
                         <button
                             v-for="category in categories"
                             :key="category.key"
@@ -207,7 +208,7 @@ onMounted(() => {
                 </div>
 
                 <div v-if="!normalizedQuery && activeCategory === 'all'" class="p-4">
-                    <h2 class="text-body-sm font-semibold text-primary-900">Raportet më të përdorura</h2>
+                    <h2 class="text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_cc3ecb6c63b2') }}</h2>
                     <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <Link
                             v-for="report in quickReports"
@@ -225,7 +226,7 @@ onMounted(() => {
             </section>
 
             <aside v-if="!normalizedQuery && activeCategory === 'all'" class="rounded-lg border border-neutral-200 bg-white p-4 shadow-card">
-                <h2 class="text-body-sm font-semibold text-primary-900">Të përdorura së fundmi</h2>
+                <h2 class="text-body-sm font-semibold text-primary-900">{{ $t('admin.generated.k_d4e05bd183e3') }}</h2>
                 <div class="mt-3 divide-y divide-neutral-100">
                     <Link
                         v-for="report in recentReports"
@@ -278,8 +279,8 @@ onMounted(() => {
 
         <div v-else class="mt-5 rounded-lg border border-dashed border-neutral-300 bg-white px-6 py-14 text-center">
             <FileBarChart class="mx-auto h-9 w-9 text-neutral-300" :stroke-width="1.5" />
-            <h2 class="mt-3 text-body font-semibold text-primary-900">Nuk u gjet asnjë raport</h2>
-            <p class="mt-1 text-body-sm text-neutral-500">Provo një fjalë tjetër ose zgjidh një kategori tjetër.</p>
+            <h2 class="mt-3 text-body font-semibold text-primary-900">{{ $t('admin.generated.k_028cf07eeaef') }}</h2>
+            <p class="mt-1 text-body-sm text-neutral-500">{{ $t('admin.generated.k_282255730dc3') }}</p>
         </div>
     </AppLayout>
 </template>

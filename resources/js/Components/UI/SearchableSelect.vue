@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 
 // A <select> with a real-time search box. v-model contract matches Select.vue
@@ -7,7 +8,7 @@ const props = defineProps({
     modelValue: { type: [String, Number, null], default: '' },
     options: { type: Array, default: () => [] },
     placeholder: { type: String, default: 'Zgjidh...' },
-    searchPlaceholder: { type: String, default: 'Kërko…' },
+    searchPlaceholder: { type: String, default: translate('admin.generated.k_be6a5b496e4d') },
     error: { type: String, default: null },
     disabled: { type: Boolean, default: false },
 });
@@ -90,7 +91,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocPointer));
                 >
                     {{ o.label }}
                 </button>
-                <p v-if="!filtered.length" class="px-3 py-2 text-small text-neutral-400">Asnjë rezultat.</p>
+                <p v-if="!filtered.length" class="px-3 py-2 text-small text-neutral-400">{{ $t('admin.generated.k_f01d53634d09') }}</p>
             </div>
         </div>
     </div>

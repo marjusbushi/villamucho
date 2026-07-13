@@ -2,6 +2,9 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Bell, Volume2, VolumeX } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const currentUserId = Number(usePage().props.auth.user?.id || 0);
 const LAST_ID_KEY = `notif_last_received_reservation_id_v2:${currentUserId}`;
@@ -187,7 +190,7 @@ onUnmounted(() => {
         <button
             type="button"
             class="relative rounded-md p-2 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
-            :aria-label="`Rezervime të reja: ${count}`"
+            :aria-label="t('admin.notifications.newReservations', { count })"
             @click="open = !open"
         >
             <Bell class="h-5 w-5" :stroke-width="1.6" />
@@ -201,14 +204,14 @@ onUnmounted(() => {
         <div v-if="open" class="absolute right-0 mt-2 w-80 z-50 rounded-lg bg-white shadow-dropdown border border-neutral-200 overflow-hidden">
             <div class="px-4 py-3 border-b border-neutral-100 flex items-center justify-between gap-3">
                 <div>
-                    <span class="block text-body-sm font-medium text-primary-900">Rezervime të reja</span>
-                    <span class="block text-tiny text-neutral-400">{{ count }} pa lexuar</span>
+                    <span class="block text-body-sm font-medium text-primary-900">{{ $t('admin.generated.k_f3797fba7339') }}</span>
+                    <span class="block text-tiny text-neutral-400">{{ count }} {{ $t('admin.generated.k_9b95538f3b8a') }}</span>
                 </div>
                 <button
                     type="button"
                     class="rounded-md p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
-                    :title="soundEnabled ? 'Çaktivizo tingullin' : 'Aktivizo tingullin'"
-                    :aria-label="soundEnabled ? 'Çaktivizo tingullin' : 'Aktivizo tingullin'"
+                    :title="soundEnabled ? $t('admin.generated.k_d0787c4f5dd2') : $t('admin.generated.k_f9e521a57ff7')"
+                    :aria-label="soundEnabled ? $t('admin.generated.k_d0787c4f5dd2') : $t('admin.generated.k_f9e521a57ff7')"
                     @click="toggleSound"
                 >
                     <Volume2 v-if="soundEnabled" class="h-4 w-4" :stroke-width="1.7" />
@@ -227,16 +230,14 @@ onUnmounted(() => {
                         <span class="text-tiny text-accent-700 whitespace-nowrap">€{{ r.total }}</span>
                     </div>
                     <div class="text-small text-neutral-500 mt-0.5">
-                        Dhoma {{ r.room }} · {{ r.check_in }} → {{ r.check_out }}
+{{ $t('admin.generated.k_bdd4ab5b92b8') }} {{ r.room }} · {{ r.check_in }} → {{ r.check_out }}
                     </div>
                 </button>
                 <div v-if="!items.length" class="px-4 py-8 text-center text-body-sm text-neutral-400">
-                    Asnjë rezervim i ri.
-                </div>
+{{ $t('admin.generated.k_5243dbc5e689') }} </div>
             </div>
             <a href="/pms/reservations" class="block px-4 py-2.5 text-center text-body-sm text-accent-700 hover:bg-neutral-50 border-t border-neutral-100 no-underline">
-                Shiko të gjitha rezervimet
-            </a>
+{{ $t('admin.generated.k_35ee70cdf835') }} </a>
         </div>
 
         <!-- Live toast on a brand-new reservation -->
@@ -254,8 +255,8 @@ onUnmounted(() => {
                         <Bell class="h-5 w-5" :stroke-width="1.6" />
                     </span>
                     <span class="min-w-0">
-                        <span class="block text-body-sm font-semibold">Rezervim i ri!</span>
-                        <span class="block text-body-sm text-neutral-300 truncate">{{ toast.guest }} · Dhoma {{ toast.room }}</span>
+                        <span class="block text-body-sm font-semibold">{{ $t('admin.generated.k_cae91dcb7b31') }}</span>
+                        <span class="block text-body-sm text-neutral-300 truncate">{{ toast.guest }} {{ $t('admin.generated.k_854094340734') }} {{ toast.room }}</span>
                         <span class="block text-tiny text-neutral-400 mt-0.5">{{ toast.check_in }} → {{ toast.check_out }} · €{{ toast.total }}</span>
                     </span>
                 </button>

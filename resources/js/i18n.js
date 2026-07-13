@@ -40,6 +40,7 @@ export const i18n = createI18n({
 
 export function setLocale(next) {
     if (!SUPPORTED.includes(next)) return;
+    const changed = i18n.global.locale.value !== next;
     i18n.global.locale.value = next;
     try { localStorage.setItem('locale', next); } catch (e) { /* ignore */ }
     if (typeof document !== 'undefined') {

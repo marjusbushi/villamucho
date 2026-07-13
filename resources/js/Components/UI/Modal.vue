@@ -143,7 +143,7 @@ onUnmounted(() => {
                                 <button
                                     v-if="closeable"
                                     type="button"
-                                    aria-label="Mbyll dialogun"
+                                    :aria-label="$t('admin.generated.k_1fc96a90d625')"
                                     class="ml-auto rounded-md p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors duration-150"
                                     @click="close"
                                 >

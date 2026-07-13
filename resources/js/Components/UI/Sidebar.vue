@@ -65,9 +65,9 @@ function isActive(item) {
         <div :class="['flex h-14 shrink-0 items-center border-b border-primary-800/50', collapsed ? 'justify-center px-0' : 'px-4']">
             <Link href="/" class="flex items-center gap-3 text-white no-underline hover:text-white">
                 <div class="h-8 w-8 rounded-md bg-accent-600 flex items-center justify-center shrink-0">
-                    <span class="text-white font-semibold text-label">{{ (page.props.settings?.hotel_name || 'Hotel').charAt(0) }}</span>
+                    <span class="text-white font-semibold text-label">{{ (page.props.settings?.hotel_name || $t('admin.generated.k_a57869d5c538')).charAt(0) }}</span>
                 </div>
-                <span v-if="!collapsed" class="text-label text-neutral-100 whitespace-nowrap tracking-tight">{{ page.props.settings?.hotel_name || 'Chanel Manager' }}</span>
+                <span v-if="!collapsed" class="text-label text-neutral-100 whitespace-nowrap tracking-tight">{{ page.props.settings?.hotel_name || $t('admin.generated.k_7f8dacfbd096') }}</span>
             </Link>
         </div>
 

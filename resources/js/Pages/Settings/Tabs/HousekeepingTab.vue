@@ -1,4 +1,5 @@
 <script setup>
+import { translate } from '@/i18n';
 import { ref, reactive } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/UI/Card.vue';
@@ -37,8 +38,8 @@ const newType = ref('');
 const newItem = reactive({});
 
 const priorityOptions = [
-    { value: 'normal', label: 'Normal' },
-    { value: 'urgent', label: 'Urgjent' },
+    { value: 'normal', label: translate('admin.generated.k_9e8d802f7c6e') },
+    { value: 'urgent', label: translate('admin.generated.k_54c70011a7d4') },
 ];
 
 const humanize = (t) => t.replace(/_/g, ' ');
@@ -82,7 +83,7 @@ function submit() {
             ),
         }))
         .put(route('settings.housekeeping'), {
-            onSuccess: () => props.toasts?.success('Konfigurimet u ruajten.'),
+            onSuccess: () => props.toasts?.success(translate('admin.generated.k_9a3d5b1cfd2b')),
         });
 }
 </script>
@@ -90,27 +91,26 @@ function submit() {
 <template>
     <Card>
         <template #header>
-            <h3 class="text-h4 text-primary-900">Konfigurime Housekeeping</h3>
+            <h3 class="text-h4 text-primary-900">{{ $t('admin.generated.k_00481eaf88bf') }}</h3>
         </template>
 
         <form @submit.prevent="submit" class="space-y-6">
-            <FormGroup label="Tipet e detyrave te pastrimit">
+            <FormGroup :label="$t('admin.generated.k_eead14521892')">
                 <div class="flex gap-2 mb-3">
-                    <TextInput v-model="newType" placeholder="psh. turndown_service" @keyup.enter.prevent="addType" class="flex-1" />
-                    <Button type="button" size="sm" variant="outline" @click="addType">+ Shto</Button>
+                    <TextInput v-model="newType" :placeholder="$t('admin.generated.k_d48c31dd3bb7')" @keyup.enter.prevent="addType" class="flex-1" />
+                    <Button type="button" size="sm" variant="outline" @click="addType">{{ $t('admin.generated.k_ae3be48fdbd6') }}</Button>
                 </div>
                 <div class="flex flex-wrap gap-1.5">
                     <Badge v-for="(t, i) in form.task_types" :key="i" variant="neutral">
                         {{ humanize(t) }}
-                        <button type="button" class="ml-1 text-neutral-400 hover:text-error-500" @click="removeType(i)">×</button>
+                        <button type="button" class="ml-1 text-neutral-400 hover:text-error-500" @click="removeType(i)">{{ $t('admin.generated.k_f66e69d5de56') }}</button>
                     </Badge>
                 </div>
             </FormGroup>
 
-            <FormGroup label="Lista e punëve për çdo tip pastrimi">
+            <FormGroup :label="$t('admin.generated.k_422b5c6cdedc')">
                 <p class="text-small text-neutral-500 mb-3">
-                    Këto pika i shfaqen pastruesit kur shtyp <strong>Fillo</strong>. Duhet t'i shënojë të gjitha para se ta mbyllë dhomën.
-                </p>
+{{ $t('admin.generated.k_79050067ab53') }} <strong>{{ $t('admin.generated.k_b9cfb5faadc6') }}</strong>{{ $t('admin.generated.k_7eff974129e3') }} </p>
                 <div class="space-y-3">
                     <div v-for="t in form.task_types" :key="t" class="rounded-lg border border-neutral-200 p-3">
                         <p class="text-label text-neutral-700 mb-2 capitalize">{{ humanize(t) }}</p>
@@ -119,27 +119,27 @@ function submit() {
                             <div v-for="(item, i) in form.checklists[t]" :key="i" class="flex items-center gap-2">
                                 <span class="text-tiny text-neutral-400 w-5 text-right shrink-0">{{ i + 1 }}.</span>
                                 <TextInput v-model="form.checklists[t][i]" class="flex-1" />
-                                <button type="button" class="text-neutral-400 hover:text-error-500 px-1 shrink-0" @click="removeItem(t, i)" aria-label="Hiq">×</button>
+                                <button type="button" class="text-neutral-400 hover:text-error-500 px-1 shrink-0" @click="removeItem(t, i)" :aria-label="$t('admin.generated.k_6a07a8fe4e9b')">{{ $t('admin.generated.k_f66e69d5de56') }}</button>
                             </div>
                         </div>
-                        <p v-else class="text-tiny text-neutral-400 mb-2">Pa pika — kjo detyrë do të mbyllet pa listë.</p>
+                        <p v-else class="text-tiny text-neutral-400 mb-2">{{ $t('admin.generated.k_a151b44fd631') }}</p>
 
                         <div class="flex gap-2">
-                            <TextInput v-model="newItem[t]" placeholder="Shto pikë..." @keyup.enter.prevent="addItem(t)" class="flex-1" />
-                            <Button type="button" size="sm" variant="outline" @click="addItem(t)">+ Shto</Button>
+                            <TextInput v-model="newItem[t]" :placeholder="$t('admin.generated.k_0045f22b7f0e')" @keyup.enter.prevent="addItem(t)" class="flex-1" />
+                            <Button type="button" size="sm" variant="outline" @click="addItem(t)">{{ $t('admin.generated.k_ae3be48fdbd6') }}</Button>
                         </div>
                     </div>
                 </div>
             </FormGroup>
 
-            <FormGroup label="Prioriteti default per detyra te reja" :error="form.errors.default_priority">
+            <FormGroup :label="$t('admin.generated.k_3f7fa9cfb8d7')" :error="form.errors.default_priority">
                 <Select v-model="form.default_priority" :options="priorityOptions" :error="form.errors.default_priority" />
             </FormGroup>
 
-            <Checkbox v-model="form.auto_create_on_checkout" label="Krijo automatikisht detyren e pastrimit kur behet check-out" />
+            <Checkbox v-model="form.auto_create_on_checkout" :label="$t('admin.generated.k_30cff834434a')" />
 
             <div class="flex justify-end pt-2">
-                <Button type="submit" variant="primary" :loading="form.processing">Ruaj ndryshimet</Button>
+                <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_3c285306a8be') }}</Button>
             </div>
         </form>
     </Card>
