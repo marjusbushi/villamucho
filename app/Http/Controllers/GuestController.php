@@ -50,8 +50,6 @@ class GuestController extends Controller
         $nationalityAliases = $nationality !== '' ? $this->nationalityAliases($nationality) : [];
 
         $returningGuestIds = $this->returningGuestIds();
-        $duplicateGuestIds = $this->duplicateGuestIds();
-
         $columns = [
             'id', 'first_name', 'last_name', 'email', 'phone',
             'nationality', 'document_type', 'created_at',
@@ -100,7 +98,7 @@ class GuestController extends Controller
                 ->whereBetween('check_in_date', [$todayString, $windowEndString])),
             'returning' => $query->whereIn('id', $returningGuestIds->all()),
             'incomplete' => $this->whereProfileIncomplete($query),
-            'attention' => $this->whereNeedsAttention($query, $duplicateGuestIds),
+            'attention' => $this->whereNeedsAttention($query),
             default => null,
         };
 
@@ -140,6 +138,13 @@ class GuestController extends Controller
             ->withQueryString();
 
         $guestIds = collect($paginator->items())->pluck('id');
+        $duplicateGuestIds = $guestIds->isEmpty()
+            ? collect()
+            : $this->duplicateGuestsQuery()
+                ->whereIn('id', $guestIds->all())
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values();
         $reservationsByGuest = $guestIds->isEmpty()
             ? collect()
             : Reservation::query()
@@ -269,8 +274,8 @@ class GuestController extends Controller
                 ->count(),
             'returning' => $returningGuestIds->count(),
             'incomplete' => $this->profileIncompleteQuery()->count(),
-            'duplicate_profiles' => $duplicateGuestIds->count(),
-            'attention' => $this->needsAttentionQuery($duplicateGuestIds)->count(),
+            'duplicate_profiles' => $this->duplicateGuestsQuery()->count(),
+            'attention' => $this->needsAttentionQuery()->count(),
         ];
 
         return Inertia::render('Guests/Index', [
@@ -658,50 +663,26 @@ class GuestController extends Controller
         return $code;
     }
 
-    /** @return Collection<int, int> */
-    private function duplicateGuestIds(): Collection
+    private function duplicateGuestsQuery(): Builder
     {
-        $duplicateEmails = Guest::query()
-            ->whereNotNull('email')
-            ->where('email', '!=', '')
-            ->select('email')
-            ->groupBy('email')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('email');
-        $duplicatePhones = Guest::query()
-            ->whereNotNull('phone')
-            ->where('phone', '!=', '')
-            ->select('phone')
-            ->groupBy('phone')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('phone');
-        $duplicateDocuments = Guest::query()
-            ->whereNotNull('document_number')
-            ->where('document_number', '!=', '')
-            ->select('document_number')
-            ->groupBy('document_number')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('document_number');
+        return $this->whereDuplicateProfile(Guest::query());
+    }
 
-        if ($duplicateEmails->isEmpty() && $duplicatePhones->isEmpty() && $duplicateDocuments->isEmpty()) {
-            return collect();
-        }
+    private function whereDuplicateProfile(Builder $query): Builder
+    {
+        return $query->where(function (Builder $duplicates) {
+            foreach (['email', 'phone', 'document_number'] as $index => $field) {
+                $duplicateValues = Guest::query()
+                    ->select($field)
+                    ->whereNotNull($field)
+                    ->where($field, '!=', '')
+                    ->groupBy($field)
+                    ->havingRaw('COUNT(*) > 1');
 
-        return Guest::query()
-            ->where(function (Builder $query) use ($duplicateEmails, $duplicatePhones, $duplicateDocuments) {
-                if ($duplicateEmails->isNotEmpty()) {
-                    $query->orWhereIn('email', $duplicateEmails->all());
-                }
-                if ($duplicatePhones->isNotEmpty()) {
-                    $query->orWhereIn('phone', $duplicatePhones->all());
-                }
-                if ($duplicateDocuments->isNotEmpty()) {
-                    $query->orWhereIn('document_number', $duplicateDocuments->all());
-                }
-            })
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values();
+                $method = $index === 0 ? 'whereIn' : 'orWhereIn';
+                $duplicates->{$method}($field, $duplicateValues);
+            }
+        });
     }
 
     private function whereProfileIncomplete(Builder $query): Builder
@@ -711,16 +692,15 @@ class GuestController extends Controller
         });
     }
 
-    private function whereNeedsAttention(Builder $query, Collection $duplicateGuestIds): Builder
+    private function whereNeedsAttention(Builder $query): Builder
     {
-        return $query->where(function (Builder $attention) use ($duplicateGuestIds) {
+        return $query->where(function (Builder $attention) {
             $attention->where(function (Builder $missing) {
                 $this->addMissingProfileConditions($missing);
             });
-
-            if ($duplicateGuestIds->isNotEmpty()) {
-                $attention->orWhereIn('id', $duplicateGuestIds->all());
-            }
+            $attention->orWhere(function (Builder $duplicates) {
+                $this->whereDuplicateProfile($duplicates);
+            });
         });
     }
 
@@ -729,9 +709,9 @@ class GuestController extends Controller
         return $this->whereProfileIncomplete(Guest::query());
     }
 
-    private function needsAttentionQuery(Collection $duplicateGuestIds): Builder
+    private function needsAttentionQuery(): Builder
     {
-        return $this->whereNeedsAttention(Guest::query(), $duplicateGuestIds);
+        return $this->whereNeedsAttention(Guest::query());
     }
 
     private function addMissingProfileConditions(Builder $query): void
