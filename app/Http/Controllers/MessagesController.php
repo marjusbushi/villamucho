@@ -27,17 +27,32 @@ class MessagesController extends Controller
         $selected = null;
 
         if ($selectedId) {
-            $thread = MessageThread::with('messages')->find($selectedId);
+            $thread = MessageThread::with(['messages', 'reservation.room.roomType', 'reservation.guest'])->find($selectedId);
             if ($thread) {
                 if ($thread->unread_count > 0) {
                     $thread->forceFill(['unread_count' => 0])->save();
                 }
+                $r = $thread->reservation;
                 $selected = [
                     'id' => $thread->id,
                     'guest_name' => $thread->guest_name,
+                    'guest_email' => $r?->guest?->email,
                     'channel' => $thread->channel,
                     'status' => $thread->status,
                     'can_reply' => (bool) $thread->channex_thread_id,
+                    'reservation' => $r ? [
+                        'id' => $r->id,
+                        'ref' => $r->channel_ref,
+                        'status' => $r->status,
+                        'room' => trim(($r->room?->room_number ? 'Dhoma '.$r->room->room_number : '')
+                            .($r->room?->roomType?->name ? ' · '.$r->room->roomType->name : '')) ?: null,
+                        'check_in' => $r->check_in_date?->toDateString(),
+                        'check_out' => $r->check_out_date?->toDateString(),
+                        'nights' => $r->check_in_date && $r->check_out_date
+                            ? $r->check_in_date->diffInDays($r->check_out_date) : null,
+                        'adults' => $r->adults,
+                        'total' => (float) $r->total_amount,
+                    ] : null,
                     'messages' => $thread->messages->map(fn (Message $m) => [
                         'id' => $m->id,
                         'sender' => $m->sender,

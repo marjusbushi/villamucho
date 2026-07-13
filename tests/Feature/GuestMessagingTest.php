@@ -3,6 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Message;
+use App\Models\RoomType;
+use App\Models\Room;
+use App\Models\Reservation;
+use App\Models\Guest;
 use App\Models\MessageThread;
 use App\Models\Tenant;
 use App\Models\User;
@@ -143,5 +147,29 @@ class GuestMessagingTest extends TestCase
 
         $host = Message::where('sender', 'host')->sole();
         $this->assertSame('Sigurisht, e rezervoj për ju.', $host->body);
+    }
+    public function test_thread_links_to_the_matching_ota_reservation(): void
+    {
+        $this->fakeChannex();
+
+        $context = app(TenantContext::class);
+        $home = Tenant::query()->sole();
+        $context->set($home);
+        $type = RoomType::create(['name' => 'Deluxe', 'base_price' => 110, 'max_occupancy' => 2, 'amenities' => []]);
+        $room = Room::create(['room_type_id' => $type->id, 'room_number' => '204', 'floor' => 2, 'status' => 'available']);
+        $guest = Guest::create(['first_name' => 'Andi', 'last_name' => 'Krasniqi', 'email' => 'andi@example.test']);
+        $staff = User::factory()->create(['current_tenant_id' => $home->id]);
+        $reservation = Reservation::create([
+            'room_id' => $room->id, 'guest_id' => $guest->id, 'created_by' => $staff->id,
+            'check_in_date' => '2026-07-18', 'check_out_date' => '2026-07-21',
+            'status' => 'confirmed', 'total_amount' => 330, 'adults' => 2,
+            'channel' => 'booking.com', 'channel_ref' => 'BK-REF', 'channex_booking_id' => 'BK-1',
+        ]);
+        $context->clear();
+
+        $this->postJson('/channex/webhook', ['event' => 'message', 'payload' => $this->messagePayload()],
+            ['X-Channex-Webhook-Secret' => 'topsecret'])->assertOk();
+
+        $this->assertSame($reservation->id, MessageThread::query()->sole()->reservation_id);
     }
 }

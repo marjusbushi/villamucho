@@ -52,10 +52,20 @@ class ChannexMessageImporter
                     report($e);
                 }
 
+                $bookingId = $payload['booking_id'] ?? ($attr['booking_id'] ?? null);
+
+                // Best-effort link to the stay: OTA reservations imported from
+                // Channex carry the same booking id, so the inbox can show the
+                // room, dates and folio next to the conversation.
+                $reservationId = $bookingId
+                    ? \App\Models\Reservation::where('channex_booking_id', $bookingId)->value('id')
+                    : null;
+
                 $thread = MessageThread::create([
                     'channex_thread_id' => $threadId,
                     'channel' => $attr['channel'] ?? null,
-                    'channex_booking_id' => $payload['booking_id'] ?? ($attr['booking_id'] ?? null),
+                    'channex_booking_id' => $bookingId,
+                    'reservation_id' => $reservationId,
                     'guest_name' => $attr['title'] ?? ($attr['guest_name'] ?? null),
                     'status' => $attr['status'] ?? 'open',
                 ]);
