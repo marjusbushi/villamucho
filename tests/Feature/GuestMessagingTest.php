@@ -190,4 +190,60 @@ class GuestMessagingTest extends TestCase
             ->assertOk()
             ->assertJson(['count' => 5]);
     }
+
+    private function fakeChannexBackfill(): void
+    {
+        Http::fake([
+            // Most specific first: the messages of a thread…
+            'https://staging.channex.io/api/v1/message_threads/*/messages*' => Http::response(['data' => [
+                ['id' => 'M-OLD-1', 'attributes' => ['message' => 'Përshëndetje, a keni parking?', 'sender' => 'guest', 'have_attachment' => false, 'inserted_at' => '2026-07-01T10:00:00Z']],
+                ['id' => 'M-OLD-2', 'attributes' => ['message' => 'Po, falas për mysafirët.', 'sender' => 'host', 'inserted_at' => '2026-07-01T11:00:00Z']],
+            ]], 200),
+            // …then the thread list (one of ours + one of another property).
+            'https://staging.channex.io/api/v1/message_threads*' => Http::response(['data' => [
+                ['id' => 'TH-OLD', 'attributes' => ['title' => 'Maria Guest', 'channel' => 'booking.com', 'status' => 'open', 'property_id' => 'PROP-1', 'booking_id' => 'BK-9']],
+                ['id' => 'TH-FOREIGN', 'attributes' => ['title' => 'Tjetërkush', 'property_id' => 'PROP-OTHER']],
+            ]], 200),
+        ]);
+    }
+
+    public function test_pull_messages_backfills_existing_threads_as_read(): void
+    {
+        $this->fakeChannexBackfill();
+
+        $this->artisan('channex:pull-messages')->assertExitCode(0);
+
+        // Only OUR property's thread came in; the foreign one was refused.
+        $thread = MessageThread::query()->sole();
+        $this->assertSame('TH-OLD', $thread->channex_thread_id);
+        $this->assertSame('Maria Guest', $thread->guest_name);
+        $this->assertSame('booking.com', $thread->channel);
+        $this->assertSame(2, $thread->messages()->count());
+
+        // Historical import: no unread flood, original timestamps kept.
+        $this->assertSame(0, $thread->unread_count);
+        $this->assertSame('2026-07-01 10:00:00', $thread->messages()->where('sender', 'guest')->sole()->sent_at->utc()->toDateTimeString());
+        $this->assertSame('Po, falas për mysafirët.', $thread->last_message_preview);
+    }
+
+    public function test_pull_messages_is_idempotent(): void
+    {
+        $this->fakeChannexBackfill();
+
+        $this->artisan('channex:pull-messages')->assertExitCode(0);
+        $this->artisan('channex:pull-messages')->assertExitCode(0);
+
+        $this->assertSame(1, MessageThread::query()->count());
+        $this->assertSame(2, Message::query()->count());
+    }
+
+    public function test_pull_messages_can_mark_guest_messages_unread(): void
+    {
+        $this->fakeChannexBackfill();
+
+        $this->artisan('channex:pull-messages', ['--mark-unread' => true])->assertExitCode(0);
+
+        // Only the guest message counts as unread, not the host's own reply.
+        $this->assertSame(1, MessageThread::query()->sole()->unread_count);
+    }
 }

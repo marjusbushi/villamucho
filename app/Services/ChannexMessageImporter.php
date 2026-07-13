@@ -92,4 +92,93 @@ class ChannexMessageImporter
             return ['status' => 'ok', 'thread_id' => $thread->id];
         });
     }
+
+    /**
+     * Backfill one thread from the Channex API (list endpoint object shape:
+     * id + attributes + optional relationships). Imports the thread and ALL
+     * its messages with their original timestamps. Historical messages do NOT
+     * bump unread_count by default — a first import must not flood reception
+     * with badges and sounds for conversations already answered on the OTA.
+     *
+     * @return array{status:string,thread_id?:int,imported?:int}
+     */
+    public function importThreadFromApi(array $threadObject, bool $markUnread = false): array
+    {
+        $attr = $threadObject['attributes'] ?? [];
+        $threadId = (string) ($threadObject['id'] ?? $attr['id'] ?? '');
+        if ($threadId === '') {
+            return ['status' => 'no_thread'];
+        }
+
+        // Refuse a thread of another property (= another hotel), same guard
+        // as the webhook path. The id may sit in attributes or relationships.
+        $property = (string) ($attr['property_id']
+            ?? data_get($threadObject, 'relationships.property.data.id', ''));
+        $expected = $this->channex->propertyId();
+        if ($expected !== '' && $property !== '' && $property !== $expected) {
+            return ['status' => 'foreign_property'];
+        }
+
+        $bookingId = $attr['booking_id']
+            ?? data_get($threadObject, 'relationships.booking.data.id');
+
+        $apiMessages = $this->channex->getThreadMessages($threadId);
+
+        return DB::transaction(function () use ($threadId, $attr, $bookingId, $apiMessages, $markUnread) {
+            $thread = MessageThread::firstOrCreate(
+                ['channex_thread_id' => $threadId],
+                [
+                    'channel' => $attr['channel'] ?? null,
+                    'channex_booking_id' => $bookingId,
+                    'reservation_id' => $bookingId
+                        ? \App\Models\Reservation::where('channex_booking_id', $bookingId)->value('id')
+                        : null,
+                    'guest_name' => $attr['title'] ?? ($attr['guest_name'] ?? null),
+                    'status' => $attr['status'] ?? 'open',
+                ],
+            );
+
+            $imported = 0;
+            $latest = null;
+            foreach ($apiMessages as $apiMessage) {
+                $mAttr = $apiMessage['attributes'] ?? [];
+                $messageId = (string) ($apiMessage['id'] ?? $mAttr['id'] ?? '');
+                if ($messageId !== '' && Message::where('channex_message_id', $messageId)->exists()) {
+                    continue;
+                }
+
+                $sender = ($mAttr['sender'] ?? 'guest') === 'guest' ? Message::SENDER_GUEST : Message::SENDER_HOST;
+                // Channex timestamps are UTC; convert before saving — the datetime
+                // cast stores the wall time verbatim and re-reads it as app-local.
+                $sentAt = ! empty($mAttr['inserted_at'])
+                    ? \Illuminate\Support\Carbon::parse($mAttr['inserted_at'])->setTimezone(config('app.timezone'))
+                    : now();
+
+                $message = $thread->messages()->create([
+                    'channex_message_id' => $messageId ?: null,
+                    'sender' => $sender,
+                    'body' => (string) ($mAttr['message'] ?? ''),
+                    'has_attachment' => (bool) ($mAttr['have_attachment'] ?? false),
+                    'sent_at' => $sentAt,
+                ]);
+
+                $imported++;
+                if ($latest === null || $message->sent_at->gte($latest->sent_at)) {
+                    $latest = $message;
+                }
+                if ($markUnread && $sender === Message::SENDER_GUEST) {
+                    $thread->unread_count++;
+                }
+            }
+
+            if ($latest !== null
+                && ($thread->last_message_at === null || $latest->sent_at->gte($thread->last_message_at))) {
+                $thread->last_message_preview = mb_substr($latest->body, 0, 280);
+                $thread->last_message_at = $latest->sent_at;
+            }
+            $thread->save();
+
+            return ['status' => 'ok', 'thread_id' => $thread->id, 'imported' => $imported];
+        });
+    }
 }

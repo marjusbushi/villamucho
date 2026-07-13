@@ -361,6 +361,57 @@ class ChannexClient
         return $resp->json('data') ?? [];
     }
 
+    /**
+     * All guest-message threads of the configured property (paginated until
+     * exhausted, capped at $maxPages). Used by the backfill, so existing OTA
+     * conversations reach the inbox — the webhook only delivers new ones.
+     */
+    public function listMessageThreads(int $maxPages = 10, int $limit = 100): array
+    {
+        $threads = [];
+        for ($page = 1; $page <= $maxPages; $page++) {
+            $resp = $this->http(idempotent: true)->get("{$this->baseUrl}/message_threads", [
+                'filter' => ['property_id' => $this->propertyId],
+                'pagination' => ['page' => $page, 'limit' => $limit],
+            ]);
+
+            if (! $resp->successful()) {
+                throw new RuntimeException("Channex GET /message_threads failed: HTTP {$resp->status()}");
+            }
+
+            $batch = $resp->json('data') ?? [];
+            $threads = array_merge($threads, $batch);
+            if (count($batch) < $limit) {
+                break;
+            }
+        }
+
+        return $threads;
+    }
+
+    /** Every message of one thread (paginated like listMessageThreads). */
+    public function getThreadMessages(string $threadId, int $maxPages = 10, int $limit = 100): array
+    {
+        $messages = [];
+        for ($page = 1; $page <= $maxPages; $page++) {
+            $resp = $this->http(idempotent: true)->get("{$this->baseUrl}/message_threads/{$threadId}/messages", [
+                'pagination' => ['page' => $page, 'limit' => $limit],
+            ]);
+
+            if (! $resp->successful()) {
+                throw new RuntimeException("Channex GET messages of thread {$threadId} failed: HTTP {$resp->status()}");
+            }
+
+            $batch = $resp->json('data') ?? [];
+            $messages = array_merge($messages, $batch);
+            if (count($batch) < $limit) {
+                break;
+            }
+        }
+
+        return $messages;
+    }
+
     // -- internals --------------------------------------------------------
 
     protected function http(bool $idempotent = false, int $timeout = 30): PendingRequest
