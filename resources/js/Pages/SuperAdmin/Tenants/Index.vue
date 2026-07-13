@@ -3,6 +3,7 @@ import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Button from '@/Components/UI/Button.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Globe, Plug, CreditCard, Check } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
@@ -528,50 +529,61 @@ function statusLabel(status) {
                         <button class="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" type="button" @click="closeConfig">✕</button>
                     </div>
 
-                    <div class="space-y-8 p-5 sm:p-6">
+                    <div class="space-y-6 p-5 sm:p-6">
                         <!-- Domains -->
-                        <section>
-                            <h3 class="font-semibold text-neutral-900">Domain-et</h3>
-                            <ul class="mt-3 divide-y divide-neutral-100 rounded-xl border border-neutral-200">
-                                <li v-for="domain in configTenant.domains" :key="domain.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
-                                    <div class="min-w-0">
-                                        <span class="text-sm text-neutral-800">{{ domain.domain }}</span>
-                                        <span v-if="domain.is_primary" class="ml-2 rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700">Primar</span>
-                                    </div>
-                                    <div class="flex shrink-0 gap-2">
-                                        <Button v-if="!domain.is_primary" size="sm" variant="outline" @click="makePrimary(domain)">Bëje primar</Button>
-                                        <Button v-if="!domain.is_primary" size="sm" variant="outline" @click="removeDomain(domain)">Hiq</Button>
-                                    </div>
-                                </li>
-                                <li v-if="!configTenant.domains.length" class="px-4 py-3 text-sm text-neutral-500">Ende pa domain.</li>
-                            </ul>
+                        <section class="overflow-hidden rounded-xl border border-neutral-200">
+                            <div class="flex items-center gap-2.5 border-b border-neutral-100 bg-neutral-50/60 px-4 py-3">
+                                <span class="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 bg-white text-neutral-500"><Globe class="h-4 w-4" :stroke-width="1.8" /></span>
+                                <div>
+                                    <h3 class="font-semibold leading-tight text-neutral-900">Domain-et</h3>
+                                    <p class="text-xs text-neutral-500">Adresat ku hapet ky hotel</p>
+                                </div>
+                            </div>
+                            <div class="p-4">
+                                <ul class="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+                                    <li v-for="domain in configTenant.domains" :key="domain.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
+                                        <div class="flex min-w-0 items-center gap-2">
+                                            <span class="truncate text-sm text-neutral-800">{{ domain.domain }}</span>
+                                            <span v-if="domain.is_primary" class="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700">Primar</span>
+                                        </div>
+                                        <div class="flex shrink-0 gap-2">
+                                            <Button v-if="!domain.is_primary" size="sm" variant="outline" @click="makePrimary(domain)">Bëje primar</Button>
+                                            <Button v-if="!domain.is_primary" size="sm" variant="outline" class="text-red-600" @click="removeDomain(domain)">Hiq</Button>
+                                        </div>
+                                    </li>
+                                    <li v-if="!configTenant.domains.length" class="px-4 py-3 text-sm text-neutral-500">Ende pa domain.</li>
+                                </ul>
 
-                            <form class="mt-3 flex gap-2" @submit.prevent="addDomain">
-                                <input v-model="domainForm.domain" required class="w-full rounded-lg border-neutral-300 text-sm" placeholder="riviera.lorapms.com" />
-                                <Button type="submit" :disabled="domainForm.processing">Shto</Button>
-                            </form>
-                            <span v-if="domainForm.errors.domain" class="mt-1 block text-xs text-danger-600">{{ domainForm.errors.domain }}</span>
+                                <form class="mt-3 flex gap-2" @submit.prevent="addDomain">
+                                    <input v-model="domainForm.domain" required class="w-full rounded-lg border-neutral-300 text-sm" placeholder="riviera.lorapms.com" />
+                                    <Button type="submit" :disabled="domainForm.processing">Shto</Button>
+                                </form>
+                                <span v-if="domainForm.errors.domain" class="mt-1 block text-xs text-danger-600">{{ domainForm.errors.domain }}</span>
+                            </div>
                         </section>
 
                         <!-- Channex -->
-                        <section class="rounded-xl border border-neutral-200 p-4">
-                            <div class="flex items-center justify-between gap-3">
-                                <div>
-                                    <h3 class="font-semibold text-neutral-900">Channex (Channel Manager)</h3>
-                                    <p class="text-xs text-neutral-500">
-                                        API key: <b>{{ configTenant.integrations.channex.has_api_key ? 'e ruajtur ✓' : 'mungon' }}</b> ·
-                                        Webhook secret: <b>{{ configTenant.integrations.channex.has_webhook_secret ? 'i ruajtur ✓' : 'mungon' }}</b>
-                                    </p>
+                        <section class="overflow-hidden rounded-xl border border-neutral-200">
+                            <div class="flex flex-wrap items-center gap-3 border-b border-neutral-100 bg-neutral-50/60 px-4 py-3">
+                                <span class="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 bg-white text-neutral-500"><Plug class="h-4 w-4" :stroke-width="1.8" /></span>
+                                <div class="mr-auto">
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-semibold leading-tight text-neutral-900">Channex</h3>
+                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="configTenant.integrations.channex.has_api_key ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'">
+                                            <Check v-if="configTenant.integrations.channex.has_api_key" class="h-3 w-3" :stroke-width="2.5" />{{ configTenant.integrations.channex.has_api_key ? 'kredencialet e ruajtura' : 'pa kredenciale' }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-neutral-500">Channel Manager — shpërndan dhomat te OTA-t</p>
                                 </div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-neutral-700">
-                                    <input v-model="channexForm.enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600" /> Aktiv
+                                <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-neutral-700">
+                                    <input v-model="channexForm.enabled" type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500" /> Aktiv
                                 </label>
                             </div>
 
-                            <form class="mt-4 grid gap-3 sm:grid-cols-2" @submit.prevent="saveChannex">
+                            <form class="grid gap-3 p-4 sm:grid-cols-2" @submit.prevent="saveChannex">
                                 <label class="text-sm font-medium text-neutral-700">
                                     API key
-                                    <input v-model="channexForm.api_key" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.channex.has_api_key ? '•••• (lëre bosh për ta mbajtur)' : ''" />
+                                    <input v-model="channexForm.api_key" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.channex.has_api_key ? '•••• (lëre bosh për ta mbajtur)' : 'ngjit çelësin Channex'" />
                                 </label>
                                 <label class="text-sm font-medium text-neutral-700">
                                     Webhook secret
@@ -579,7 +591,7 @@ function statusLabel(status) {
                                 </label>
                                 <label class="text-sm font-medium text-neutral-700">
                                     Property ID
-                                    <input v-model="channexForm.property_id" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" />
+                                    <input v-model="channexForm.property_id" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="p.sh. 5f2a…" />
                                     <span v-if="channexForm.errors.property_id" class="mt-1 block text-xs text-danger-600">{{ channexForm.errors.property_id }}</span>
                                 </label>
                                 <label class="text-sm font-medium text-neutral-700">
@@ -587,31 +599,34 @@ function statusLabel(status) {
                                     <input v-model="channexForm.base_url" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="https://app.channex.io/api/v1" />
                                     <span v-if="channexForm.errors.base_url" class="mt-1 block text-xs text-danger-600">{{ channexForm.errors.base_url }}</span>
                                 </label>
-                                <div class="sm:col-span-2">
+                                <div class="flex justify-end sm:col-span-2">
                                     <Button type="submit" :disabled="channexForm.processing">{{ channexForm.processing ? 'Duke ruajtur…' : 'Ruaj Channex' }}</Button>
                                 </div>
                             </form>
                         </section>
 
                         <!-- POK -->
-                        <section class="rounded-xl border border-neutral-200 p-4">
-                            <div class="flex items-center justify-between gap-3">
-                                <div>
-                                    <h3 class="font-semibold text-neutral-900">POK (Pagesat me kartë)</h3>
-                                    <p class="text-xs text-neutral-500">
-                                        Key ID: <b>{{ configTenant.integrations.pok.has_key_id ? 'i ruajtur ✓' : 'mungon' }}</b> ·
-                                        Key secret: <b>{{ configTenant.integrations.pok.has_key_secret ? 'i ruajtur ✓' : 'mungon' }}</b>
-                                    </p>
+                        <section class="overflow-hidden rounded-xl border border-neutral-200">
+                            <div class="flex flex-wrap items-center gap-3 border-b border-neutral-100 bg-neutral-50/60 px-4 py-3">
+                                <span class="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 bg-white text-neutral-500"><CreditCard class="h-4 w-4" :stroke-width="1.8" /></span>
+                                <div class="mr-auto">
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-semibold leading-tight text-neutral-900">POK</h3>
+                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="configTenant.integrations.pok.has_key_id ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'">
+                                            <Check v-if="configTenant.integrations.pok.has_key_id" class="h-3 w-3" :stroke-width="2.5" />{{ configTenant.integrations.pok.has_key_id ? 'kredencialet e ruajtura' : 'pa kredenciale' }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-neutral-500">Pagesat me kartë në booking-un online</p>
                                 </div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-neutral-700">
-                                    <input v-model="pokForm.enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600" /> Aktiv
+                                <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-neutral-700">
+                                    <input v-model="pokForm.enabled" type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500" /> Aktiv
                                 </label>
                             </div>
 
-                            <form class="mt-4 grid gap-3 sm:grid-cols-2" @submit.prevent="savePok">
+                            <form class="grid gap-3 p-4 sm:grid-cols-2" @submit.prevent="savePok">
                                 <label class="text-sm font-medium text-neutral-700">
                                     Key ID
-                                    <input v-model="pokForm.key_id" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.pok.has_key_id ? '•••• (lëre bosh për ta mbajtur)' : ''" />
+                                    <input v-model="pokForm.key_id" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.pok.has_key_id ? '•••• (lëre bosh për ta mbajtur)' : 'ngjit Key ID'" />
                                 </label>
                                 <label class="text-sm font-medium text-neutral-700">
                                     Key secret
@@ -622,15 +637,15 @@ function statusLabel(status) {
                                     <input v-model="pokForm.merchant_id" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" />
                                     <span v-if="pokForm.errors.merchant_id" class="mt-1 block text-xs text-danger-600">{{ pokForm.errors.merchant_id }}</span>
                                 </label>
-                                <label class="flex items-end gap-2 pb-2 text-sm font-medium text-neutral-700">
-                                    <input v-model="pokForm.production" type="checkbox" class="rounded border-neutral-300 text-emerald-600" /> Production (live)
+                                <label class="flex items-center gap-2 pt-6 text-sm font-medium text-neutral-700">
+                                    <input v-model="pokForm.production" type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500" /> Production (live)
                                 </label>
-                                <div class="sm:col-span-2">
+                                <div class="flex justify-end sm:col-span-2">
                                     <Button type="submit" :disabled="pokForm.processing">{{ pokForm.processing ? 'Duke ruajtur…' : 'Ruaj POK' }}</Button>
                                 </div>
                             </form>
                         </section>
-                    </div>
+                                        </div>
                 </section>
             </div>
         </Teleport>
