@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 
@@ -28,6 +28,19 @@ const toggleLabel = computed(() => {
     if (props.dismissible) return t('sidebar.closeMenu');
     return props.collapsed ? t('sidebar.openMenu') : t('sidebar.closeMenu');
 });
+
+// Accordion groups (items with children). A group auto-opens when one of
+// its children is the current page; manual toggles override per session.
+const openGroups = ref({});
+function childActive(item) {
+    return (item.children || []).some((c) => isActive(c));
+}
+function groupOpen(item) {
+    return openGroups.value[item.label] ?? childActive(item);
+}
+function toggleGroup(item) {
+    openGroups.value[item.label] = !groupOpen(item);
+}
 
 function isActive(item) {
     if (item.routeName) {
@@ -60,8 +73,47 @@ function isActive(item) {
 
         <!-- Navigation -->
         <nav class="flex min-h-0 flex-1 flex-col justify-evenly overflow-hidden px-3 py-2">
-            <template v-for="item in items" :key="item.href">
+            <template v-for="item in items" :key="item.href || item.label">
+                <!-- Group with children: accordion (e.g. Financa) -->
+                <div v-if="item.children" class="min-w-0">
+                    <component
+                        :is="collapsed ? Link : 'button'"
+                        :href="collapsed ? item.children[0].href : undefined"
+                        type="button"
+                        :class="[
+                            'flex w-full items-center rounded-md px-3 py-2.5 text-body-sm leading-5 transition-colors duration-150 no-underline',
+                            collapsed ? 'justify-center' : 'gap-3',
+                            childActive(item)
+                                ? 'bg-accent-600/15 text-accent-400 font-medium'
+                                : 'text-neutral-400 hover:bg-primary-800/60 hover:text-neutral-200',
+                        ]"
+                        :title="collapsed ? item.label : undefined"
+                        @click="!collapsed && toggleGroup(item)"
+                    >
+                        <span class="h-5 w-5 shrink-0 flex items-center justify-center" v-html="item.icon" />
+                        <span v-if="!collapsed" class="whitespace-nowrap flex-1 text-left">{{ item.label }}</span>
+                        <svg v-if="!collapsed" class="h-3.5 w-3.5 shrink-0 transition-transform duration-150" :class="groupOpen(item) && 'rotate-90'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                    </component>
+                    <div v-if="!collapsed" v-show="groupOpen(item)" class="mt-0.5 space-y-0.5">
+                        <Link
+                            v-for="child in item.children"
+                            :key="child.href"
+                            :href="child.href"
+                            :class="[
+                                'relative flex items-center rounded-md py-2 pl-11 pr-3 text-body-sm leading-5 no-underline transition-colors duration-150',
+                                isActive(child)
+                                    ? 'text-accent-400 font-medium'
+                                    : 'text-neutral-500 hover:bg-primary-800/60 hover:text-neutral-200',
+                            ]"
+                        >
+                            <span v-if="isActive(child)" class="absolute left-6 h-1.5 w-1.5 rounded-full bg-accent-500" />
+                            {{ child.label }}
+                        </Link>
+                    </div>
+                </div>
+
                 <Link
+                    v-else
                     :href="item.href"
                     :class="[
                         'flex items-center rounded-md px-3 py-2.5 text-body-sm leading-5 transition-colors duration-150 no-underline',

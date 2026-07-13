@@ -26,6 +26,10 @@ class TenantRoleService
                 'view_pos_orders', 'create_pos_orders', 'update_pos_orders', 'delete_pos_orders',
                 'open_pos_shift', 'close_pos_shift', 'close_any_pos_shift',
                 'view_reports',
+                // Finance: everything operational EXCEPT bank visibility,
+                // finance settings and deleting records (owner-only).
+                'view_finance', 'create_payment', 'pay_bills', 'manage_transfers',
+                'manage_invoices', 'manage_bills', 'manage_suppliers',
             ],
             'receptionist' => [
                 'view_rooms', 'update_rooms',
@@ -34,6 +38,8 @@ class TenantRoleService
                 'view_pos_orders', 'create_pos_orders', 'update_pos_orders',
                 'open_pos_shift', 'close_pos_shift',
                 'view_reports',
+                // Finance: sees the arka and records incoming payments only.
+                'view_finance', 'create_payment',
             ],
             'housekeeping' => [
                 'view_rooms', 'update_rooms',
@@ -62,9 +68,18 @@ class TenantRoleService
             'users' => ['view', 'create', 'update', 'delete'],
         ];
 
+        // Finance permissions (Marjus's decision: managed in the GLOBAL roles
+        // system, never inside the Finance module). Deny-by-default per verb.
+        $finance = [
+            'view_finance', 'view_bank_accounts', 'create_payment', 'pay_bills',
+            'manage_transfers', 'manage_invoices', 'manage_bills',
+            'manage_suppliers', 'manage_finance_settings', 'delete_finance_records',
+        ];
+
         return collect($resources)
             ->flatMap(fn (array $actions, string $resource) => collect($actions)
                 ->map(fn (string $action) => "{$action}_{$resource}"))
+            ->merge($finance)
             ->values()
             ->all();
     }
