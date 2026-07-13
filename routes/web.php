@@ -65,7 +65,7 @@ Route::post('/contact', [WebsiteController::class, 'submitContact'])->middleware
 Route::post('/channex/webhook', [ChannexWebhookController::class, 'handle'])->middleware(['module:channel_manager', 'throttle:120,1'])->name('channex.webhook');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified', 'dedicated_control_redirect'])->name('dashboard');
+    ->middleware(['auth', 'verified', 'hotel_host', 'dedicated_control_redirect'])->name('dashboard');
 
 Route::middleware(['auth', 'verified', 'super_admin', 'control_panel_host'])
     ->prefix('super-admin')
@@ -81,10 +81,10 @@ Route::middleware(['auth', 'verified', 'super_admin', 'control_panel_host'])
 // Internal component gallery (dev reference) — no data, but staff-only (not public).
 Route::get('/design-system', function () {
     return Inertia::render('DesignSystem');
-})->middleware(['auth'])->name('design-system');
+})->middleware(['auth', 'hotel_host'])->name('design-system');
 
 // ===== PMS (authenticated) =====
-Route::middleware('auth')->prefix('pms')->group(function () {
+Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

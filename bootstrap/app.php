@@ -49,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'super_admin' => EnsureSuperAdmin::class,
             'control_panel_host' => EnsureControlPanelHost::class,
             'dedicated_control_redirect' => RedirectDedicatedControlPanel::class,
+            'hotel_host' => \App\Http\Middleware\EnsureHotelHost::class,
             'module' => EnsureTenantModuleEnabled::class,
         ]);
     })

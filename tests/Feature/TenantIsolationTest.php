@@ -126,6 +126,8 @@ class TenantIsolationTest extends TestCase
 
     public function test_only_super_admin_can_create_and_switch_tenants(): void
     {
+        config(['lora.control_panel_hosts' => ['localhost']]);
+
         $default = Tenant::query()->sole();
         app(TenantContext::class)->set($default);
 
