@@ -244,4 +244,52 @@ class TenantIsolationTest extends TestCase
 
         $this->assertSame($second->id, $context->id());
     }
+    public function test_console_writes_without_context_fail_closed_outside_testing(): void
+    {
+        app(TenantContext::class)->clear();
+        $this->app['env'] = 'production';
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            RoomType::create(['name' => 'Phantom', 'base_price' => 50, 'max_occupancy' => 2, 'amenities' => []]);
+        } finally {
+            $this->app['env'] = 'testing';
+        }
+    }
+
+    public function test_integration_credentials_are_not_used_without_context_outside_testing(): void
+    {
+        config([
+            'services.channex.api_key' => 'legacy-key',
+            'services.channex.property_id' => 'PROP-LEGACY',
+            'services.pok.key_id' => 'legacy-pok',
+            'services.pok.key_secret' => 'legacy-secret',
+            'services.pok.merchant_id' => 'legacy-merchant',
+        ]);
+        app(TenantContext::class)->clear();
+        $this->app['env'] = 'production';
+
+        try {
+            $this->assertFalse(app(ChannexConfiguration::class)->configured());
+            $this->assertSame('', app(ChannexConfiguration::class)->get('api_key'));
+            $this->assertFalse(app(\App\Services\PokConfiguration::class)->configured());
+        } finally {
+            $this->app['env'] = 'testing';
+        }
+    }
+
+    public function test_manual_tenant_commands_require_the_tenant_option_outside_testing(): void
+    {
+        $this->app['env'] = 'production';
+
+        try {
+            $this->artisan('housekeeping:archive-inspected')->assertFailed();
+
+            $this->artisan('housekeeping:archive-inspected', [
+                '--tenant' => Tenant::query()->sole()->id,
+            ])->assertSuccessful();
+        } finally {
+            $this->app['env'] = 'testing';
+        }
+    }
 }

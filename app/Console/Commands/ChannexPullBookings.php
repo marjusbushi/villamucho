@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\ChannexBookingImporter;
 use App\Services\ChannexClient;
+use App\Console\Concerns\ResolvesTenantContext;
 use Illuminate\Console\Command;
 
 /**
@@ -13,12 +14,18 @@ use Illuminate\Console\Command;
  */
 class ChannexPullBookings extends Command
 {
-    protected $signature = 'channex:pull-bookings';
+    use ResolvesTenantContext;
+
+    protected $signature = 'channex:pull-bookings {--tenant= : ID e hotelit — i detyrueshëm për ekzekutim manual}';
 
     protected $description = 'Pull + import unacknowledged Channex booking revisions (OTA -> PMS)';
 
     public function handle(ChannexClient $channex, ChannexBookingImporter $importer): int
     {
+        if (! $this->ensureTenantContext()) {
+            return self::FAILURE;
+        }
+
         if (! $channex->configured()) {
             $this->error('CHANNEX_API_KEY is not set (.env).');
 
