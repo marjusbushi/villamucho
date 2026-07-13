@@ -169,9 +169,11 @@ class ReservationController extends Controller
 
         $reservations = Reservation::select(
             'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status',
-            'total_amount', 'adults', 'children', 'channel', 'created_via', 'notes', 'booking_group_id'
+            'total_amount', 'adults', 'children', 'channel', 'channel_ref', 'created_via',
+            'payment_collect', 'notes', 'eta', 'booking_group_id', 'created_at'
         )
-            ->with('guest:id,first_name,last_name,phone,email')
+            ->with('guest:id,first_name,last_name,phone,email,nationality')
+            ->withSum(['payments as paid_amount' => fn ($query) => $query->notVoided()], 'amount')
             ->whereNotIn('status', ['cancelled'])
             ->where('check_in_date', '<=', $endDate)
             ->where('check_out_date', '>=', $startDate)
@@ -189,15 +191,21 @@ class ReservationController extends Controller
                 'adults' => $r->adults,
                 'children' => $r->children,
                 'channel' => $r->channel,
+                'channel_ref' => $r->channel_ref,
                 'created_via' => $r->created_via,
+                'payment_collect' => $r->payment_collect,
                 'notes' => $r->notes,
+                'eta' => $r->eta,
+                'paid_amount' => round((float) $r->paid_amount, 2),
                 'booking_group_id' => $r->booking_group_id,
+                'created_at' => $r->created_at?->toIso8601String(),
                 'guest' => $r->guest ? [
                     'id' => $r->guest->id,
                     'first_name' => $r->guest->first_name,
                     'last_name' => $r->guest->last_name,
                     'phone' => $r->guest->phone,
                     'email' => $r->guest->email,
+                    'nationality' => $r->guest->nationality,
                 ] : null,
             ]);
 

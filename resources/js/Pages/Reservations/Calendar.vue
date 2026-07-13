@@ -1,17 +1,28 @@
 <script setup>
 import { getIntlLocale, translate } from '@/i18n';
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
-import Modal from '@/Components/UI/Modal.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ReservationCreateModal from '@/Components/Reservations/ReservationCreateModal.vue';
 import MoveRoomModal from '@/Components/Reservations/MoveRoomModal.vue';
 import ReservationEditModal from '@/Components/Reservations/ReservationEditModal.vue';
 import { channelMeta } from '@/channels';
 import { Link } from '@inertiajs/vue3';
+import {
+    ArrowLeftRight,
+    CalendarDays,
+    Clock3,
+    CreditCard,
+    ExternalLink,
+    Mail,
+    MessageSquare,
+    Pencil,
+    Phone,
+    X,
+} from 'lucide-vue-next';
 
 const props = defineProps({
     rooms: Array,
@@ -28,6 +39,8 @@ const showDetailModal = ref(false);
 const showMoveModal = ref(false);
 const showEditModal = ref(false);
 const selectedReservation = ref(null);
+const detailScroll = ref(null);
+const detailCloseButton = ref(null);
 
 const perms = usePage().props.auth.user?.permissions || [];
 const canCreate = perms.includes('create_reservations');
@@ -143,18 +156,25 @@ function goToToday() {
     goToWeek(target, target >= props.startDate ? 1 : -1);
 }
 
-function openDetail(reservation) {
+async function openDetail(reservation) {
     selectedReservation.value = reservation;
     showDetailModal.value = true;
+    await nextTick();
+    if (detailScroll.value) detailScroll.value.scrollTop = 0;
+    detailCloseButton.value?.focus({ preventScroll: true });
+}
+
+function closeDetail() {
+    showDetailModal.value = false;
 }
 
 // --- Detail popup helpers ---
 const statusLabel = {
-    pending: 'Ne pritje',
-    confirmed: translate('admin.generated.k_bdfb4b3a4083'),
-    checked_in: 'Brenda',
-    checked_out: 'Larguar',
-    cancelled: 'Anulluar',
+    pending: translate('admin.calendarPreview.pending'),
+    confirmed: translate('admin.calendarPreview.confirmed'),
+    checked_in: translate('admin.calendarPreview.inHouse'),
+    checked_out: translate('admin.generated.k_023b466e7e43'),
+    cancelled: translate('admin.generated.k_9c647e2278f4'),
 };
 function statusVariant(s) {
     return s === 'checked_in' ? 'success' : s === 'confirmed' ? 'info' : s === 'pending' ? 'warning' : 'neutral';
@@ -166,6 +186,27 @@ function nightsOf(res) {
     if (!res?.check_in_date || !res?.check_out_date) return 0;
     return Math.max(0, Math.round((new Date(res.check_out_date) - new Date(res.check_in_date)) / 86400000));
 }
+function formatDate(value, options = {}) {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat(getIntlLocale(), {
+        day: '2-digit', month: 'short', year: 'numeric', ...options,
+    }).format(new Date(`${value}T12:00:00`));
+}
+function formatDateTime(value) {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat(getIntlLocale(), {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(value));
+}
+function formatMoney(value) {
+    return new Intl.NumberFormat(getIntlLocale(), { style: 'currency', currency: 'EUR' }).format(Number(value) || 0);
+}
+const selectedPaidAmount = computed(() => Number(selectedReservation.value?.paid_amount) || 0);
+const selectedBalance = computed(() => Math.max(0, (Number(selectedReservation.value?.total_amount) || 0) - selectedPaidAmount.value));
+const selectedPaymentProgress = computed(() => {
+    const total = Number(selectedReservation.value?.total_amount) || 0;
+    return total ? Math.min(100, Math.round((selectedPaidAmount.value / total) * 100)) : 0;
+});
 // Other rooms in the same multi-room booking (linked by booking_group_id).
 function groupSiblings(res) {
     if (!res?.booking_group_id) return [];
@@ -247,8 +288,18 @@ function onGridOver(e) {
 }
 
 // Finalize the selection even if the mouse is released off the grid.
-onMounted(() => window.addEventListener('mouseup', endDrag));
-onBeforeUnmount(() => window.removeEventListener('mouseup', endDrag));
+function onEscape(event) {
+    if (event.key === 'Escape' && showDetailModal.value) closeDetail();
+}
+
+onMounted(() => {
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('keydown', onEscape);
+});
+onBeforeUnmount(() => {
+    window.removeEventListener('mouseup', endDrag);
+    window.removeEventListener('keydown', onEscape);
+});
 
 function onReservationCreated() {
     toasts.value?.success(translate('admin.generated.k_a53fb600f6f3'));
@@ -278,16 +329,6 @@ function doCancel(res) {
         preserveScroll: true,
         onSuccess: () => { showDetailModal.value = false; toasts.value?.success(translate('admin.generated.k_bae1d5058ac1')); },
     });
-}
-
-// Net after channel commission — for the Total line in the detail popup.
-function feePctOf(res) {
-    if (res?.channel === 'direct') return 0;
-    return Number(props.channelFees?.[res?.channel]) || 0;
-}
-function netOfRes(res) {
-    const total = Number(res?.total_amount) || 0;
-    return total - Math.round(total * feePctOf(res)) / 100;
 }
 
 function doCheckIn(res) {
@@ -484,91 +525,125 @@ function getRoomCalendarCells(room) {
             </div>
         </div>
 
-        <!-- Reservation Detail Modal -->
-        <Modal :show="showDetailModal" :title="`Rezervimi — ${selectedReservation?.guest?.first_name} ${selectedReservation?.guest?.last_name}`" max-width="md" @close="showDetailModal = false">
-            <div v-if="selectedReservation" class="space-y-4">
-                <!-- Status + source -->
-                <div class="flex items-center gap-3 flex-wrap">
-                    <Badge :variant="statusVariant(selectedReservation.status)" dot>
-                        {{ statusLabel[selectedReservation.status] || selectedReservation.status }}
-                    </Badge>
-                    <span class="inline-flex items-center gap-1.5 text-tiny text-neutral-500">
-                        <span class="h-2 w-2 rounded-full" :style="{ background: channelMeta(selectedReservation.channel).color }" />
-                        {{ channelMeta(selectedReservation.channel).label }}
-                    </span>
-                </div>
+        <!-- Reservation detail side drawer -->
+        <Teleport to="body">
+            <Transition name="drawer-fade">
+                <button
+                    v-if="showDetailModal && selectedReservation"
+                    type="button"
+                    class="fixed inset-0 z-40 cursor-default bg-primary-900/15 backdrop-blur-[1px]"
+                    :aria-label="$t('admin.generated.k_30f7d21af244')"
+                    @click="closeDetail"
+                />
+            </Transition>
+            <Transition name="drawer-slide">
+                <aside
+                    v-if="showDetailModal && selectedReservation"
+                    class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-2xl"
+                    role="dialog"
+                    aria-modal="true"
+                    :aria-label="$t('admin.calendarPreview.reservationDetails')"
+                >
+                    <header class="shrink-0 border-b border-neutral-200 bg-white px-5 py-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <p class="text-tiny font-bold uppercase tracking-wider text-accent-700">{{ $t('admin.calendarPreview.reservationDetails') }}</p>
+                                    <Badge :variant="statusVariant(selectedReservation.status)" dot>{{ statusLabel[selectedReservation.status] || selectedReservation.status }}</Badge>
+                                </div>
+                                <h2 class="mt-1 truncate text-h3 text-primary-900">{{ selectedReservation.guest?.first_name }} {{ selectedReservation.guest?.last_name }}</h2>
+                                <p class="mt-1 text-tiny text-neutral-400"># {{ selectedReservation.channel_ref || selectedReservation.id }}</p>
+                            </div>
+                            <button ref="detailCloseButton" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" @click="closeDetail">
+                                <X class="h-5 w-5" />
+                            </button>
+                        </div>
+                    </header>
 
-                <div v-if="selectedReservation.status === 'cancelled'" class="rounded-lg bg-error-50 border border-error-100 px-3 py-2 text-body-sm text-error-700">
-{{ $t('admin.generated.k_395c04c74090') }} </div>
+                    <div ref="detailScroll" class="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+                        <section>
+                            <div class="mb-2 flex items-center justify-between gap-3">
+                                <h3 class="text-body-sm font-bold text-primary-900">{{ $t('admin.calendarPreview.guestDetails') }}</h3>
+                                <span v-if="selectedReservation.guest?.nationality" class="text-tiny text-neutral-400">{{ selectedReservation.guest.nationality }}</span>
+                            </div>
+                            <div class="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                <a v-if="selectedReservation.guest?.phone" :href="`tel:${selectedReservation.guest.phone}`" class="flex items-center gap-2 py-1 text-body-sm text-neutral-700 no-underline hover:text-accent-700"><Phone class="h-4 w-4 text-neutral-400" />{{ selectedReservation.guest.phone }}</a>
+                                <a v-if="selectedReservation.guest?.email" :href="`mailto:${selectedReservation.guest.email}`" class="flex items-center gap-2 py-1 text-body-sm text-neutral-700 no-underline hover:text-accent-700"><Mail class="h-4 w-4 text-neutral-400" /><span class="truncate">{{ selectedReservation.guest.email }}</span></a>
+                                <p v-if="!selectedReservation.guest?.phone && !selectedReservation.guest?.email" class="text-body-sm text-neutral-400">—</p>
+                                <div class="mt-3 flex gap-2 border-t border-neutral-200 pt-3">
+                                    <a v-if="selectedReservation.guest?.phone" :href="`tel:${selectedReservation.guest.phone}`" class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-tiny font-semibold text-neutral-600 no-underline hover:bg-neutral-50"><Phone class="h-3.5 w-3.5" />{{ $t('admin.calendarPreview.call') }}</a>
+                                    <a v-if="selectedReservation.guest?.email" :href="`mailto:${selectedReservation.guest.email}`" class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-tiny font-semibold text-neutral-600 no-underline hover:bg-neutral-50"><MessageSquare class="h-3.5 w-3.5" />{{ $t('admin.calendarPreview.message') }}</a>
+                                </div>
+                            </div>
+                        </section>
 
-                <!-- Key facts -->
-                <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-                    <div>
-                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_a1206af0984a') }}</p>
-                        <p class="text-body-sm text-primary-900 font-medium">
-                            {{ roomOf(selectedReservation)?.room_number }}
-                            <span class="text-neutral-400 font-normal">{{ roomOf(selectedReservation)?.room_type?.name }}</span>
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_3bb0578308d9') }}</p>
-                        <p class="text-body-sm text-primary-900">
-                            {{ selectedReservation.adults }} {{ $t('admin.generated.k_eed99c8d0cff') }}<span v-if="selectedReservation.children"> · {{ selectedReservation.children }} {{ $t('admin.generated.k_4ecd4d812403') }}</span>
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_cdcd4da54b15') }}</p>
-                        <p class="text-body-sm text-primary-900">{{ selectedReservation.check_in_date }}</p>
-                    </div>
-                    <div>
-                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_21e6813ac89c') }}</p>
-                        <p class="text-body-sm text-primary-900">
-                            {{ selectedReservation.check_out_date }}
-                            <span class="text-neutral-400">· {{ nightsOf(selectedReservation) }} {{ $t('admin.generated.k_28e534d2bcc3') }}</span>
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_d777e3af0668') }}</p>
-                        <p class="text-body-sm text-accent-600 font-medium">
-                            €{{ selectedReservation.total_amount }}
-                            <span v-if="feePctOf(selectedReservation) > 0" class="text-neutral-400 font-normal">{{ $t('admin.generated.k_0550ed929ebc') }}{{ netOfRes(selectedReservation).toFixed(2) }}</span>
-                        </p>
-                    </div>
-                    <div v-if="selectedReservation.guest?.phone || selectedReservation.guest?.email">
-                        <p class="text-tiny text-neutral-400 uppercase">{{ $t('admin.generated.k_4e375afc22e7') }}</p>
-                        <p class="text-body-sm text-primary-900 break-words">
-                            <a v-if="selectedReservation.guest?.phone" :href="`tel:${selectedReservation.guest.phone}`" class="text-accent-700 no-underline hover:underline">{{ selectedReservation.guest.phone }}</a>
-                            <span v-if="selectedReservation.guest?.phone && selectedReservation.guest?.email" class="text-neutral-300"> · </span>
-                            <a v-if="selectedReservation.guest?.email" :href="`mailto:${selectedReservation.guest.email}`" class="text-accent-700 no-underline hover:underline">{{ selectedReservation.guest.email }}</a>
-                        </p>
-                    </div>
-                </div>
+                        <section>
+                            <h3 class="mb-2 text-body-sm font-bold text-primary-900">{{ $t('admin.calendarPreview.stayDetails') }}</h3>
+                            <div class="overflow-hidden rounded-xl border border-neutral-200">
+                                <div class="grid grid-cols-2 divide-x divide-neutral-200 border-b border-neutral-200 bg-neutral-50">
+                                    <div class="p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-neutral-400">{{ $t('admin.calendarPreview.checkIn') }}</p><p class="mt-1 text-body-sm font-bold text-primary-900">{{ formatDate(selectedReservation.check_in_date) }}</p><p v-if="selectedReservation.eta" class="mt-0.5 flex items-center gap-1 text-tiny text-neutral-500"><Clock3 class="h-3 w-3" />{{ selectedReservation.eta }}</p></div>
+                                    <div class="p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-neutral-400">{{ $t('admin.calendarPreview.checkOut') }}</p><p class="mt-1 text-body-sm font-bold text-primary-900">{{ formatDate(selectedReservation.check_out_date) }}</p><p class="mt-0.5 text-tiny text-neutral-500">{{ nightsOf(selectedReservation) }} {{ $t('admin.calendarPreview.nights').toLowerCase() }}</p></div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 p-3 text-body-sm">
+                                    <div><p class="text-tiny text-neutral-400">{{ $t('admin.calendarPreview.room') }}</p><p class="mt-1 font-bold text-primary-900">{{ roomOf(selectedReservation)?.room_number }} · {{ roomOf(selectedReservation)?.room_type?.name }}</p></div>
+                                    <div><p class="text-tiny text-neutral-400">{{ $t('admin.calendarPreview.guests') }}</p><p class="mt-1 font-bold text-primary-900">{{ selectedReservation.adults }} {{ $t('admin.calendarPreview.adults') }}<span v-if="selectedReservation.children"> · {{ selectedReservation.children }} {{ $t('admin.generated.k_4ecd4d812403') }}</span></p></div>
+                                </div>
+                            </div>
+                        </section>
 
-                <!-- Notes -->
-                <div v-if="selectedReservation.notes" class="rounded-lg bg-neutral-50 border border-neutral-100 px-3 py-2">
-                    <p class="text-tiny text-neutral-400 uppercase mb-0.5">{{ $t('admin.generated.k_fb24a852a7a3') }}</p>
-                    <p class="text-body-sm text-neutral-700 whitespace-pre-line">{{ selectedReservation.notes }}</p>
-                </div>
+                        <section>
+                            <div class="mb-2 flex items-center justify-between"><h3 class="text-body-sm font-bold text-primary-900">{{ $t('admin.calendarPreview.paymentSummary') }}</h3><CreditCard class="h-4 w-4 text-neutral-400" /></div>
+                            <div class="rounded-xl border border-neutral-200 p-3">
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div><p class="text-[10px] font-bold uppercase text-neutral-400">{{ $t('admin.calendarPreview.total') }}</p><p class="mt-1 text-body-sm font-bold text-primary-900">{{ formatMoney(selectedReservation.total_amount) }}</p></div>
+                                    <div><p class="text-[10px] font-bold uppercase text-neutral-400">{{ $t('admin.calendarPreview.paid') }}</p><p class="mt-1 text-body-sm font-bold text-success-700">{{ formatMoney(selectedPaidAmount) }}</p></div>
+                                    <div><p class="text-[10px] font-bold uppercase text-neutral-400">{{ $t('admin.calendarPreview.balance') }}</p><p class="mt-1 text-body-sm font-bold" :class="selectedBalance ? 'text-warning-700' : 'text-success-700'">{{ formatMoney(selectedBalance) }}</p></div>
+                                </div>
+                                <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100"><div class="h-full rounded-full bg-success-500 transition-all" :style="{ width: `${selectedPaymentProgress}%` }" /></div>
+                                <p class="mt-2 text-right text-[10px] font-semibold text-neutral-400">{{ selectedPaymentProgress }}% {{ $t('admin.calendarPreview.paid').toLowerCase() }}</p>
+                            </div>
+                        </section>
 
-                <!-- Multi-room booking -->
-                <div v-if="groupSiblings(selectedReservation).length" class="rounded-lg bg-info-50 border border-info-100 px-3 py-2">
-                    <p class="text-body-sm text-info-800">
-{{ $t('admin.generated.k_00499ea9cb88') }} {{ groupSiblings(selectedReservation).length + 1 }} {{ $t('admin.generated.k_9d9dbeaafaf2') }} <span class="font-medium">{{ groupSiblings(selectedReservation).map((r) => roomOf(r)?.room_number).filter(Boolean).join(', ') }}</span>
-                    </p>
-                </div>
-            </div>
-            <template #footer>
-                <Button v-if="canUpdate && selectedReservation?.status === 'confirmed'" variant="primary" size="sm" @click="doCheckIn(selectedReservation)">{{ $t('admin.generated.k_cdcd4da54b15') }}</Button>
-                <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="secondary" size="sm" @click="doCheckOut(selectedReservation)">{{ $t('admin.generated.k_21e6813ac89c') }}</Button>
-                <Button v-if="canUpdate && selectedReservation?.status === 'checked_in'" variant="outline" size="sm" @click="openMove">{{ $t('admin.generated.k_e85cc82fcf84') }}</Button>
-                <Button v-if="canUpdate && selectedReservation && !['checked_in','checked_out','cancelled'].includes(selectedReservation.status)" variant="outline" size="sm" @click="openEdit">{{ $t('admin.generated.k_9b810e5b2ada') }}</Button>
-                <Link v-if="selectedReservation" :href="route('reservations.show', selectedReservation.id)" class="no-underline">
-                    <Button variant="outline" size="sm">{{ $t('admin.generated.k_a3f9150ec16c') }}</Button>
-                </Link>
-                <Button v-if="canUpdate && selectedReservation && ['pending','confirmed'].includes(selectedReservation.status)" variant="outline" size="sm" class="text-error-600" @click="doCancel(selectedReservation)">{{ $t('admin.generated.k_1574ef95826c') }}</Button>
-                <Button variant="ghost" @click="showDetailModal = false">{{ $t('admin.generated.k_30f7d21af244') }}</Button>
-            </template>
-        </Modal>
+                        <section class="grid grid-cols-2 gap-3 rounded-xl border border-neutral-200 p-3 text-body-sm">
+                            <div><p class="text-tiny text-neutral-400">{{ $t('admin.calendarPreview.channel') }}</p><p class="mt-1 flex items-center gap-1.5 font-bold text-primary-900"><span class="h-2 w-2 rounded-full" :style="{ background: channelMeta(selectedReservation.channel).color }" />{{ channelMeta(selectedReservation.channel).label }}</p></div>
+                            <div><p class="text-tiny text-neutral-400">{{ $t('admin.calendarPreview.bookedOn') }}</p><p class="mt-1 font-bold text-primary-900">{{ formatDateTime(selectedReservation.created_at) }}</p></div>
+                        </section>
+
+                        <section v-if="selectedReservation.notes">
+                            <h3 class="mb-2 text-body-sm font-bold text-primary-900">{{ $t('admin.calendarPreview.specialRequests') }}</h3>
+                            <p class="whitespace-pre-line rounded-xl border border-warning-100 bg-warning-50 p-3 text-body-sm text-warning-900">{{ selectedReservation.notes }}</p>
+                        </section>
+
+                        <section v-if="groupSiblings(selectedReservation).length" class="rounded-xl border border-info-100 bg-info-50 p-3">
+                            <p class="text-body-sm text-info-800">{{ $t('admin.generated.k_00499ea9cb88') }} {{ groupSiblings(selectedReservation).length + 1 }} {{ $t('admin.generated.k_9d9dbeaafaf2') }} <span class="font-bold">{{ groupSiblings(selectedReservation).map((r) => roomOf(r)?.room_number).filter(Boolean).join(', ') }}</span></p>
+                        </section>
+
+                        <section>
+                            <h3 class="mb-3 text-body-sm font-bold text-primary-900">{{ $t('admin.calendarPreview.activity') }}</h3>
+                            <div class="ml-1 space-y-4 border-l border-neutral-200 pl-5">
+                                <div class="relative"><span class="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-info-500 ring-4 ring-white" /><p class="text-body-sm font-medium text-neutral-700">{{ $t('admin.calendarPreview.reservationCreated') }}</p><p class="text-tiny text-neutral-400">{{ formatDateTime(selectedReservation.created_at) }} · {{ channelMeta(selectedReservation.channel).label }}</p></div>
+                                <div v-if="selectedPaidAmount" class="relative"><span class="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-success-500 ring-4 ring-white" /><p class="text-body-sm font-medium text-neutral-700">{{ $t('admin.calendarPreview.paymentRecorded') }}</p><p class="text-tiny text-neutral-400">{{ formatMoney(selectedPaidAmount) }}</p></div>
+                                <div v-if="selectedReservation.status === 'checked_in'" class="relative"><span class="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-accent-500 ring-4 ring-white" /><p class="text-body-sm font-medium text-neutral-700">{{ $t('admin.calendarPreview.checkedIn') }}</p><p class="text-tiny text-neutral-400">{{ formatDate(selectedReservation.check_in_date) }}</p></div>
+                            </div>
+                        </section>
+
+                        <section v-if="canUpdate && ['pending', 'confirmed', 'checked_in'].includes(selectedReservation.status)" class="space-y-2 border-t border-neutral-200 pt-5">
+                            <Button v-if="selectedReservation.status === 'confirmed'" class="w-full justify-center" @click="doCheckIn(selectedReservation)"><CalendarDays class="h-4 w-4" />{{ $t('admin.generated.k_cdcd4da54b15') }}</Button>
+                            <Button v-if="selectedReservation.status === 'checked_in'" variant="secondary" class="w-full justify-center" @click="doCheckOut(selectedReservation)"><CalendarDays class="h-4 w-4" />{{ $t('admin.generated.k_21e6813ac89c') }}</Button>
+                            <Button v-if="['pending','confirmed'].includes(selectedReservation.status)" variant="ghost" class="w-full justify-center text-error-600" @click="doCancel(selectedReservation)">{{ $t('admin.generated.k_1574ef95826c') }}</Button>
+                        </section>
+                    </div>
+
+                    <footer class="grid shrink-0 grid-cols-3 gap-2 border-t border-neutral-200 bg-white p-4">
+                        <Button v-if="canUpdate && !['checked_in','checked_out','cancelled'].includes(selectedReservation.status)" variant="outline" class="justify-center" @click="openEdit"><Pencil class="h-4 w-4" />{{ $t('admin.calendarPreview.edit') }}</Button>
+                        <Button v-else variant="outline" class="justify-center" disabled><Pencil class="h-4 w-4" />{{ $t('admin.calendarPreview.edit') }}</Button>
+                        <Button v-if="canUpdate && selectedReservation.status === 'checked_in'" variant="outline" class="justify-center" @click="openMove"><ArrowLeftRight class="h-4 w-4" />{{ $t('admin.calendarPreview.move') }}</Button>
+                        <Button v-else variant="outline" class="justify-center" disabled><ArrowLeftRight class="h-4 w-4" />{{ $t('admin.calendarPreview.move') }}</Button>
+                        <Link :href="route('reservations.show', selectedReservation.id)" class="no-underline"><Button class="w-full justify-center"><ExternalLink class="h-4 w-4" />{{ $t('admin.calendarPreview.manage') }}</Button></Link>
+                    </footer>
+                </aside>
+            </Transition>
+        </Teleport>
 
         <!-- Create Reservation Modal — shared with the list view -->
         <ReservationCreateModal
@@ -605,6 +680,20 @@ function getRoomCalendarCells(room) {
 </template>
 
 <style scoped>
+.drawer-slide-enter-active,
+.drawer-slide-leave-active,
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+    transition: opacity 180ms ease, transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.drawer-slide-enter-from,
+.drawer-slide-leave-to {
+    transform: translateX(100%);
+}
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+    opacity: 0;
+}
 /* Week-change slide: the leaving grid overlaps the entering one so they cross, not stack */
 .cal-next-enter-active,
 .cal-next-leave-active,
@@ -639,6 +728,10 @@ function getRoomCalendarCells(room) {
     opacity: 0;
 }
 @media (prefers-reduced-motion: reduce) {
+    .drawer-slide-enter-active,
+    .drawer-slide-leave-active,
+    .drawer-fade-enter-active,
+    .drawer-fade-leave-active,
     .cal-next-enter-active,
     .cal-next-leave-active,
     .cal-prev-enter-active,
