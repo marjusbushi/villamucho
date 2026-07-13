@@ -54,6 +54,7 @@ const allNavItems = [
         label: 'Financa',
         icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M1 4.25C1 3.56 1.56 3 2.25 3h15.5c.69 0 1.25.56 1.25 1.25v2a.75.75 0 01-.75.75 2 2 0 100 4 .75.75 0 01.75.75v2c0 .69-.56 1.25-1.25 1.25H2.25C1.56 15 1 14.44 1 13.75v-2a.75.75 0 01.75-.75 2 2 0 100-4A.75.75 0 011 6.25v-2z"/></svg>',
         permission: 'view_finance',
+        addon: 'finance',
         children: [
             { label: 'Paneli', href: '/pms/finance' },
             { label: 'Arka & Banka', href: '/pms/finance/accounts' },
@@ -75,6 +76,7 @@ const navItems = computed(() =>
     allNavItems.filter((item) =>
         (!item.permission || can(item.permission))
         && (!item.role || page.props.auth.user?.role === item.role)
+        && (!item.addon || (page.props.tenant?.addons || []).includes(item.addon))
     )
 );
 </script>

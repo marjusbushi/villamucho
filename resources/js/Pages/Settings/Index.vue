@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import HotelTab from './Tabs/HotelTab.vue';
@@ -29,6 +30,8 @@ const props = defineProps({
 const toasts = ref(null);
 const activeTab = ref('hotel');
 
+const hasFinanceAddon = (usePage().props.tenant?.addons || []).includes('finance');
+
 const tabs = [
     { id: 'hotel', label: 'Hotel Info' },
     { id: 'website', label: 'Faqja Web' },
@@ -41,7 +44,7 @@ const tabs = [
     { id: 'financial', label: 'Financiare' },
     { id: 'pricing-programs', label: 'Çmimet & OTA' },
     { id: 'market-rates', label: 'Çmimet e Tregut' },
-    { id: 'currencies', label: 'Monedhat' },
+    ...(hasFinanceAddon ? [{ id: 'currencies', label: 'Monedhat' }] : []),
     { id: 'ai', label: 'Asistenti AI' },
 ];
 </script>

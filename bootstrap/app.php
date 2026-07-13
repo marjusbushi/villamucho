@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\TenantCommandRunner;
+use App\Http\Middleware\EnsureAddon;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveTenant;
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'super_admin' => EnsureSuperAdmin::class,
+            'addon' => EnsureAddon::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
