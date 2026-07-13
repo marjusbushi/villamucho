@@ -37,7 +37,18 @@ class ChannexPullBookings extends Command
         $cancelled = 0;
         foreach ($feed as $item) {
             try {
-                $s = $importer->importRevision($item);
+                $s = $importer->importRevision($item, $channex->propertyId());
+
+                // Never ack a revision that belongs to another property (= another
+                // hotel/tenant) — acking it would permanently hide the booking from
+                // its real owner. The feed is property-filtered, so this is a
+                // defense-in-depth backstop.
+                if (($s['status'] ?? null) === 'foreign_property') {
+                    $this->warn('  skipped foreign-property revision '.($item['id'] ?? '?').' (not acked)');
+
+                    continue;
+                }
+
                 $channex->ackBookingRevision($item['id']);
                 $created += $s['created'];
                 $updated += $s['updated'];
