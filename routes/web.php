@@ -5,6 +5,7 @@ use App\Http\Controllers\ChannexController;
 use App\Http\Controllers\ChannexWebhookController;
 use App\Http\Controllers\CleaningTaskController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GuestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PosController;
@@ -166,6 +167,17 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::get('/reports/discounts', [ReportsController::class, 'discounts'])->name('reports.discounts');
     });
 
+    // Finance (module #11): NOT admin-only — the view gate is view_finance and
+    // every write carries its own permission (receptionist can record an
+    // arkëtim; only pay_bills/manage_transfers roles can move money out).
+    Route::prefix('finance')->middleware('permission:view_finance')->group(function () {
+        Route::get('/', [FinanceController::class, 'index'])->name('finance.index');
+        Route::get('/accounts', [FinanceController::class, 'accounts'])->name('finance.accounts');
+        Route::get('/payments', [FinanceController::class, 'payments'])->name('finance.payments');
+        Route::post('/payments', [FinanceController::class, 'storePayment'])->middleware('permission:create_payment')->name('finance.payments.store');
+        Route::post('/transfers', [FinanceController::class, 'storeTransfer'])->middleware('permission:manage_transfers')->name('finance.transfers.store');
+    });
+
     // Admin-only: User Management + Settings
     Route::middleware('role:admin')->group(function () {
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
@@ -219,6 +231,8 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/settings/about', [SettingsController::class, 'updateAbout'])->name('settings.about');
         Route::put('/settings/financial', [SettingsController::class, 'updateFinancial'])->name('settings.financial');
         Route::put('/settings/market-rates', [SettingsController::class, 'updateMarketRates'])->name('settings.market-rates');
+        Route::put('/settings/currencies', [SettingsController::class, 'updateCurrencies'])->name('settings.currencies');
+        Route::post('/settings/currencies/refresh', [SettingsController::class, 'refreshCurrencies'])->name('settings.currencies.refresh');
         Route::put('/settings/pricing-programs', [SettingsController::class, 'updatePricingPrograms'])->name('settings.pricing-programs');
         Route::put('/settings/housekeeping', [SettingsController::class, 'updateHousekeeping'])->name('settings.housekeeping');
         Route::put('/settings/ai', [SettingsController::class, 'updateAi'])->name('settings.ai');

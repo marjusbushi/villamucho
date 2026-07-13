@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use App\Observers\PaymentObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+
+#[ObservedBy([PaymentObserver::class])]
 class Payment extends TenantModel
 {
     protected $fillable = [

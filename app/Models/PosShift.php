@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use App\Observers\PosShiftObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+
+#[ObservedBy([PosShiftObserver::class])]
 class PosShift extends TenantModel
 {
     protected $fillable = [

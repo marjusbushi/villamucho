@@ -36,6 +36,18 @@ class SettingsController extends Controller
             'gemini_from_env' => empty($aiKey) && ! empty(config('services.gemini.key')),
         ];
 
+        // Currencies (daily fx rates): same rule — never ship the raw key.
+        $curKey = trim((string) ($settings['currencies']['api_key'] ?? ''));
+        $settings['currencies'] = [
+            'enabled' => (bool) ($settings['currencies']['enabled'] ?? false),
+            'configured' => $curKey !== '',
+            'api_key_hint' => $curKey !== '' ? str_repeat('•', 6).substr($curKey, -4) : null,
+            'rates' => \App\Services\CurrencyRates::rates(),
+            'updated_at' => \App\Services\CurrencyRates::updatedAt(),
+            'tracked' => \App\Services\CurrencyRates::CURRENCIES,
+            'fallback_all' => (float) Setting::get('financial.fx_all_per_eur', 0) ?: null,
+        ];
+
         // Rate shopping (market_rates): same rule — never ship the raw key.
         $marketKey = trim((string) ($settings['market_rates']['api_key'] ?? ''));
         $settings['market_rates'] = [
@@ -346,6 +358,42 @@ class SettingsController extends Controller
         Setting::set('ai.gemini_key', $key, 'text');
 
         return back()->with('success', 'Çelësi AI u ruajt. Asistenti i çmimeve tani është aktiv.');
+    }
+
+    // --- Currencies (daily fx rates for multi-currency finance) ---
+    public function updateCurrencies(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'api_key' => ['nullable', 'string', 'max:100'],
+            'clear_key' => ['nullable', 'boolean'],
+        ]);
+
+        Setting::set('currencies.enabled', $data['enabled'] ? '1' : '0', 'boolean');
+        if ($request->boolean('clear_key')) {
+            Setting::set('currencies.api_key', '', 'text');
+        } elseif (trim((string) ($data['api_key'] ?? '')) !== '') {
+            Setting::set('currencies.api_key', trim($data['api_key']), 'text');
+        }
+
+        return back()->with('success', 'Monedhat u ruajtën.');
+    }
+
+    /** "Rifresko tani" — inline fetch so the owner sees fresh rates instantly. */
+    public function refreshCurrencies(): RedirectResponse
+    {
+        if (! \App\Services\CurrencyRates::enabled()) {
+            return back()->with('error', 'Aktivizo modulin dhe vendos çelësin API më parë.');
+        }
+        try {
+            $count = app(\App\Services\CurrencyRates::class)->fetch();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'Rifreskimi dështoi — kontrollo çelësin API.');
+        }
+
+        return back()->with('success', "U morën {$count} kurse të freskëta.");
     }
 
     // --- Market rates (rate shopping — competitor prices, Phase 1) ---
