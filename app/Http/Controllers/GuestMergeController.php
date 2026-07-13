@@ -64,6 +64,7 @@ class GuestMergeController extends Controller
         return array_merge($guest->only(GuestMergeService::FIELDS), [
             'id' => $guest->id,
             'full_name' => $guest->full_name,
+            'date_of_birth' => $guest->date_of_birth?->toDateString(),
             'created_at' => $guest->created_at?->toDateString(),
             'tags' => $guest->tags ?? [],
             'counts' => [

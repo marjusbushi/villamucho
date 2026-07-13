@@ -85,6 +85,7 @@ class GuestMergeTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Guests/Merge')
                 ->has('profiles', 2)
+                ->where('profiles.1.date_of_birth', '1990-05-10')
                 ->where('suggestion.primary_id', $secondary->id)
                 ->where('suggestion.source', 'fallback'));
 
