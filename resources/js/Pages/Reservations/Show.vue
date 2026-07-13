@@ -3,7 +3,6 @@ import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed } from 'vue';
 import { router, usePage, useForm, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
@@ -15,7 +14,20 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import AuditTimeline from '@/Components/AuditTimeline.vue';
 import { channelMeta } from '@/channels';
-import { ArrowLeft, ArrowRight, CalendarDays, CreditCard, DoorOpen, UserRound } from 'lucide-vue-next';
+import {
+    ArrowLeft,
+    ArrowRight,
+    CalendarDays,
+    Check,
+    ChevronDown,
+    CircleAlert,
+    CreditCard,
+    DoorOpen,
+    FileText,
+    Plus,
+    RefreshCcw,
+    UserRound,
+} from 'lucide-vue-next';
 
 const props = defineProps({
     reservation: Object,
@@ -79,6 +91,35 @@ const hasOpenOrders = computed(() => (props.openPosOrders?.length || 0) > 0);
 const unsettled = computed(() => Number(props.folio.outstanding) > 0.005);
 const canAddCharge = computed(() => canUpdate && ['pending', 'confirmed', 'checked_in'].includes(props.reservation.status));
 const hotelName = usePage().props.settings?.hotel_name || 'Hotel';
+const isCheckedIn = computed(() => props.reservation.status === 'checked_in');
+const guestInitials = computed(() => (props.reservation.guest?.name || '?')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase());
+
+const checkoutState = computed(() => {
+    if (hasOpenOrders.value) {
+        return {
+            tone: 'warning',
+            title: translate('reservationShow.ordersTitle'),
+            description: translate('reservationShow.ordersDescription'),
+        };
+    }
+    if (unsettled.value) {
+        return {
+            tone: 'warning',
+            title: translate('reservationShow.paymentTitle'),
+            description: translate('reservationShow.paymentDescription'),
+        };
+    }
+    return {
+        tone: 'success',
+        title: translate('reservationShow.readyTitle'),
+        description: translate('reservationShow.readyDescription'),
+    };
+});
 
 // Group folio charges by category for the invoice (room + bar + restaurant + ...).
 const invoiceGroups = computed(() => {
@@ -172,62 +213,81 @@ function settleAndCheckout(method) {
     <AppLayout>
         <Link
             :href="route('reservations.index')"
-            class="mb-3 inline-flex items-center gap-1.5 text-body-sm font-medium text-neutral-600 no-underline transition-colors hover:text-accent-700"
+            class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 no-underline transition-colors hover:text-accent-700"
         >
             <ArrowLeft class="h-4 w-4" :stroke-width="1.75" />
-{{ $t('admin.generated.k_d363cf7a6377') }} </Link>
+            {{ $t('reservationShow.back') }}
+        </Link>
 
-        <PageHeader
-            :title="`Rezervimi #${reservation.id}`"
-            :breadcrumbs="[{ label: $t('admin.generated.k_00001da4b7fd'), href: '/dashboard' }, { label: $t('admin.generated.k_5c62abaa3794'), href: route('reservations.index') }, { label: `#${reservation.id}` }]"
-        >
-            <template #actions>
-                <Badge :variant="statusBadge[reservation.status]?.variant" dot>
-                    {{ statusBadge[reservation.status]?.label }}
-                </Badge>
-                <Button v-if="canAddCharge" variant="outline" @click="openLineModal">{{ $t('admin.generated.k_1252ae021860') }}</Button>
-                <Button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" variant="success" @click="showPayModal = true">{{ $t('admin.generated.k_d22b4ace12b9') }}</Button>
-                <Button variant="outline" @click="openInvoice">{{ $t('admin.generated.k_bd826ba509ce') }}</Button>
-                <Button
-                    v-if="canUpdate && reservation.status === 'checked_in'"
-                    variant="outline"
-                    :loading="requestingCleaning"
-                    @click="requestCleaning"
-                >
-{{ $t('admin.generated.k_779f68027976') }} </Button>
-                <Button
-                    v-if="canUpdate && reservation.status === 'checked_in'"
-                    variant="primary"
-                    :disabled="hasOpenOrders"
-                    @click="openCheckout"
-                >
-{{ $t('admin.generated.k_a1fbe4f93a19') }} </Button>
-            </template>
-        </PageHeader>
+        <div class="mt-3 text-xs text-neutral-400">
+            <Link href="/dashboard" class="text-neutral-400 no-underline hover:text-neutral-700">{{ $t('admin.generated.k_00001da4b7fd') }}</Link>
+            <span class="mx-2">/</span>
+            <Link :href="route('reservations.index')" class="text-neutral-400 no-underline hover:text-neutral-700">{{ $t('admin.generated.k_5c62abaa3794') }}</Link>
+            <span class="mx-2">/</span>
+            <span class="font-medium text-neutral-600">#{{ reservation.id }}</span>
+        </div>
 
-        <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <p class="text-small text-neutral-500">Mysafiri</p>
-                <p class="mt-1 truncate font-semibold text-primary-900">{{ reservation.guest?.name }}</p>
+        <div class="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-semibold tracking-tight text-neutral-950">{{ $t('reservationShow.reservation') }} #{{ reservation.id }}</h1>
+                <p class="mt-2 text-sm text-neutral-500">{{ $t('reservationShow.activeStay') }} · {{ formatDate(reservation.check_in_date) }} – {{ formatDate(reservation.check_out_date) }}</p>
             </div>
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <p class="text-small text-neutral-500">Qëndrimi</p>
-                <p class="mt-1 font-semibold text-primary-900">{{ reservation.nights }} net</p>
-            </div>
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <p class="text-small text-neutral-500">Totali</p>
-                <p class="mt-1 font-semibold text-primary-900">{{ money(folio.gross) }}</p>
-            </div>
-            <div class="rounded-xl border p-4 shadow-sm" :class="unsettled ? 'border-warning-200 bg-warning-50' : 'border-success-200 bg-success-50'">
-                <p class="text-small" :class="unsettled ? 'text-warning-700' : 'text-success-700'">Për t’u arkëtuar</p>
-                <p class="mt-1 font-semibold" :class="unsettled ? 'text-warning-800' : 'text-success-800'">{{ money(folio.outstanding) }}</p>
+            <div class="flex flex-wrap items-center gap-2">
+                <Button variant="outline" @click="openInvoice"><FileText class="h-4 w-4" /> {{ $t('reservationShow.invoice') }}</Button>
+                <details class="group relative">
+                    <summary class="flex cursor-pointer list-none items-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50">
+                        {{ $t('reservationShow.more') }} <ChevronDown class="h-4 w-4 transition group-open:rotate-180" />
+                    </summary>
+                    <div class="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl">
+                        <button v-if="canAddCharge" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" @click="openLineModal"><Plus class="h-4 w-4" />{{ $t('reservationShow.addCharge') }}</button>
+                        <button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" @click="showPayModal = true"><CreditCard class="h-4 w-4" />{{ $t('reservationShow.recordPayment') }}</button>
+                        <button v-if="canUpdate && isCheckedIn" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" :disabled="requestingCleaning" @click="requestCleaning"><RefreshCcw class="h-4 w-4" />{{ $t('reservationShow.requestCleaning') }}</button>
+                    </div>
+                </details>
+                <Button v-if="canUpdate && isCheckedIn" variant="primary" :disabled="hasOpenOrders" @click="openCheckout">
+                    {{ $t('reservationShow.completeCheckout') }} <ArrowRight class="h-4 w-4" />
+                </Button>
             </div>
         </div>
 
-        <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <section class="mt-5 grid gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm shadow-neutral-200/30 sm:grid-cols-2 xl:grid-cols-[minmax(300px,1fr)_repeat(3,minmax(130px,.32fr))] xl:items-center">
+            <div class="flex min-w-0 items-center gap-3 sm:col-span-2 xl:col-span-1">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-sm font-bold text-emerald-700">{{ guestInitials }}</span>
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="truncate text-lg font-semibold text-neutral-900">{{ reservation.guest?.name }}</h2>
+                        <Badge :variant="statusBadge[reservation.status]?.variant" dot>{{ statusBadge[reservation.status]?.label }}</Badge>
+                    </div>
+                    <p class="mt-1 truncate text-xs text-neutral-500">{{ channelMeta(reservation.channel).label }}<template v-if="reservation.channel_ref"> · #{{ reservation.channel_ref }}</template> · {{ reservation.adults }} {{ $t('reservationShow.adults') }}<template v-if="reservation.children">, {{ reservation.children }} {{ $t('reservationShow.children') }}</template></p>
+                </div>
+            </div>
+            <div class="border-t border-neutral-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"><p class="text-xs text-neutral-400">{{ $t('reservationShow.room') }}</p><p class="mt-1 truncate text-sm font-semibold text-neutral-900">{{ reservation.room?.room_number }} · {{ reservation.room?.room_type }}</p></div>
+            <div class="border-t border-neutral-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"><p class="text-xs text-neutral-400">{{ $t('reservationShow.stay') }}</p><p class="mt-1 text-sm font-semibold text-neutral-900">{{ reservation.nights }} {{ $t('reservationShow.nights') }}</p></div>
+            <div class="border-t border-neutral-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"><p class="text-xs text-neutral-400">{{ $t('reservationShow.total') }}</p><p class="mt-1 text-sm font-semibold text-neutral-900">{{ money(folio.gross) }}</p></div>
+        </section>
+
+        <section
+            v-if="isCheckedIn"
+            class="mt-4 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"
+            :class="checkoutState.tone === 'success' ? 'border-success-200 bg-success-50/70' : 'border-warning-200 bg-warning-50/70'"
+        >
+            <div class="flex items-start gap-3">
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" :class="checkoutState.tone === 'success' ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'">
+                    <Check v-if="checkoutState.tone === 'success'" class="h-5 w-5" />
+                    <CircleAlert v-else class="h-5 w-5" />
+                </span>
+                <div><p class="font-semibold" :class="checkoutState.tone === 'success' ? 'text-success-800' : 'text-warning-800'">{{ checkoutState.title }}</p><p class="mt-0.5 text-sm" :class="checkoutState.tone === 'success' ? 'text-success-700' : 'text-warning-700'">{{ checkoutState.description }}</p></div>
+            </div>
+            <Button variant="primary" :disabled="hasOpenOrders" @click="openCheckout">{{ $t('reservationShow.completeCheckout') }} <ArrowRight class="h-4 w-4" /></Button>
+        </section>
+
+        <div class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
             <!-- Reservation details -->
-            <Card class="lg:col-span-1">
-                <h3 class="text-label text-neutral-600 uppercase tracking-wider mb-4">{{ $t('admin.generated.k_6431140c47b8') }}</h3>
+            <Card class="lg:order-2 lg:col-span-1">
+                <div class="mb-4 flex items-start justify-between gap-3 border-b border-neutral-100 pb-4">
+                    <div><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.stayDetails') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.stayDetailsSubtitle') }}</p></div>
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-neutral-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-700"><span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: channelMeta(reservation.channel).color }" />{{ channelMeta(reservation.channel).label }}</span>
+                </div>
                 <dl class="space-y-3">
                     <div class="flex justify-between">
                         <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_93eeb8e2c428') }}</dt>
@@ -290,9 +350,10 @@ function settleAndCheckout(method) {
             </Card>
 
             <!-- Folio -->
-            <Card class="lg:col-span-2" :padding="false">
-                <div class="px-5 py-4 border-b border-neutral-200">
-                    <h3 class="text-label text-neutral-600 uppercase tracking-wider">{{ $t('admin.generated.k_00f6dc45615e') }}</h3>
+            <Card class="lg:order-1 lg:col-span-2" :padding="false">
+                <div class="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+                    <div><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.folioTitle') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.folioSubtitle') }}</p></div>
+                    <Button v-if="canAddCharge" size="sm" variant="outline" @click="openLineModal"><Plus class="h-4 w-4" />{{ $t('reservationShow.addCharge') }}</Button>
                 </div>
 
                 <!-- Open POS warning -->
@@ -306,18 +367,19 @@ function settleAndCheckout(method) {
                     </ul>
                 </div>
 
-                <table class="min-w-full divide-y divide-neutral-200 mt-2">
+                <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-neutral-200">
                     <thead class="bg-neutral-50">
                         <tr>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_aa12398d381b') }}</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_eb57b84ec04c') }}</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_184c1eb85e4a') }}</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_66a4a0389558') }}</th>
+                            <th class="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.description') }}</th>
+                            <th class="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.type') }}</th>
+                            <th class="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.date') }}</th>
+                            <th class="px-5 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.amount') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
                         <tr>
-                            <td class="px-5 py-3 text-body-sm text-primary-900 font-medium">{{ $t('admin.generated.k_383951845884') }}</td>
+                            <td class="px-5 py-3 text-body-sm text-primary-900 font-medium">{{ $t('reservationShow.roomStay') }}<p class="mt-0.5 text-xs font-normal text-neutral-400">{{ reservation.nights }} {{ $t('reservationShow.nights') }} · {{ $t('reservationShow.room') }} {{ reservation.room?.room_number }}</p></td>
                             <td class="px-5 py-3"><Badge variant="info">{{ typeLabel.room }}</Badge></td>
                             <td class="px-5 py-3 text-body-sm text-neutral-500">{{ formatDate(reservation.check_in_date) }}</td>
                             <td class="px-5 py-3 text-right text-body-sm text-primary-900">{{ money(folio.roomCharge) }}</td>
@@ -332,12 +394,12 @@ function settleAndCheckout(method) {
                         </tr>
                     </tbody>
                 </table>
+                </div>
 
                 <!-- Payments -->
                 <div v-if="payments.length" class="border-t border-neutral-200">
-                    <p class="px-5 pt-3 text-label text-neutral-500 uppercase tracking-wider">{{ $t('admin.generated.k_dfd9fd8d57a7') }}</p>
-                    <ul class="px-5 py-2 space-y-1">
-                        <li v-for="p in payments" :key="p.id" class="flex justify-between text-body-sm">
+                    <ul class="divide-y divide-neutral-100">
+                        <li v-for="p in payments" :key="p.id" class="flex justify-between px-5 py-3 text-body-sm">
                             <Link v-if="reservation.links?.finance" :href="reservation.links.finance" class="text-neutral-600 no-underline hover:text-accent-700">{{ methodLabel[p.method] || p.method }} · {{ formatDate(p.date) }}</Link>
                             <span v-else class="text-neutral-600">{{ methodLabel[p.method] || p.method }} · {{ formatDate(p.date) }}</span>
                             <span class="text-success-600">− {{ money(p.amount) }}</span>
@@ -346,13 +408,13 @@ function settleAndCheckout(method) {
                 </div>
 
                 <!-- Summary -->
-                <div class="border-t border-neutral-200 px-5 py-4 space-y-2">
+                <div class="space-y-2 border-t border-neutral-200 px-5 py-4">
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>{{ $t('admin.generated.k_8e7d78994587') }}</span>
+                        <span>{{ $t('reservationShow.subtotal') }}</span>
                         <span>{{ money(folio.net) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>{{ $t('admin.generated.k_aca304907dc3') }}{{ folio.taxRate }}%)</span>
+                        <span>{{ $t('reservationShow.vat') }} ({{ folio.taxRate }}%)</span>
                         <span>{{ money(folio.taxAmount) }}</span>
                     </div>
                     <div v-if="folio.discounts > 0" class="flex justify-between text-body-sm text-success-600">
@@ -360,15 +422,15 @@ function settleAndCheckout(method) {
                         <span>− {{ money(folio.discounts) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-700 border-t border-neutral-100 pt-2">
-                        <span>{{ $t('admin.generated.k_eb3e69f5ad4a') }}</span>
+                        <span>{{ $t('reservationShow.total') }}</span>
                         <span>{{ money(folio.gross) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>{{ $t('admin.generated.k_ea1bc96b45a5') }}</span>
+                        <span>{{ $t('reservationShow.paid') }}</span>
                         <span>− {{ money(folio.paid) }}</span>
                     </div>
-                    <div v-if="reservation.status !== 'cancelled'" class="flex justify-between border-t border-neutral-200 pt-2">
-                        <span class="text-label text-neutral-700">{{ $t('admin.generated.k_224908982d79') }}</span>
+                    <div v-if="reservation.status !== 'cancelled'" class="mt-3 flex items-center justify-between rounded-xl p-3" :class="unsettled ? 'bg-warning-50' : 'bg-success-50'">
+                        <span class="font-semibold text-neutral-800">{{ $t('reservationShow.outstanding') }}</span>
                         <span class="text-h4" :class="unsettled ? 'text-error-600' : 'text-success-600'">{{ money(folio.outstanding) }}</span>
                     </div>
                     <div v-else class="flex justify-between border-t border-neutral-200 pt-2">
@@ -379,23 +441,23 @@ function settleAndCheckout(method) {
             </Card>
         </div>
 
-        <div class="mt-6 grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-            <Card>
-                <h3 class="text-label uppercase tracking-wider text-neutral-600">Lidhjet e rezervimit</h3>
-                <div class="mt-4 space-y-2">
-                    <Link v-if="reservation.links?.guest" :href="reservation.links.guest" class="flex items-center gap-3 rounded-lg border border-neutral-200 p-3 text-body-sm font-medium text-primary-900 no-underline transition hover:border-accent-300 hover:bg-accent-50/40"><UserRound class="h-5 w-5 text-accent-700" />Profili i mysafirit<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
-                    <Link v-if="reservation.links?.room" :href="reservation.links.room" class="flex items-center gap-3 rounded-lg border border-neutral-200 p-3 text-body-sm font-medium text-primary-900 no-underline transition hover:border-accent-300 hover:bg-accent-50/40"><DoorOpen class="h-5 w-5 text-accent-700" />Dhoma {{ reservation.room?.room_number }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
-                    <Link v-if="reservation.links?.finance" :href="reservation.links.finance" class="flex items-center gap-3 rounded-lg border border-neutral-200 p-3 text-body-sm font-medium text-primary-900 no-underline transition hover:border-accent-300 hover:bg-accent-50/40"><CreditCard class="h-5 w-5 text-accent-700" />Pagesat në Financë<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
-                    <Link :href="route('reservations.calendar')" class="flex items-center gap-3 rounded-lg border border-neutral-200 p-3 text-body-sm font-medium text-primary-900 no-underline transition hover:border-accent-300 hover:bg-accent-50/40"><CalendarDays class="h-5 w-5 text-accent-700" />Kalendari i rezervimeve<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
+        <div class="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+            <Card class="lg:order-2">
+                <div class="mb-3"><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.quickLinks') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.quickLinksSubtitle') }}</p></div>
+                <div class="space-y-1">
+                    <Link v-if="reservation.links?.guest" :href="reservation.links.guest" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><UserRound class="h-4 w-4" /></span>{{ $t('reservationShow.guestProfile') }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
+                    <Link v-if="reservation.links?.room" :href="reservation.links.room" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><DoorOpen class="h-4 w-4" /></span>{{ $t('reservationShow.room') }} {{ reservation.room?.room_number }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
+                    <Link v-if="reservation.links?.finance" :href="reservation.links.finance" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><CreditCard class="h-4 w-4" /></span>{{ $t('reservationShow.financePayments') }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
+                    <Link :href="route('reservations.calendar')" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><CalendarDays class="h-4 w-4" /></span>{{ $t('reservationShow.calendar') }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
                 </div>
             </Card>
-        <Card :padding="false">
-            <div class="border-b border-neutral-200 px-5 py-4">
-                <h3 class="text-label uppercase tracking-wider text-neutral-600">{{ $t('admin.generated.k_4b669a4a3082') }}</h3>
-                <p class="mt-0.5 text-tiny text-neutral-400">{{ $t('admin.generated.k_a5d6ddbd4f1e') }}</p>
-            </div>
-            <AuditTimeline :entries="history" />
-        </Card>
+            <Card class="lg:order-1" :padding="false">
+                <div class="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+                    <div><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.history') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.historySubtitle') }}</p></div>
+                    <span class="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600">{{ history.length }} {{ $t('reservationShow.actions') }}</span>
+                </div>
+                <AuditTimeline :entries="history" />
+            </Card>
         </div>
 
         <!-- Add a hotel charge to the guest account. Food/drinks come from POS. -->
