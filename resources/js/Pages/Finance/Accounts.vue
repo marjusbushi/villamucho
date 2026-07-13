@@ -4,6 +4,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeftRight,
     Banknote,
+    Check,
     ChevronLeft,
     ChevronRight,
     Download,
@@ -141,10 +142,23 @@ function submitTransfer() {
 
 const showNewAccount = ref(false);
 const account = useForm({ name: '', type: 'cash', currency: 'EUR', iban: '' });
+const accountPreviewName = computed(() => account.name.trim() || (account.type === 'cash' ? 'Arka e re' : 'Banka e re'));
+
+watch(() => account.type, (type) => {
+    if (type === 'cash') account.iban = '';
+});
+
+function closeNewAccount() {
+    if (account.processing) return;
+    showNewAccount.value = false;
+    account.reset();
+    account.clearErrors();
+}
+
 function submitAccount() {
     account.post(route('finance.accounts.store'), {
         preserveScroll: true,
-        onSuccess: () => { showNewAccount.value = false; account.reset(); },
+        onSuccess: closeNewAccount,
     });
 }
 
@@ -343,40 +357,95 @@ function toggleAccount(a) {
         </Modal>
 
         <!-- new account modal -->
-        <Modal :show="showNewAccount" @close="showNewAccount = false">
-            <div class="p-5 space-y-4">
-                <h3 class="text-h4 font-bold text-primary-900">Llogari e re</h3>
-                <div>
-                    <label class="block text-body-sm font-semibold text-primary-900 mb-1">Emri</label>
-                    <TextInput v-model="account.name" class="w-full" placeholder='p.sh. "Arka e Restorantit" ose "BKT"' maxlength="60" />
-                    <p v-if="account.errors.name" class="text-tiny text-error-600 mt-1">{{ account.errors.name }}</p>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-body-sm font-semibold text-primary-900 mb-1">Lloji</label>
-                        <select v-model="account.type" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm">
-                            <option value="cash">💵 Arkë (kesh)</option>
-                            <option value="bank">🏦 Bankë</option>
-                        </select>
+        <Modal :show="showNewAccount" title="Llogari e re" max-width="2xl" @close="closeNewAccount">
+            <div class="grid gap-5 md:grid-cols-[minmax(0,1fr)_220px]">
+                <form id="new-account-form" class="space-y-5" @submit.prevent="submitAccount">
+                    <fieldset>
+                        <legend class="mb-2 text-body-sm font-semibold text-primary-900">Zgjidh llojin e llogarisë</legend>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <button
+                                v-for="option in [
+                                    { value: 'cash', title: 'Arkë', description: 'Para fizike në recepsion ose restorant' },
+                                    { value: 'bank', title: 'Bankë', description: 'Llogari bankare dhe transferta' },
+                                ]"
+                                :key="option.value"
+                                type="button"
+                                class="relative flex gap-3 rounded-lg border p-3 text-left transition-colors"
+                                :class="account.type === option.value ? 'border-accent-500 bg-accent-50 ring-1 ring-accent-500' : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50'"
+                                @click="account.type = option.value"
+                            >
+                                <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg" :class="account.type === option.value ? 'bg-white text-accent-700' : 'bg-neutral-100 text-neutral-500'">
+                                    <Banknote v-if="option.value === 'cash'" class="h-5 w-5" />
+                                    <Landmark v-else class="h-5 w-5" />
+                                </span>
+                                <span class="min-w-0 pr-5">
+                                    <span class="block text-body-sm font-bold text-primary-900">{{ option.title }}</span>
+                                    <span class="mt-0.5 block text-tiny leading-4 text-neutral-500">{{ option.description }}</span>
+                                </span>
+                                <span v-if="account.type === option.value" class="absolute right-2.5 top-2.5 grid h-5 w-5 place-items-center rounded-full bg-accent-600 text-white">
+                                    <Check class="h-3.5 w-3.5" />
+                                </span>
+                            </button>
+                        </div>
+                        <p v-if="account.errors.type" class="mt-1 text-tiny text-error-600">{{ account.errors.type }}</p>
+                    </fieldset>
+
+                    <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
+                        <div>
+                            <label for="account-name" class="mb-1 block text-body-sm font-semibold text-primary-900">Emri i llogarisë</label>
+                            <TextInput
+                                id="account-name"
+                                v-model="account.name"
+                                class="w-full"
+                                :placeholder="account.type === 'cash' ? 'p.sh. Arka e Restorantit' : 'p.sh. BKT'"
+                                maxlength="60"
+                                :error="account.errors.name"
+                                autofocus
+                            />
+                            <p v-if="account.errors.name" class="mt-1 text-tiny text-error-600">{{ account.errors.name }}</p>
+                        </div>
+                        <div>
+                            <label for="account-currency" class="mb-1 block text-body-sm font-semibold text-primary-900">Monedha</label>
+                            <select id="account-currency" v-model="account.currency" class="w-full rounded-md border border-neutral-200 px-3 py-2 text-body-sm text-neutral-900 focus:border-accent-500 focus:ring-accent-500">
+                                <option v-for="c in currencies" :key="c" :value="c">{{ c === 'ALL' ? 'ALL · Lek' : c }}</option>
+                            </select>
+                            <p v-if="account.errors.currency" class="mt-1 text-tiny text-error-600">{{ account.errors.currency }}</p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-body-sm font-semibold text-primary-900 mb-1">Monedha</label>
-                        <select v-model="account.currency" class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-body-sm">
-                            <option v-for="c in currencies" :key="c" :value="c">{{ c === 'ALL' ? 'ALL (Lek)' : c }}</option>
-                        </select>
+
+                    <div v-if="account.type === 'bank'">
+                        <div class="mb-1 flex items-center justify-between gap-3">
+                            <label for="account-iban" class="block text-body-sm font-semibold text-primary-900">IBAN</label>
+                            <span class="text-tiny text-neutral-400">Opsionale</span>
+                        </div>
+                        <TextInput id="account-iban" v-model="account.iban" class="w-full font-mono uppercase" placeholder="AL00 0000 0000 0000 0000 0000 0000" maxlength="40" :error="account.errors.iban" />
+                        <p v-if="account.errors.iban" class="mt-1 text-tiny text-error-600">{{ account.errors.iban }}</p>
                     </div>
-                </div>
-                <div v-if="account.type === 'bank'">
-                    <label class="block text-body-sm font-semibold text-primary-900 mb-1">IBAN (ops.)</label>
-                    <TextInput v-model="account.iban" class="w-full" placeholder="AL__ ____ ____ ____" maxlength="40" />
-                    <p v-if="account.errors.iban" class="text-tiny text-error-600 mt-1">{{ account.errors.iban }}</p>
-                </div>
-                <p class="text-tiny text-neutral-400">Llogaria e re nis me bilanc 0 — lëvizjet i regjistron te Pagesat ose me Transfertë.</p>
-                <div class="flex justify-end gap-2">
-                    <Button variant="ghost" @click="showNewAccount = false">Anulo</Button>
-                    <Button :disabled="account.processing || !account.name" @click="submitAccount">Krijo llogarinë</Button>
-                </div>
+                </form>
+
+                <aside class="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                    <p class="text-tiny font-bold uppercase tracking-wide text-neutral-400">Parapamje</p>
+                    <div class="mt-4 flex items-center gap-3">
+                        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-100 text-accent-700">
+                            <Banknote v-if="account.type === 'cash'" class="h-5 w-5" />
+                            <Landmark v-else class="h-5 w-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="truncate text-body-sm font-bold text-primary-900">{{ accountPreviewName }}</p>
+                            <p class="text-tiny text-neutral-500">{{ account.type === 'cash' ? 'Arkë' : 'Bankë' }} · {{ account.currency }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-5 border-t border-neutral-200 pt-4">
+                        <p class="text-tiny text-neutral-500">Bilanci fillestar</p>
+                        <p class="mt-1 text-h3 font-extrabold tabular-nums text-primary-900">{{ money(0, account.currency) }}</p>
+                    </div>
+                    <p class="mt-4 rounded-lg bg-white p-3 text-tiny leading-5 text-neutral-500">Bilanci nis me 0. Lëvizjet regjistrohen më pas te Pagesat ose me Transfertë.</p>
+                </aside>
             </div>
+            <template #footer>
+                <Button variant="ghost" :disabled="account.processing" @click="closeNewAccount">Anulo</Button>
+                <Button type="submit" form="new-account-form" :loading="account.processing" :disabled="!account.name.trim()">Krijo llogarinë</Button>
+            </template>
         </Modal>
     </AppLayout>
 </template>
