@@ -130,6 +130,7 @@ Route::middleware('auth')->prefix('pms')->group(function () {
         Route::post('/messages/{thread}/close', [MessagesController::class, 'close'])->middleware('permission:view_reservations')->name('messages.close');
         Route::post('/messages/{thread}/reopen', [MessagesController::class, 'reopen'])->middleware('permission:view_reservations')->name('messages.reopen');
         Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])->name('reservations.calendar');
+        Route::get('/reservations/calendar-design', fn () => Inertia::render('Reservations/CalendarDesign'))->name('reservations.calendar-design');
         // Seasonal price quote for the create/edit form (server-computed; MUST stay before the {reservation} wildcard).
         Route::get('/reservations/quote', [ReservationController::class, 'quote'])->name('reservations.quote');
         Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
