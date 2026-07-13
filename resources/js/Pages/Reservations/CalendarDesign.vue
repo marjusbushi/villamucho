@@ -15,14 +15,12 @@ import {
     Plus,
     Search,
     Sparkles,
-    Users,
     X,
 } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Button from '@/Components/UI/Button.vue';
 import { getIntlLocale } from '@/i18n';
 
-const DAY_MS = 86400000;
 const visibleDays = ref(14);
 const anchorDate = ref(startOfDay(new Date()));
 const query = ref('');
@@ -80,7 +78,10 @@ function addDays(date, amount) {
 }
 
 function isoDate(date) {
-    return date.toISOString().slice(0, 10);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 const days = computed(() => Array.from({ length: visibleDays.value }, (_, index) => {
