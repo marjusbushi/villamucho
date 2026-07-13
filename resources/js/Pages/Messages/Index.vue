@@ -154,8 +154,10 @@ function statusLabel(s) {
             <p class="mt-1 text-sm text-neutral-500">Kur një mysafir të shkruajë nga Booking, Airbnb ose Expedia, biseda do të shfaqet këtu.</p>
         </div>
 
-        <div v-else class="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-            <div class="grid h-[calc(100vh-6.5rem)] grid-cols-1 sm:h-[calc(100vh-7.5rem)]"
+        <!-- Mobile is full-bleed edge-to-edge (WhatsApp): the -m cancels the main
+             padding, and dvh (not vh) keeps the composer above the browser bar. -->
+        <div v-else class="-m-4 overflow-hidden border-y border-neutral-200 bg-white sm:m-0 sm:rounded-2xl sm:border sm:shadow-sm">
+            <div class="grid h-[calc(100dvh-4.1rem)] grid-cols-1 sm:h-[calc(100dvh-7.5rem)]"
                 :class="selected && panelOpen ? 'lg:grid-cols-[300px_1fr_300px]' : 'lg:grid-cols-[300px_1fr]'">
                 <!-- Thread list (on mobile: hidden while a chat is open, like WhatsApp) -->
                 <div class="min-h-0 flex-col border-r border-neutral-200" :class="mobileChatOpen ? 'hidden lg:flex' : 'flex'">
