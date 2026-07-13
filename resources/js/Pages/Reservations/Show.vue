@@ -2,6 +2,7 @@
 import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed } from 'vue';
 import { router, usePage, useForm, Link } from '@inertiajs/vue3';
+import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
@@ -17,6 +18,7 @@ import { channelMeta } from '@/channels';
 import {
     ArrowLeft,
     ArrowRight,
+    Banknote,
     CalendarDays,
     Check,
     ChevronDown,
@@ -26,6 +28,7 @@ import {
     FileText,
     Plus,
     RefreshCcw,
+    ShieldCheck,
     UserRound,
 } from 'lucide-vue-next';
 
@@ -44,6 +47,7 @@ const showLineModal = ref(false);
 const showPayModal = ref(false);
 const showInvoice = ref(false);
 const checkoutMode = ref(false);
+const paymentSubmitting = ref(false);
 
 const perms = usePage().props.auth.user?.permissions || [];
 const canUpdate = perms.includes('update_reservations');
@@ -137,6 +141,13 @@ function printInvoice() {
 const lineForm = useForm({ type: 'extra', description: '', amount: '', charge_date: '' });
 const payForm = useForm({ amount: '', method: 'cash' });
 
+const paymentAmount = computed(() => Number(payForm.amount));
+const paymentIsValid = computed(() => (
+    Number.isFinite(paymentAmount.value)
+    && paymentAmount.value > 0
+    && paymentAmount.value <= Number(props.folio.outstanding) + 0.005
+));
+
 function openLineModal() {
     lineForm.reset();
     lineForm.clearErrors();
@@ -146,6 +157,21 @@ function closeLineModal() {
     showLineModal.value = false;
     lineForm.reset();
     lineForm.clearErrors();
+}
+
+function openPaymentModal() {
+    payForm.reset();
+    payForm.clearErrors();
+    payForm.amount = Number(props.folio.outstanding).toFixed(2);
+    payForm.method = 'cash';
+    showPayModal.value = true;
+}
+
+function closePaymentModal() {
+    if (paymentSubmitting.value) return;
+    showPayModal.value = false;
+    payForm.reset();
+    payForm.clearErrors();
 }
 
 function money(v) {
@@ -167,12 +193,44 @@ function submitLine() {
         onError: () => toasts.value?.error(addingDiscount ? translate('admin.generated.k_b9f48849d2d6') : translate('admin.generated.k_0c499a05caf5')),
     });
 }
-function submitPay() {
-    payForm.post(route('reservations.payment', props.reservation.id), {
-        preserveScroll: true,
-        onSuccess: () => { showPayModal.value = false; payForm.reset(); toasts.value?.success(translate('admin.generated.k_7a56956c0f26')); },
-        onError: () => toasts.value?.error(translate('admin.generated.k_039b4528088a')),
-    });
+async function submitPay() {
+    if (paymentSubmitting.value) return;
+
+    payForm.clearErrors();
+
+    if (!paymentIsValid.value) {
+        payForm.setError('amount', `Shuma duhet të jetë nga 0.01 deri në ${money(props.folio.outstanding)}.`);
+        return;
+    }
+
+    paymentSubmitting.value = true;
+    try {
+        const recordedAmount = paymentAmount.value;
+        await axios.post(
+            route('reservations.payment', props.reservation.id),
+            { amount: recordedAmount, method: payForm.method },
+            { headers: { Accept: 'application/json' } },
+        );
+
+        paymentSubmitting.value = false;
+        closePaymentModal();
+        router.reload({ only: ['folio', 'payments'] });
+        toasts.value?.success(`Pagesa ${money(recordedAmount)} u regjistrua me sukses.`);
+    } catch (error) {
+        const status = error.response?.status;
+        const errors = error.response?.data?.errors;
+
+        if (status === 422 && errors) {
+            Object.entries(errors).forEach(([field, messages]) => payForm.setError(field, messages[0]));
+            toasts.value?.error(Object.values(errors)[0]?.[0] || 'Kontrollo të dhënat e pagesës.');
+        } else if (status === 503) {
+            toasts.value?.warning('Sistemi po përditësohet. Pagesa nuk u regjistrua; provo përsëri pas pak sekondash.');
+        } else {
+            toasts.value?.error('Pagesa nuk u regjistrua. Provo përsëri.');
+        }
+    } finally {
+        paymentSubmitting.value = false;
+    }
 }
 // "Faturë" just views/prints the bill. "Check-out" opens the SAME invoice in checkout mode,
 // where you settle the outstanding (cash/card) and only THEN does the guest leave.
@@ -240,7 +298,7 @@ function settleAndCheckout(method) {
                     </summary>
                     <div class="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl">
                         <button v-if="canAddCharge" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" @click="openLineModal"><Plus class="h-4 w-4" />{{ $t('reservationShow.addCharge') }}</button>
-                        <button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" @click="showPayModal = true"><CreditCard class="h-4 w-4" />{{ $t('reservationShow.recordPayment') }}</button>
+                        <button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" @click="openPaymentModal"><CreditCard class="h-4 w-4" />{{ $t('reservationShow.recordPayment') }}</button>
                         <button v-if="canUpdate && isCheckedIn" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" :disabled="requestingCleaning" @click="requestCleaning"><RefreshCcw class="h-4 w-4" />{{ $t('reservationShow.requestCleaning') }}</button>
                     </div>
                 </details>
@@ -496,18 +554,80 @@ function settleAndCheckout(method) {
         </Modal>
 
         <!-- Record payment modal -->
-        <Modal :show="showPayModal" :title="$t('admin.generated.k_d38fb40fdcb5')" max-width="sm" @close="showPayModal = false">
-            <form @submit.prevent="submitPay" class="space-y-4">
+        <Modal :show="showPayModal" :title="$t('admin.generated.k_d38fb40fdcb5')" max-width="md" :closeable="!paymentSubmitting" @close="closePaymentModal">
+            <form @submit.prevent="submitPay" class="space-y-5">
+                <div class="rounded-lg border border-accent-100 bg-accent-50/60 p-4">
+                    <div class="grid grid-cols-2 gap-4 text-body-sm">
+                        <div>
+                            <p class="text-neutral-500">Totali i rezervimit</p>
+                            <p class="mt-1 font-semibold text-neutral-900">{{ money(folio.gross) }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-neutral-500">Paguar deri tani</p>
+                            <p class="mt-1 font-semibold text-success-700">{{ money(folio.paid) }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex items-center justify-between border-t border-accent-100 pt-3">
+                        <span class="font-medium text-neutral-700">Mbetur për t'u paguar</span>
+                        <span class="text-h4 text-error-600">{{ money(folio.outstanding) }}</span>
+                    </div>
+                </div>
+
                 <FormGroup :label="$t('admin.generated.k_522d709a6d49')" :error="payForm.errors.amount" required>
-                    <TextInput type="number" step="0.01" min="0.01" v-model="payForm.amount" placeholder="0.00" :error="payForm.errors.amount" />
+                    <div class="relative">
+                        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 font-semibold text-neutral-500">{{ currency }}</span>
+                        <TextInput
+                            v-model="payForm.amount"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            :max="folio.outstanding"
+                            inputmode="decimal"
+                            class="pl-8 text-lg font-semibold"
+                            placeholder="0.00"
+                            :error="payForm.errors.amount"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        class="mt-2 text-body-sm font-medium text-accent-700 hover:text-accent-800"
+                        @click="payForm.amount = Number(folio.outstanding).toFixed(2)"
+                    >
+                        Paguaj të gjithë shumën
+                    </button>
                 </FormGroup>
+
                 <FormGroup :label="$t('admin.generated.k_de3b5772305c')" :error="payForm.errors.method" required>
-                    <Select v-model="payForm.method" :options="methodOptions" :error="payForm.errors.method" />
+                    <div class="grid grid-cols-2 gap-3">
+                        <button
+                            v-for="option in methodOptions"
+                            :key="option.value"
+                            type="button"
+                            :class="[
+                                'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                                payForm.method === option.value
+                                    ? 'border-accent-500 bg-accent-50 text-accent-800 ring-1 ring-accent-500'
+                                    : 'border-neutral-200 text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50',
+                            ]"
+                            @click="payForm.method = option.value"
+                        >
+                            <Banknote v-if="option.value === 'cash'" class="h-5 w-5 shrink-0" />
+                            <CreditCard v-else class="h-5 w-5 shrink-0" />
+                            <span class="font-medium">{{ option.label }}</span>
+                        </button>
+                    </div>
                 </FormGroup>
+
+                <div class="flex items-start gap-2 text-tiny text-neutral-500">
+                    <ShieldCheck class="mt-0.5 h-4 w-4 shrink-0 text-success-600" />
+                    <span>Pagesa ruhet vetëm një herë dhe zbritet menjëherë nga balanca e rezervimit.</span>
+                </div>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showPayModal = false">{{ $t('admin.generated.k_1ae76507a0e9') }}</Button>
-                <Button variant="primary" :loading="payForm.processing" @click="submitPay">{{ $t('admin.generated.k_02f7c6d23f37') }}</Button>
+                <Button variant="outline" :disabled="paymentSubmitting" @click="closePaymentModal">{{ $t('admin.generated.k_1ae76507a0e9') }}</Button>
+                <Button variant="success" :loading="paymentSubmitting" :disabled="!paymentIsValid" @click="submitPay">
+                    Regjistro {{ paymentIsValid ? money(paymentAmount) : 'pagesën' }}
+                </Button>
             </template>
         </Modal>
 

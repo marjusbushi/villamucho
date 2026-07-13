@@ -370,20 +370,55 @@ class ReservationController extends Controller
         return back()->with('success', 'Tarifa u shtua ne llogarine e mysafirit.');
     }
 
-    public function recordPayment(Request $request, Reservation $reservation): RedirectResponse
+    public function recordPayment(Request $request, Reservation $reservation): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01', 'max:1000000'],
             'method' => ['required', 'in:cash,card'],
         ]);
 
-        $reservation->payments()->create([
-            'amount' => $data['amount'],
-            'method' => $data['method'],
-            'created_by' => auth()->id(),
-        ]);
+        $payment = DB::transaction(function () use ($reservation, $data) {
+            $lockedReservation = Reservation::query()->lockForUpdate()->findOrFail($reservation->id);
+
+            if ($lockedReservation->status === 'cancelled') {
+                throw ValidationException::withMessages([
+                    'amount' => 'Nuk mund të regjistrohet pagesë për një rezervim të anulluar.',
+                ]);
+            }
+
+            $charges = (float) $lockedReservation->total_amount
+                + (float) $lockedReservation->folioItems()->whereNotIn('type', ['discount', 'room'])->sum('amount');
+            $discounts = (float) $lockedReservation->folioItems()->where('type', 'discount')->sum('amount');
+            $paid = (float) $lockedReservation->payments()->notVoided()->sum('amount');
+            $outstanding = round($charges - $discounts - $paid, 2);
+
+            if ($outstanding <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Ky rezervim është paguar plotësisht.',
+                ]);
+            }
+
+            if ((float) $data['amount'] > $outstanding) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Pagesa nuk mund të jetë më e madhe se shuma e mbetur prej '.number_format($outstanding, 2).' €.',
+                ]);
+            }
+
+            return $lockedReservation->payments()->create([
+                'amount' => $data['amount'],
+                'method' => $data['method'],
+                'created_by' => auth()->id(),
+            ]);
+        });
 
         AuditLog::record('payment.record', $reservation, ['amount' => $data['amount'], 'method' => $data['method']]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Pagesa u regjistrua.',
+                'payment_id' => $payment->id,
+            ], 201);
+        }
 
         return back()->with('success', 'Pagesa u regjistrua.');
     }
