@@ -480,8 +480,10 @@
                 "drivers_license": "Patentë"
             },
             "statuses": {
+                "pending": "Në pritje",
                 "checked_out": "Larguar",
                 "confirmed": "Konfirmuar",
+                "checked_in": "Brenda",
                 "cancelled": "Anulluar"
             },
             "activities": {

@@ -56,6 +56,14 @@ const uploadInput = ref(null);
 const uploadForm = useForm({ type: 'passport', file: null });
 let analysisTimer = null;
 
+const stayStatusVariants = {
+    pending: 'warning',
+    confirmed: 'info',
+    checked_in: 'success',
+    checked_out: 'neutral',
+    cancelled: 'error',
+};
+
 const mockExtraction = {
     fields: {
         first_name: { value: 'Marjus', confidence: 99 },
@@ -373,7 +381,7 @@ onBeforeUnmount(() => clearTimeout(analysisTimer));
             <div class="space-y-4 xl:col-span-8">
                 <Card :padding="false">
                     <template #header><div><h2 class="text-body font-bold text-primary-900">{{ $t('admin.guestProfileDesign.stayHistory') }}</h2><p class="text-tiny text-neutral-400">{{ $t('admin.guestProfileDesign.staySubtitle') }}</p></div></template>
-                    <div class="overflow-x-auto"><table class="min-w-full"><thead class="bg-neutral-50 text-left text-tiny uppercase tracking-wide text-neutral-500"><tr><th class="px-5 py-3">{{ $t('admin.guestProfileDesign.room') }}</th><th class="px-5 py-3">{{ $t('admin.guestProfileDesign.period') }}</th><th class="px-5 py-3">{{ $t('admin.guestProfileDesign.status') }}</th><th class="px-5 py-3 text-right">{{ $t('admin.guestProfileDesign.total') }}</th></tr></thead><tbody class="divide-y divide-neutral-100"><tr v-for="stay in stays" :key="stay.id" class="hover:bg-neutral-50"><td class="px-5 py-3"><Link v-if="!demo" :href="route('reservations.show', stay.id)" class="text-body-sm font-bold text-primary-900 no-underline hover:underline">{{ stay.room }}</Link><p v-else class="text-body-sm font-bold text-primary-900">{{ stay.room }}</p><p class="text-[10px] text-neutral-400">{{ stay.room_type }}</p></td><td class="whitespace-nowrap px-5 py-3 text-body-sm text-neutral-600">{{ formatDate(stayValue(stay, 'check_in')) }} → {{ formatDate(stayValue(stay, 'check_out')) }}</td><td class="px-5 py-3"><Badge :variant="stay.status === 'checked_out' ? 'neutral' : stay.status === 'confirmed' ? 'info' : 'error'" dot>{{ $t(`admin.guestProfileDesign.statuses.${stay.status}`) }}</Badge></td><td class="px-5 py-3 text-right text-body-sm font-bold text-primary-900">€{{ Number(stay.total ?? stay.total_amount).toFixed(2) }}</td></tr></tbody></table></div>
+                    <div class="overflow-x-auto"><table class="min-w-full"><thead class="bg-neutral-50 text-left text-tiny uppercase tracking-wide text-neutral-500"><tr><th class="px-5 py-3">{{ $t('admin.guestProfileDesign.room') }}</th><th class="px-5 py-3">{{ $t('admin.guestProfileDesign.period') }}</th><th class="px-5 py-3">{{ $t('admin.guestProfileDesign.status') }}</th><th class="px-5 py-3 text-right">{{ $t('admin.guestProfileDesign.total') }}</th></tr></thead><tbody class="divide-y divide-neutral-100"><tr v-for="stay in stays" :key="stay.id" class="hover:bg-neutral-50"><td class="px-5 py-3"><Link v-if="!demo" :href="route('reservations.show', stay.id)" class="text-body-sm font-bold text-primary-900 no-underline hover:underline">{{ stay.room }}</Link><p v-else class="text-body-sm font-bold text-primary-900">{{ stay.room }}</p><p class="text-[10px] text-neutral-400">{{ stay.room_type }}</p></td><td class="whitespace-nowrap px-5 py-3 text-body-sm text-neutral-600">{{ formatDate(stayValue(stay, 'check_in')) }} → {{ formatDate(stayValue(stay, 'check_out')) }}</td><td class="px-5 py-3"><Badge :variant="stayStatusVariants[stay.status] || 'neutral'" dot>{{ $t(`admin.guestProfileDesign.statuses.${stay.status}`) }}</Badge></td><td class="px-5 py-3 text-right text-body-sm font-bold text-primary-900">€{{ Number(stay.total ?? stay.total_amount).toFixed(2) }}</td></tr></tbody></table></div>
                     <p v-if="!stays.length" class="px-5 py-10 text-center text-body-sm text-neutral-500">{{ $t('admin.guestProfileDesign.noStays') }}</p>
                 </Card>
 

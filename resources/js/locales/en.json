@@ -480,8 +480,10 @@
                 "drivers_license": "Driver's license"
             },
             "statuses": {
+                "pending": "Pending",
                 "checked_out": "Checked out",
                 "confirmed": "Confirmed",
+                "checked_in": "In house",
                 "cancelled": "Cancelled"
             },
             "activities": {
