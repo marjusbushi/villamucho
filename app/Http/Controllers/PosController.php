@@ -67,11 +67,27 @@ class PosController extends Controller
             ];
         }
 
+        $salesCounts = PosOrderItem::query()
+            ->whereHas('order', fn ($order) => $order
+                ->where('status', 'completed')
+                ->where('created_at', '>=', now()->subDays(30)))
+            ->selectRaw('menu_item_id, SUM(quantity) as quantity_sold')
+            ->groupBy('menu_item_id')
+            ->pluck('quantity_sold', 'menu_item_id');
+
+        $menu = MenuCategory::with(['items' => fn ($query) => $query->where('is_available', true)])
+            ->orderBy('sort_order')
+            ->get()
+            ->each(function (MenuCategory $category) use ($salesCounts) {
+                $category->items->each(fn (MenuItem $item) => $item->setAttribute(
+                    'sales_count',
+                    (int) ($salesCounts[$item->id] ?? 0)
+                ));
+            });
+
         return Inertia::render('Pos/Index', [
             'orders' => $query->paginate(15),
-            'menu' => MenuCategory::with(['items' => fn ($q) => $q->where('is_available', true)])
-                ->orderBy('sort_order')
-                ->get(),
+            'menu' => $menu,
             'activeReservations' => $activeReservations,
             'filters' => $request->only('status'),
             'currentShift' => $currentShift,

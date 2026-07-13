@@ -1,9 +1,8 @@
 <script setup>
 import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed } from 'vue';
-import { useForm, router, usePage } from '@inertiajs/vue3';
+import { useForm, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
@@ -13,6 +12,7 @@ import TextInput from '@/Components/UI/TextInput.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ShiftBanner from '@/Components/Pos/ShiftBanner.vue';
+import { Minus, Plus, ReceiptText, Search, ShoppingCart, Star, Trash2, X } from 'lucide-vue-next';
 
 const props = defineProps({
     orders: Object,
@@ -31,6 +31,8 @@ const showPayModal = ref(false);
 const showOrdersPanel = ref(false);
 const selectedOrder = ref(null);
 const activeCategory = ref(props.menu?.[0]?.id || null);
+const searchQuery = ref('');
+const serviceMode = ref('table');
 
 // Cart
 const cart = ref([]);
@@ -124,9 +126,28 @@ const cartCount = computed(() =>
 );
 
 const activeMenuItems = computed(() => {
-    const cat = props.menu?.find((c) => c.id === activeCategory.value);
-    return cat?.items || [];
+    const allItems = (props.menu || []).flatMap((category) =>
+        (category.items || []).map((item) => ({ ...item, category_name: category.name }))
+    );
+    const query = searchQuery.value.trim().toLocaleLowerCase('sq');
+    const categoryItems = activeCategory.value === 'frequent'
+        ? [...allItems]
+            .filter((item) => Number(item.sales_count || 0) > 0)
+            .sort((a, b) => Number(b.sales_count || 0) - Number(a.sales_count || 0))
+            .slice(0, 10)
+        : (props.menu?.find((category) => category.id === activeCategory.value)?.items || []);
+    if (!query) return categoryItems;
+    return allItems.filter((item) => item.name?.toLocaleLowerCase('sq').includes(query));
 });
+
+const hasFrequentItems = computed(() => (props.menu || [])
+    .some((category) => (category.items || []).some((item) => Number(item.sales_count || 0) > 0)));
+
+function switchService(mode) {
+    serviceMode.value = mode;
+    if (mode === 'table') selectedReservation.value = '';
+    else tableNumber.value = '';
+}
 
 // Emoji icons per category
 const categoryIcons = {
@@ -188,21 +209,23 @@ function clearCart() {
     cart.value = [];
     tableNumber.value = '';
     selectedReservation.value = '';
+    serviceMode.value = 'table';
 }
 
 function submitOrder() {
     if (!cart.value.length) return;
     if (!hasOpenShift.value) { toasts.value?.error(translate('admin.generated.k_d4d2e4579cbb')); return; }
     const form = useForm({
-        table_number: tableNumber.value || null,
-        reservation_id: selectedReservation.value || null,
+        table_number: serviceMode.value === 'table' ? tableNumber.value || null : null,
+        reservation_id: serviceMode.value === 'room' ? selectedReservation.value || null : null,
         items: cart.value.map((c) => ({ menu_item_id: c.id, quantity: c.qty })),
     });
 
+    const submittedTotal = cartTotal.value;
     form.post(route('pos.store'), {
         onSuccess: () => {
             clearCart();
-            toasts.value?.success(`Porosia u krijua — €${cartTotal.value.toFixed(2)}`);
+            toasts.value?.success(`Porosia u krijua — €${submittedTotal.toFixed(2)}`);
         },
     });
 }
@@ -255,31 +278,50 @@ function formatTime(d) {
             :shift="currentShift"
             :can-open="canOpenShift"
             :can-close="canCloseShift"
-            class="mb-5"
+            class="mb-4"
             @open="showOpenShift = true"
             @close="openCloseModal"
         />
-        <div class="flex flex-col lg:flex-row gap-6 h-full">
+        <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+                <h1 class="text-h2 text-primary-900">POS Bar/Restaurant</h1>
+                <p class="mt-1 text-body-sm text-neutral-500">Shërbim i shpejtë në banak, tavolinë ose dhomë.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="rounded-xl border border-neutral-200 bg-white px-4 py-2 shadow-card">
+                    <p class="text-tiny font-semibold uppercase tracking-wide text-neutral-400">Hapur</p>
+                    <p class="text-h4 text-warning-700">{{ stats.open }}</p>
+                </div>
+                <div class="rounded-xl border border-neutral-200 bg-white px-4 py-2 shadow-card">
+                    <p class="text-tiny font-semibold uppercase tracking-wide text-neutral-400">Përfunduar sot</p>
+                    <p class="text-h4 text-success-700">{{ stats.today_completed }}</p>
+                </div>
+                <div class="rounded-xl border border-neutral-200 bg-white px-4 py-2 shadow-card">
+                    <p class="text-tiny font-semibold uppercase tracking-wide text-neutral-400">Shitje sot</p>
+                    <p class="text-h4 text-accent-700">{{ money(stats.today_revenue) }}</p>
+                </div>
+                <Button variant="outline" class="h-[58px]" @click="showOrdersPanel = true">
+                    <ReceiptText class="h-4 w-4" /> Porositë e hapura
+                    <span class="rounded-md bg-warning-50 px-1.5 py-0.5 text-tiny font-semibold text-warning-700">{{ stats.open }}</span>
+                </Button>
+            </div>
+        </div>
+
+        <div class="flex h-full flex-col gap-5 lg:flex-row">
             <!-- LEFT: Menu area -->
             <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between mb-4">
-                    <h1 class="text-h2 text-primary-900">{{ $t('admin.generated.k_873a47ba63fd') }}</h1>
-                    <div class="flex items-center gap-3">
-                        <!-- Stats mini -->
-                        <div class="hidden sm:flex items-center gap-4 text-body-sm">
-                            <span class="text-warning-600 font-medium">{{ stats.open }} {{ $t('admin.generated.k_5ec9ca07dbde') }}</span>
-                            <span class="text-success-600 font-medium">{{ stats.today_completed }} {{ $t('admin.generated.k_962d3b64587d') }}</span>
-                            <span class="text-accent-600 font-medium">€{{ Number(stats.today_revenue).toFixed(2) }}</span>
-                        </div>
-                        <Button variant="outline" size="sm" @click="showOrdersPanel = !showOrdersPanel">
-                            {{ showOrdersPanel ? $t('admin.generated.k_43b39fe2d555') : $t('admin.generated.k_8dcaac4afed2') }}
-                        </Button>
-                    </div>
-                </div>
-
                 <!-- Orders Panel (toggle) -->
-                <div v-if="showOrdersPanel">
-                    <Card :padding="false">
+                <Teleport to="body">
+                    <Transition enter-active-class="duration-200 ease-out" enter-from-class="opacity-0" leave-active-class="duration-150 ease-in" leave-to-class="opacity-0">
+                        <div v-if="showOrdersPanel" class="fixed inset-0 z-40 bg-neutral-950/35" @click="showOrdersPanel = false" />
+                    </Transition>
+                    <Transition enter-active-class="duration-200 ease-out" enter-from-class="translate-x-full" leave-active-class="duration-200 ease-in" leave-to-class="translate-x-full">
+                    <aside v-if="showOrdersPanel" class="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-white shadow-2xl">
+                        <div class="flex items-center justify-between border-b border-neutral-200 px-5 py-4">
+                            <div><h2 class="text-h3 text-primary-900">Porositë</h2><p class="mt-0.5 text-small text-neutral-500">Hap, arkëto ose anulo porositë pa humbur shportën aktuale.</p></div>
+                            <button type="button" class="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" @click="showOrdersPanel = false"><X class="h-5 w-5" /></button>
+                        </div>
+                        <Card :padding="false" class="m-5 min-h-0 flex-1 overflow-auto">
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-neutral-200">
                                 <thead class="bg-neutral-50">
@@ -317,21 +359,42 @@ function formatTime(d) {
                             </table>
                         </div>
                         <div v-if="!orders.data?.length" class="px-6 py-8 text-center text-body-sm text-neutral-400">{{ $t('admin.generated.k_32ade96872ce') }}</div>
-                    </Card>
-                </div>
+                        </Card>
+                    </aside>
+                    </Transition>
+                </Teleport>
 
                 <!-- Menu Cards -->
-                <div v-else>
+                <div class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card">
+                    <div class="flex flex-col gap-3 border-b border-neutral-200 p-4 sm:flex-row sm:items-center">
+                        <div class="relative flex-1">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                            <input
+                                v-model="searchQuery"
+                                type="search"
+                                class="w-full rounded-lg border-neutral-200 bg-neutral-50 py-2.5 pl-9 pr-3 text-body-sm placeholder:text-neutral-400 focus:border-accent-500 focus:bg-white focus:ring-accent-500"
+                                placeholder="Kërko produktin..."
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center gap-2 rounded-lg border px-3.5 py-2.5 text-small font-semibold transition"
+                            :class="activeCategory === 'frequent' ? 'border-accent-700 bg-accent-700 text-white' : 'border-accent-200 bg-accent-50 text-accent-700 hover:bg-accent-100'"
+                            @click="activeCategory = 'frequent'"
+                        >
+                            <Star class="h-4 w-4" /> Të shpeshtat
+                        </button>
+                    </div>
                     <!-- Category tabs -->
-                    <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+                    <div class="flex gap-2 overflow-x-auto border-b border-neutral-200 px-4 py-3">
                         <button
                             v-for="cat in menu"
                             :key="cat.id"
                             :class="[
-                                'px-4 py-2.5 rounded-lg text-body-sm font-medium whitespace-nowrap transition-all duration-150',
+                                'rounded-full border px-4 py-2 text-body-sm font-semibold whitespace-nowrap transition-all duration-150',
                                 activeCategory === cat.id
-                                    ? 'bg-accent-600 text-white shadow-md'
-                                    : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200',
+                                    ? 'border-primary-900 bg-primary-900 text-white'
+                                    : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50',
                             ]"
                             @click="activeCategory = cat.id"
                         >
@@ -342,24 +405,28 @@ function formatTime(d) {
                     </div>
 
                     <!-- Locked when no shift is open -->
-                    <div v-if="!hasOpenShift" class="mb-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-center">
+                    <div v-if="!hasOpenShift" class="mx-4 mt-4 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-center">
                         <span class="text-body-sm font-medium text-warning-900">{{ $t('admin.generated.k_b9030406c1c4') }}</span>
+                    </div>
+
+                    <div v-if="activeCategory === 'frequent' && !hasFrequentItems" class="mx-4 mt-4 rounded-lg border border-info-200 bg-info-50 px-4 py-3 text-center text-body-sm text-info-800">
+                        Të shpeshtat plotësohen automatikisht pasi të regjistrohen shitjet e para.
                     </div>
 
                     <!-- Item grid -->
                     <div
-                        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
+                        class="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"
                         :class="{ 'opacity-50 pointer-events-none': !hasOpenShift }"
                     >
                         <button
                             v-for="item in activeMenuItems"
                             :key="item.id"
-                            class="group relative bg-white rounded-lg border border-neutral-200 hover:border-accent-300 hover:shadow-md transition-all duration-150 text-left overflow-hidden"
+                            class="group relative overflow-hidden rounded-xl border border-neutral-200 bg-white text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-lg"
                             :class="!item.is_available && 'opacity-50 pointer-events-none'"
                             @click="addToCart(item)"
                         >
                             <!-- Image/Emoji area -->
-                            <div class="h-24 bg-neutral-100 flex items-center justify-center overflow-hidden">
+                            <div class="flex h-24 items-center justify-center overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100">
                                 <img
                                     v-if="getItemImage(item)"
                                     :src="getItemImage(item)"
@@ -370,12 +437,15 @@ function formatTime(d) {
                             </div>
                             <!-- Info -->
                             <div class="p-3">
-                                <p class="text-body-sm text-primary-900 font-medium leading-tight">{{ item.name }}</p>
-                                <p class="text-label text-accent-600 mt-1">€{{ item.price }}</p>
+                                <p class="min-h-8 text-body-sm font-semibold leading-tight text-primary-900">{{ item.name }}</p>
+                                <div class="mt-1 flex items-center justify-between gap-2">
+                                    <p class="text-label text-accent-700">{{ money(item.price) }}</p>
+                                    <span v-if="item.sales_count" class="text-tiny text-neutral-400">{{ item.sales_count }} shitje</span>
+                                </div>
                             </div>
                             <!-- Hover add indicator -->
-                            <div class="absolute top-2 right-2 h-7 w-7 rounded-full bg-accent-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-small font-bold shadow-md">
-                                +
+                            <div class="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-accent-700 text-white opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+                                <Plus class="h-4 w-4" />
                             </div>
                             <!-- Not available overlay -->
                             <div v-if="!item.is_available" class="absolute inset-0 bg-white/60 flex items-center justify-center">
@@ -383,76 +453,92 @@ function formatTime(d) {
                             </div>
                         </button>
                     </div>
+                    <div v-if="!activeMenuItems.length && searchQuery" class="px-6 py-16 text-center">
+                        <Search class="mx-auto h-8 w-8 text-neutral-300" />
+                        <p class="mt-3 font-medium text-primary-900">Nuk u gjet asnjë produkt</p>
+                        <p class="mt-1 text-body-sm text-neutral-500">Provo një emër tjetër ose ndrysho kategorinë.</p>
+                    </div>
                 </div>
             </div>
 
             <!-- RIGHT: Cart sidebar -->
-            <div class="lg:w-80 xl:w-96 shrink-0">
-                <div class="bg-white rounded-lg border border-neutral-200 sticky top-20 flex flex-col" style="max-height: calc(100vh - 6rem);">
+            <div class="shrink-0 lg:w-[360px] xl:w-[390px]">
+                <div class="sticky top-20 flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card" style="height: calc(100vh - 7rem); min-height: 560px;">
                     <!-- Cart header -->
-                    <div class="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
-                        <h3 class="text-label text-primary-900">
-{{ $t('admin.generated.k_79d933c19a68') }} <span v-if="cartCount" class="ml-1 text-accent-600">({{ cartCount }})</span>
-                        </h3>
-                        <button v-if="cart.length" class="text-small text-error-500 hover:text-error-700" @click="clearCart">{{ $t('admin.generated.k_84ff89a2eb33') }}</button>
+                    <div class="border-b border-neutral-200 px-4 py-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="grid h-9 w-9 place-items-center rounded-lg bg-accent-50 text-accent-700"><ShoppingCart class="h-5 w-5" /></span>
+                                <div><h3 class="font-semibold text-primary-900">Porosia e re</h3><p class="text-tiny text-neutral-400">{{ cartCount }} artikuj</p></div>
+                            </div>
+                            <button v-if="cart.length" type="button" class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-small font-semibold text-error-600 hover:bg-error-50" @click="clearCart"><Trash2 class="h-4 w-4" /> Pastro</button>
+                        </div>
+
+                        <div class="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1">
+                            <button type="button" class="rounded-md px-3 py-2 text-small font-semibold transition" :class="serviceMode === 'table' ? 'bg-white text-primary-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'" @click="switchService('table')">Tavolinë / banak</button>
+                            <button type="button" class="rounded-md px-3 py-2 text-small font-semibold transition" :class="serviceMode === 'room' ? 'bg-white text-primary-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'" @click="switchService('room')">Dhomë</button>
+                        </div>
                     </div>
 
                     <!-- Table/Room selection -->
-                    <div class="px-4 py-3 border-b border-neutral-100 flex gap-2">
-                        <TextInput v-model="tableNumber" :placeholder="$t('admin.generated.k_bcf7bb395b30')" class="w-20" />
-                        <Select v-model="selectedReservation" :options="reservationOptions" :placeholder="$t('admin.generated.k_05eff1c0fb1b')" class="flex-1" />
+                    <div class="border-b border-neutral-100 px-4 py-3">
+                        <TextInput v-if="serviceMode === 'table'" v-model="tableNumber" placeholder="Numri i tavolinës · opsional" />
+                        <Select v-else v-model="selectedReservation" :options="reservationOptions" placeholder="Zgjidh dhomën / mysafirin" />
                     </div>
 
                     <!-- Cart items -->
                     <div class="flex-1 overflow-y-auto px-4 py-2">
                         <div v-if="cart.length" class="space-y-2">
-                            <div v-for="(item, i) in cart" :key="i" class="flex items-center gap-3 py-2 border-b border-neutral-50 last:border-0">
-                                <span class="text-xl shrink-0">{{ item.emoji }}</span>
+                            <div v-for="(item, i) in cart" :key="i" class="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 border-b border-neutral-100 py-3 last:border-0">
+                                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-neutral-50 text-xl">{{ item.emoji }}</span>
                                 <div class="flex-1 min-w-0">
                                     <p class="text-body-sm text-primary-900 font-medium truncate">{{ item.name }}</p>
-                                    <p class="text-small text-neutral-400">€{{ item.price.toFixed(2) }}</p>
+                                    <p class="text-small text-neutral-400">{{ money(item.price) }} / copë</p>
+                                    <div class="mt-1.5 flex items-center gap-1 shrink-0">
+                                        <button class="grid h-7 w-7 place-items-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50" @click="updateQty(i, -1)"><Minus class="h-3.5 w-3.5" /></button>
+                                        <span class="w-7 text-center text-body-sm font-semibold text-primary-900">{{ item.qty }}</span>
+                                        <button class="grid h-7 w-7 place-items-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50" @click="updateQty(i, 1)"><Plus class="h-3.5 w-3.5" /></button>
+                                    </div>
                                 </div>
-                                <div class="flex items-center gap-1 shrink-0">
-                                    <button class="h-7 w-7 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 flex items-center justify-center text-body-sm font-medium" @click="updateQty(i, -1)">−</button>
-                                    <span class="w-7 text-center text-body-sm font-medium text-primary-900">{{ item.qty }}</span>
-                                    <button class="h-7 w-7 rounded-md bg-neutral-100 text-neutral-600 hover:bg-neutral-200 flex items-center justify-center text-body-sm font-medium" @click="updateQty(i, 1)">+</button>
-                                </div>
-                                <p class="text-body-sm font-medium text-primary-900 w-14 text-right shrink-0">€{{ (item.price * item.qty).toFixed(2) }}</p>
+                                <p class="text-body-sm font-semibold text-primary-900">{{ money(item.price * item.qty) }}</p>
                             </div>
                         </div>
 
                         <div v-else class="py-12 text-center">
-                            <p class="text-3xl mb-2">🛒</p>
-                            <p class="text-body-sm text-neutral-400">{{ $t('admin.generated.k_13f1d61f5589') }}</p>
+                            <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-neutral-100 text-neutral-400"><ShoppingCart class="h-6 w-6" /></span>
+                            <p class="mt-3 font-medium text-primary-900">Shporta është bosh</p>
+                            <p class="mt-1 text-body-sm text-neutral-400">Kliko produktet për t’i shtuar.</p>
                         </div>
                     </div>
 
                     <!-- Cart footer / total -->
-                    <div v-if="cart.length" class="border-t border-neutral-200 px-4 py-4 space-y-3">
+                    <div v-if="cart.length" class="space-y-3 border-t border-neutral-200 bg-neutral-50 px-4 py-4">
                         <div class="flex items-center justify-between">
                             <span class="text-label text-neutral-500">{{ $t('admin.generated.k_85f1cb8f5091') }}</span>
-                            <span class="text-h3 text-primary-900">€{{ cartTotal.toFixed(2) }}</span>
+                            <span class="text-h3 text-primary-900">{{ money(cartTotal) }}</span>
                         </div>
-                        <Button variant="primary" size="lg" class="w-full" :disabled="!hasOpenShift" @click="submitOrder">
-{{ $t('admin.generated.k_3cb850ba15e6') }} </Button>
+                        <Button variant="primary" size="lg" class="w-full" :disabled="!hasOpenShift || (serviceMode === 'room' && !selectedReservation)" @click="submitOrder">
+                            Krijo porosinë · {{ money(cartTotal) }}
+                        </Button>
+                        <p class="text-center text-tiny text-neutral-400">Porosia krijohet e hapur dhe arkëtohet te “Porositë”.</p>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Payment Modal -->
-        <Modal :show="showPayModal" :title="$t('admin.generated.k_b5f8a9103278')" max-width="sm" @close="showPayModal = false">
+        <Modal :show="showPayModal" title="Arkëto porosinë" max-width="sm" @close="showPayModal = false">
             <div class="space-y-4">
-                <div class="text-center py-2">
-                    <p class="text-h2 text-primary-900">€{{ selectedOrder?.total_amount }}</p>
-                    <p class="text-body-sm text-neutral-500 mt-1">{{ $t('admin.generated.k_2df88c398727') }}{{ selectedOrder?.id }}</p>
+                <div class="rounded-xl border border-neutral-200 bg-neutral-50 py-5 text-center">
+                    <p class="text-small font-semibold uppercase tracking-wide text-neutral-400">Porosia #{{ selectedOrder?.id }}</p>
+                    <p class="mt-1 text-h1 text-primary-900">{{ money(selectedOrder?.total_amount) }}</p>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                     <button
                         v-for="opt in paymentOptions"
                         :key="opt.value"
                         :class="[
-                            'rounded-lg border-2 p-4 text-center transition-all duration-150',
+                            'rounded-xl border-2 p-4 text-center transition-all duration-150',
                             paymentMethod === opt.value
                                 ? 'border-accent-500 bg-accent-50 text-accent-700'
                                 : 'border-neutral-200 hover:border-neutral-300 text-neutral-600',
@@ -470,10 +556,11 @@ function formatTime(d) {
                     <Select v-model="selectedPayReservation" :options="reservationOptions" :placeholder="$t('admin.generated.k_b6c2dcec536d')" />
                     <p v-if="!reservationOptions.length" class="text-small text-error-500 mt-1">{{ $t('admin.generated.k_0732d0e36b56') }}</p>
                 </div>
+                <p class="rounded-lg border border-info-200 bg-info-50 px-3 py-2.5 text-small text-info-800">Pagesa cash ose kartë regjistrohet në Financë; pagesa në dhomë kalon në folion e rezervimit.</p>
             </div>
             <template #footer>
                 <Button variant="outline" @click="showPayModal = false">{{ $t('admin.generated.k_182fb16b9fb0') }}</Button>
-                <Button variant="primary" :disabled="!paymentMethod || (paymentMethod === 'room_charge' && !selectedPayReservation)" @click="submitPay">{{ $t('admin.generated.k_e58a8793ac5d') }}{{ selectedOrder?.total_amount }}</Button>
+                <Button variant="primary" :disabled="!paymentMethod || (paymentMethod === 'room_charge' && !selectedPayReservation)" @click="submitPay">Konfirmo · {{ money(selectedOrder?.total_amount) }}</Button>
             </template>
         </Modal>
 
