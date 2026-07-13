@@ -1,0 +1,122 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\FinanceAccount;
+use App\Models\FinancePayment;
+use App\Models\Payment;
+use App\Models\PosShift;
+use App\Models\Setting;
+use Illuminate\Database\Eloquent\Model;
+
+/**
+ * The auto-feed into the finance ledger: folio payments and POS shift closes
+ * become finance_payments WITHOUT anyone re-typing a number. Idempotent by
+ * design — each source record maps to at most ONE ledger row (unique
+ * sourceable index + updateOrCreate), so observers, webhooks and the
+ * finance:backfill command can all run repeatedly without double-counting.
+ *
+ * Cash goes to the cash account (Arka); card/POK/OTA/bank money to the first
+ * bank account. OTA commissions are deliberately NOT ledger rows (they are
+ * never cash movements) — the dashboard reads them straight from reservations.
+ */
+class FinanceLedger
+{
+    public static function accountFor(string $method): FinanceAccount
+    {
+        FinanceAccount::ensureDefaults();
+
+        $type = $method === 'cash' ? 'cash' : 'bank';
+
+        return FinanceAccount::where('type', $type)->where('is_active', true)->orderBy('id')->firstOrFail();
+    }
+
+    /** Mirror one folio payment into the ledger (or remove it when voided). */
+    public function recordFolioPayment(Payment $payment): ?FinancePayment
+    {
+        // Voided or non-positive rows must LEAVE no ledger trace.
+        if ($payment->is_voided || (float) $payment->amount <= 0) {
+            $this->removeFor($payment);
+
+            return null;
+        }
+        if (($payment->type ?? 'payment') !== 'payment') {
+            return null; // refunds/adjustments are out of Phase 1 scope
+        }
+
+        $currency = strtoupper((string) ($payment->currency ?: 'EUR'));
+        $method = in_array($payment->method, ['cash', 'card', 'bank', 'pok', 'ota'], true) ? $payment->method : 'card';
+
+        return FinancePayment::updateOrCreate(
+            ['sourceable_type' => Payment::class, 'sourceable_id' => $payment->id],
+            [
+                'direction' => 'in',
+                'account_id' => self::accountFor($method)->id,
+                'amount' => $payment->amount,
+                'currency' => $currency,
+                'fx_rate' => $currency === 'EUR' ? null : $this->fxRate(),
+                'method' => $method,
+                'source' => 'auto',
+                'description' => 'Pagesë folio — rezervimi #'.$payment->reservation_id,
+                'paid_at' => $payment->created_at ?? now(),
+                'created_by' => $payment->created_by,
+            ],
+        );
+    }
+
+    /**
+     * Mirror a CLOSED POS shift: the cash the till actually yielded
+     * (counted − opening float). A short drawer records as an OUT row so the
+     * Arka balance stays true to reality, not to expectations.
+     */
+    public function recordShiftClose(PosShift $shift): ?FinancePayment
+    {
+        if ($shift->status !== 'closed' || ! $shift->closed_at) {
+            $this->removeFor($shift); // re-opened shift leaves no ledger row
+
+            return null;
+        }
+
+        $yield = $shift->counted_cash !== null
+            ? round((float) $shift->counted_cash - (float) $shift->opening_float, 2)
+            : round((float) $shift->cash_sales, 2);
+        if ($yield == 0.0) {
+            return null;
+        }
+
+        return FinancePayment::updateOrCreate(
+            ['sourceable_type' => PosShift::class, 'sourceable_id' => $shift->id],
+            [
+                'direction' => $yield > 0 ? 'in' : 'out',
+                'account_id' => self::accountFor('cash')->id,
+                'amount' => abs($yield),
+                'currency' => 'EUR',
+                'fx_rate' => null,
+                'method' => 'cash',
+                'source' => 'auto',
+                'description' => 'Mbyllje turni POS — '.($shift->user?->name ?? ('turni #'.$shift->id))
+                    .((float) $shift->over_short != 0.0 ? sprintf(' (diferencë %+.2f)', (float) $shift->over_short) : ''),
+                'paid_at' => $shift->closed_at,
+                'created_by' => $shift->closed_by,
+            ],
+        );
+    }
+
+    public function removeFor(Model $source): void
+    {
+        FinancePayment::where('sourceable_type', get_class($source))
+            ->where('sourceable_id', $source->getKey())
+            ->delete();
+    }
+
+    /** ALL-per-EUR rate from Settings (frozen onto rows at write time). */
+    protected function fxRate(): float
+    {
+        $fx = (float) Setting::get('financial.fx_all_per_eur', 0);
+        if ($fx <= 0) {
+            throw new \RuntimeException('Kursi ALL/EUR mungon te Settings (financial.fx_all_per_eur).');
+        }
+
+        return $fx;
+    }
+}
