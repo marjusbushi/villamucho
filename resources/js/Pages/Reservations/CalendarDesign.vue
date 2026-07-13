@@ -8,6 +8,7 @@ const {
     rooms,
     reservations,
     guests,
+    conflicts,
     startDate,
     endDate,
     visibleDays,
@@ -23,6 +24,7 @@ const {
             :rooms="rooms"
             :reservations="reservations"
             :guests="guests"
+            :conflicts="conflicts"
             :start-date="startDate"
             :end-date="endDate"
             :visible-days="visibleDays"

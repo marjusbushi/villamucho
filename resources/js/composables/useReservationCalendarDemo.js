@@ -21,21 +21,21 @@ function isoDate(value) {
 }
 
 const DEMO_ROOMS = [
-    [1, '101', 'Deluxe Sea View', 1, 'available'],
-    [2, '102', 'Deluxe Sea View', 1, 'available'],
-    [3, '103', 'Double Garden', 1, 'available'],
-    [4, '104', 'Double Garden', 1, 'available'],
-    [5, '201', 'Junior Suite', 2, 'available'],
-    [6, '202', 'Junior Suite', 2, 'available'],
-    [7, '203', 'Family Suite', 2, 'available'],
-    [8, '204', 'Family Suite', 2, 'maintenance'],
-].map(([id, room_number, name, floor, status]) => ({
+    [1, '101', 'Deluxe Sea View', 1, 1, 'available'],
+    [2, '102', 'Deluxe Sea View', 1, 1, 'available'],
+    [3, '103', 'Double Garden', 2, 1, 'available'],
+    [4, '104', 'Double Garden', 2, 1, 'available'],
+    [5, '201', 'Junior Suite', 3, 2, 'available'],
+    [6, '202', 'Junior Suite', 3, 2, 'available'],
+    [7, '203', 'Family Suite', 4, 2, 'available'],
+    [8, '204', 'Family Suite', 4, 2, 'maintenance'],
+].map(([id, room_number, name, room_type_id, floor, status]) => ({
     id,
     room_number,
     floor,
     status,
-    room_type_id: id,
-    room_type: { id, name },
+    room_type_id,
+    room_type: { id: room_type_id, name },
 }));
 
 const DEMO_RESERVATIONS = [
@@ -50,6 +50,7 @@ const DEMO_RESERVATIONS = [
     [109, 6, 'Emma', 'Wilson', 2, 3, 'confirmed', 'airbnb', 465, 465, null],
     [110, 7, 'Familja', 'Gashi', 0, 7, 'checked_in', 'booking.com', 500, 1190, 'Two extra pillows and a baby cot.'],
     [111, 7, 'Oliver', 'Smith', 9, 4, 'pending', 'expedia', 0, 680, null],
+    [112, 5, 'Sara', 'Müller', 5, 5, 'confirmed', 'booking.com', 250, 800, 'Airport transfer requested.'],
 ];
 
 export function useReservationCalendarDemo() {
@@ -87,6 +88,27 @@ export function useReservationCalendarDemo() {
         booking_group_id: null,
     })));
     const guests = computed(() => reservations.value.map((reservation) => reservation.guest));
+    const conflicts = computed(() => {
+        const reservationIds = [108, 112];
+
+        return [{
+            id: 'demo-room-201-overlap',
+            room_id: 5,
+            room_number: '201',
+            room_type: 'Junior Suite',
+            start_date: isoDate(addDays(anchorDate.value, 6)),
+            end_date: isoDate(addDays(anchorDate.value, 10)),
+            reservations: reservations.value
+                .filter((reservation) => reservationIds.includes(reservation.id))
+                .map((reservation) => ({
+                    ...reservation,
+                    suggested_rooms: reservation.id === 112 ? [
+                        { id: 6, room_number: '202', room_type: 'Junior Suite', same_type: true },
+                        { id: 7, room_number: '203', room_type: 'Family Suite', same_type: false },
+                    ] : [],
+                })),
+        }];
+    });
 
     function navigate({ start, days }) {
         anchorDate.value = startOfDay(`${start}T12:00:00`);
@@ -97,6 +119,7 @@ export function useReservationCalendarDemo() {
         rooms,
         reservations,
         guests,
+        conflicts,
         startDate,
         endDate,
         visibleDays,

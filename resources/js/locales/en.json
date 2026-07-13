@@ -371,6 +371,26 @@
             "checkoutFailed": "Check-out failed.",
             "guestCreated": "Guest added."
         },
+        "calendarConflicts": {
+            "alertTitle": "{count} reservation conflict found",
+            "alertBody": "Two reservations overlap in the same room. Review them before the guests arrive.",
+            "review": "Review conflicts",
+            "centerTitle": "Conflict center",
+            "centerSubtitle": "{count} case requires your decision",
+            "close": "Close conflict center",
+            "demoNotice": "This is a mock-data prototype. Choosing a solution does not change any real reservation.",
+            "room": "Room",
+            "conflictPeriod": "Conflict period",
+            "actionRequired": "Action required",
+            "viewDetails": "View details",
+            "suggestedSolution": "Suggested solution",
+            "moveToRoom": "Move to room {room}",
+            "sameType": "Same room type",
+            "alternativeType": "Alternative type",
+            "choose": "Choose",
+            "keepReservation": "This reservation can remain in its current room.",
+            "demoApplied": "Demo: the conflict was resolved by choosing room {room}. Refresh the page to restore it."
+        },
         "generated": {
             "k_00001da4b7fd": "Dashboard",
             "k_00114f238556": "Today",

@@ -8,6 +8,7 @@ import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import { channelMeta } from '@/channels';
 import {
     ArrowLeftRight,
+    AlertTriangle,
     CalendarDays,
     Clock3,
     CreditCard,
@@ -22,6 +23,7 @@ import {
 const ReservationCreateModal = defineAsyncComponent(() => import('@/Components/Reservations/ReservationCreateModal.vue'));
 const MoveRoomModal = defineAsyncComponent(() => import('@/Components/Reservations/MoveRoomModal.vue'));
 const ReservationEditModal = defineAsyncComponent(() => import('@/Components/Reservations/ReservationEditModal.vue'));
+const ReservationConflictCenter = defineAsyncComponent(() => import('@/Components/Reservations/ReservationConflictCenter.vue'));
 
 const props = defineProps({
     rooms: Array,
@@ -33,6 +35,7 @@ const props = defineProps({
     channelFees: { type: Object, default: () => ({}) },
     demo: { type: Boolean, default: false },
     availableDayRanges: { type: Array, default: () => [14] },
+    conflicts: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(['navigate']);
@@ -50,6 +53,11 @@ const filterInput = ref(null);
 const showSummary = ref(false);
 const query = ref('');
 const statusFilter = ref('all');
+const showConflictCenter = ref(false);
+const resolvedConflictIds = ref([]);
+
+const activeConflicts = computed(() => (props.conflicts || []).filter((conflict) => !resolvedConflictIds.value.includes(conflict.id)));
+const conflictingReservationIds = computed(() => new Set(activeConflicts.value.flatMap((conflict) => conflict.reservations.map((reservation) => reservation.id))));
 
 const perms = usePage().props.auth.user?.permissions || [];
 const canCreate = props.demo || perms.includes('create_reservations');
@@ -203,6 +211,20 @@ async function openDetail(reservation) {
     detailCloseButton.value?.focus({ preventScroll: true });
 }
 
+function openConflictReservation(reservationId) {
+    const reservation = (props.reservations || []).find((item) => item.id === reservationId);
+    if (!reservation) return;
+    showConflictCenter.value = false;
+    openDetail(reservation);
+}
+
+function applyConflictSuggestion({ conflictId, room }) {
+    if (!props.demo) return;
+    resolvedConflictIds.value = [...resolvedConflictIds.value, conflictId];
+    showConflictCenter.value = false;
+    toasts.value?.success(translate('admin.calendarConflicts.demoApplied', { room: room.room_number }));
+}
+
 function closeDetail() {
     showDetailModal.value = false;
 }
@@ -332,6 +354,10 @@ function onGridOver(e) {
 
 // Finalize the selection even if the mouse is released off the grid.
 function onEscape(event) {
+    if (event.key === 'Escape' && showConflictCenter.value) {
+        showConflictCenter.value = false;
+        return;
+    }
     if (event.key === 'Escape' && showDetailModal.value) closeDetail();
 }
 
@@ -432,6 +458,17 @@ function doCheckOut(res) {
                 </div>
             </div>
 
+            <div v-if="activeConflicts.length" role="alert" class="mb-4 flex flex-col gap-3 rounded-xl border border-error-300 bg-error-50 px-4 py-3 shadow-card sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex min-w-0 items-start gap-3">
+                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-error-600 text-white"><AlertTriangle class="h-5 w-5" /></span>
+                    <div>
+                        <p class="text-body-sm font-extrabold text-error-900">{{ $t('admin.calendarConflicts.alertTitle', { count: activeConflicts.length }) }}</p>
+                        <p class="mt-0.5 text-tiny text-error-700">{{ $t('admin.calendarConflicts.alertBody') }}</p>
+                    </div>
+                </div>
+                <Button variant="danger" size="sm" class="shrink-0 justify-center" @click="showConflictCenter = true">{{ $t('admin.calendarConflicts.review') }}</Button>
+            </div>
+
             <div v-if="!showSummary" class="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-card"><div><p class="text-tiny font-medium text-neutral-500">{{ $t('admin.calendarPreview.occupancy') }}</p><p class="mt-0.5 text-h4 font-extrabold text-primary-900">{{ occupancy }}%</p></div><span class="grid h-8 w-8 place-items-center rounded-lg bg-accent-50 text-sm font-bold text-accent-700" aria-hidden="true">●</span></div>
                 <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-card"><div><p class="text-tiny font-medium text-neutral-500">{{ $t('admin.calendarPreview.arrivalsToday') }}</p><p class="mt-0.5 text-h4 font-extrabold text-primary-900">{{ arrivals }}</p></div><span class="grid h-8 w-8 place-items-center rounded-lg bg-info-50 text-sm font-bold text-info-700" aria-hidden="true">↘</span></div>
@@ -521,7 +558,10 @@ function doCheckOut(res) {
                                         :key="reservation.id"
                                         type="button"
                                         class="absolute top-2 z-10 h-12 overflow-hidden rounded-lg border px-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                                        :class="statusColors[reservation.status]"
+                                        :class="[
+                                            statusColors[reservation.status],
+                                            conflictingReservationIds.has(reservation.id) ? 'ring-2 ring-error-500 ring-offset-1' : '',
+                                        ]"
                                         :style="reservationStyle(reservation)"
                                         @click="openDetail(reservation)"
                                     >
@@ -545,6 +585,14 @@ function doCheckOut(res) {
                 </div>
             </section>
         </div>
+
+        <ReservationConflictCenter
+            v-if="showConflictCenter"
+            :conflicts="activeConflicts"
+            @close="showConflictCenter = false"
+            @open-reservation="openConflictReservation"
+            @apply-suggestion="applyConflictSuggestion"
+        />
 
         <!-- Reservation detail side drawer -->
         <Teleport to="body">

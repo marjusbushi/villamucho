@@ -371,6 +371,26 @@
             "checkoutFailed": "Check-out dështoi.",
             "guestCreated": "Mysafiri u shtua."
         },
+        "calendarConflicts": {
+            "alertTitle": "U gjetën {count} konflikt rezervimesh",
+            "alertBody": "Dy rezervime mbivendosen në të njëjtën dhomë. Kontrolloji para mbërritjes së mysafirëve.",
+            "review": "Shiko konfliktet",
+            "centerTitle": "Qendra e konflikteve",
+            "centerSubtitle": "{count} rast kërkon vendimin tënd",
+            "close": "Mbyll qendrën e konflikteve",
+            "demoNotice": "Ky është prototip me të dhëna demo. Zgjedhja e një zgjidhjeje nuk ndryshon asnjë rezervim real.",
+            "room": "Dhoma",
+            "conflictPeriod": "Periudha e konfliktit",
+            "actionRequired": "Kërkon veprim",
+            "viewDetails": "Shiko detajet",
+            "suggestedSolution": "Zgjidhje e sugjeruar",
+            "moveToRoom": "Zhvendose në dhomën {room}",
+            "sameType": "I njëjti tip",
+            "alternativeType": "Tip alternativ",
+            "choose": "Zgjidh",
+            "keepReservation": "Ky rezervim mund të qëndrojë në dhomën aktuale.",
+            "demoApplied": "Demo: konflikti u zgjidh duke zgjedhur dhomën {room}. Rifresko faqen për ta rikthyer."
+        },
         "generated": {
             "k_00001da4b7fd": "Paneli",
             "k_00114f238556": "Sot",
