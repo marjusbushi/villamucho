@@ -43,6 +43,7 @@ const billingForm = useForm({
 });
 
 const showCreate = ref(false);
+const configTab = ref('domains');
 
 function openCreate() {
     form.reset('name', 'slug', 'primary_domain', 'owner_name', 'owner_email');
@@ -71,7 +72,8 @@ const domainForm = useForm({ domain: '' });
 const channexForm = useForm({ enabled: false, api_key: '', webhook_secret: '', property_id: '', base_url: '' });
 const pokForm = useForm({ enabled: false, key_id: '', key_secret: '', merchant_id: '', production: false });
 
-function openConfig(tenant) {
+function openConfig(tenant, resetTab = true) {
+    if (resetTab) configTab.value = 'domains';
     configTenant.value = tenant;
     domainForm.reset();
     domainForm.clearErrors();
@@ -102,7 +104,7 @@ function refreshConfig() {
         only: ['tenants'],
         onSuccess: (page) => {
             const fresh = page.props.tenants.find((t) => t.id === configTenant.value?.id);
-            if (fresh) openConfig(fresh);
+            if (fresh) openConfig(fresh, false);
         },
     });
 }
@@ -658,105 +660,117 @@ function statusLabel(status) {
 
         <Teleport to="body">
             <div v-if="editingTenant" class="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/50 p-0 sm:items-center sm:p-6" @click.self="closeBilling">
-                <section class="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
-                    <div class="sticky top-0 z-10 flex items-start justify-between border-b border-neutral-200 bg-white px-5 py-4 sm:px-6">
-                        <div>
-                            <h2 class="text-lg font-semibold text-neutral-900">Abonimi — {{ editingTenant.name }}</h2>
-                            <p class="mt-1 text-sm text-neutral-500">Aktivizo vetëm modulet e kontraktuara nga hoteli.</p>
+                <section role="dialog" aria-modal="true" class="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+                    <div class="flex items-start justify-between border-b border-neutral-200 bg-white px-5 py-4 sm:px-6">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#e8f3ef] text-xs font-bold text-[#24624f]">{{ initials(editingTenant.name) }}</span>
+                            <div class="min-w-0">
+                                <h2 class="truncate text-lg font-semibold text-neutral-900">Menaxho abonimin</h2>
+                                <p class="truncate text-sm text-neutral-500">{{ editingTenant.name }} · {{ editingTenant.primary_domain || editingTenant.slug }}</p>
+                            </div>
                         </div>
-                        <button class="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" type="button" @click="closeBilling">✕</button>
+                        <button class="rounded-xl p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" type="button" aria-label="Mbyll abonimin" @click="closeBilling"><X class="h-5 w-5" /></button>
                     </div>
 
-                    <form class="space-y-6 p-5 sm:p-6" @submit.prevent="saveBilling">
-                        <div class="grid gap-4 sm:grid-cols-3">
-                            <label class="text-sm font-medium text-neutral-700">
-                                Statusi
-                                <select v-model="billingForm.status" class="mt-1 w-full rounded-lg border-neutral-300 text-sm">
-                                    <option value="trialing">Provë</option>
-                                    <option value="active">Aktiv</option>
-                                    <option value="past_due">Pagesë e vonuar</option>
-                                    <option value="suspended">Pezulluar</option>
-                                    <option value="canceled">Anuluar</option>
-                                </select>
-                            </label>
-                            <label class="text-sm font-medium text-neutral-700">
-                                Pagesa
-                                <select v-model="billingForm.billing_cycle" class="mt-1 w-full rounded-lg border-neutral-300 text-sm">
-                                    <option value="monthly">Mujore</option>
-                                    <option value="annual">Vjetore · -20%</option>
-                                </select>
-                            </label>
-                            <label class="text-sm font-medium text-neutral-700">
-                                Rinovohet deri më
-                                <input v-model="billingForm.current_period_ends_at" type="date" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" />
-                            </label>
-                        </div>
+                    <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="saveBilling">
+                        <div class="min-h-0 flex-1 overflow-y-auto">
+                            <div class="grid lg:grid-cols-[280px_minmax(0,1fr)]">
+                                <aside class="space-y-5 border-b border-neutral-200 bg-neutral-50/70 p-5 lg:border-b-0 lg:border-r sm:p-6">
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">Detajet e planit</p>
+                                        <div class="mt-3 rounded-xl border border-neutral-200 bg-white p-4">
+                                            <p class="text-xs text-neutral-500">MRR aktual</p>
+                                            <p class="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">{{ money(monthlyMrr(editingTenant), editingTenant.billing.currency) }}</p>
+                                            <p class="mt-1 text-xs text-neutral-400">{{ enabledCount(editingTenant) }} module aktive</p>
+                                        </div>
+                                    </div>
 
-                        <div>
-                            <div class="mb-3 flex items-end justify-between gap-4">
-                                <div>
-                                    <h3 class="font-semibold text-neutral-900">Modulet</h3>
-                                    <p class="text-sm text-neutral-500">Core është baza dhe nuk çaktivizohet.</p>
-                                </div>
-                            </div>
-
-                            <div class="space-y-3">
-                                <article
-                                    v-for="module in Object.values(editingTenant.billing.modules)"
-                                    :key="module.code"
-                                    class="rounded-xl border border-neutral-200 p-4"
-                                    :class="billingForm.modules[module.code]?.enabled ? 'bg-emerald-50/40' : 'bg-neutral-50/60'"
-                                >
-                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <label class="flex min-w-0 items-start gap-3">
-                                            <input
-                                                v-model="billingForm.modules[module.code].enabled"
-                                                type="checkbox"
-                                                class="mt-1 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
-                                                :disabled="module.locked"
-                                            />
-                                            <span>
-                                                <span class="block text-sm font-semibold text-neutral-900">{{ module.name }}</span>
-                                                <span class="mt-0.5 block text-xs text-neutral-500">{{ module.description }}</span>
-                                                <span v-if="module.billing_model === 'percentage'" class="mt-1 block text-xs font-medium text-emerald-700">
-                                                    {{ module.percentage_bps / 100 }}% për rezervim direkt
-                                                </span>
-                                            </span>
+                                    <div class="space-y-4">
+                                        <label class="block text-sm font-medium text-neutral-700">
+                                            Statusi i abonimit
+                                            <select v-model="billingForm.status" class="mt-1.5 w-full rounded-xl border-neutral-300 py-2.5 text-sm">
+                                                <option value="trialing">Provë</option>
+                                                <option value="active">Aktiv</option>
+                                                <option value="past_due">Pagesë e vonuar</option>
+                                                <option value="suspended">Pezulluar</option>
+                                                <option value="canceled">Anuluar</option>
+                                            </select>
                                         </label>
-
-                                        <label
-                                            v-if="['tiered_per_room', 'per_user', 'per_pos'].includes(module.billing_model)"
-                                            class="shrink-0 text-xs font-medium text-neutral-600"
-                                        >
-                                            {{ module.unit_label }}
-                                            <input
-                                                v-model.number="billingForm.modules[module.code].quantity"
-                                                type="number"
-                                                min="1"
-                                                max="10000"
-                                                class="ml-2 w-24 rounded-lg border-neutral-300 text-sm"
-                                                :disabled="!billingForm.modules[module.code].enabled"
-                                            />
+                                        <label class="block text-sm font-medium text-neutral-700">
+                                            Cikli i faturimit
+                                            <select v-model="billingForm.billing_cycle" class="mt-1.5 w-full rounded-xl border-neutral-300 py-2.5 text-sm">
+                                                <option value="monthly">Mujore</option>
+                                                <option value="annual">Vjetore · -20%</option>
+                                            </select>
+                                        </label>
+                                        <label class="block text-sm font-medium text-neutral-700">
+                                            Data e rinovimit
+                                            <input v-model="billingForm.current_period_ends_at" type="date" class="mt-1.5 w-full rounded-xl border-neutral-300 py-2.5 text-sm" />
                                         </label>
                                     </div>
-                                </article>
+                                </aside>
+
+                                <div class="space-y-5 p-5 sm:p-6">
+                                    <div>
+                                        <h3 class="font-semibold text-neutral-900">Modulet e përfshira</h3>
+                                        <p class="mt-1 text-sm text-neutral-500">Aktivizo vetëm modulet e kontraktuara. Lora Core mbetet gjithmonë aktiv.</p>
+                                    </div>
+
+                                    <div class="grid gap-3 sm:grid-cols-2">
+                                        <article
+                                            v-for="module in Object.values(editingTenant.billing.modules)"
+                                            :key="module.code"
+                                            class="rounded-xl border p-4 transition"
+                                            :class="billingForm.modules[module.code]?.enabled ? 'border-emerald-200 bg-emerald-50/50' : 'border-neutral-200 bg-white'"
+                                        >
+                                            <label class="flex min-w-0 cursor-pointer items-start gap-3" :class="module.locked && 'cursor-default'">
+                                                <input
+                                                    v-model="billingForm.modules[module.code].enabled"
+                                                    type="checkbox"
+                                                    class="mt-0.5 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
+                                                    :disabled="module.locked"
+                                                />
+                                                <span class="min-w-0">
+                                                    <span class="block text-sm font-semibold text-neutral-900">{{ module.name }}</span>
+                                                    <span class="mt-1 block text-xs leading-5 text-neutral-500">{{ module.description }}</span>
+                                                    <span v-if="module.billing_model === 'percentage'" class="mt-1 block text-xs font-medium text-emerald-700">{{ module.percentage_bps / 100 }}% për rezervim direkt</span>
+                                                </span>
+                                            </label>
+
+                                            <label v-if="['tiered_per_room', 'per_user', 'per_pos'].includes(module.billing_model)" class="mt-3 flex items-center justify-between border-t border-neutral-200/70 pt-3 text-xs font-medium text-neutral-600">
+                                                <span class="capitalize">{{ module.unit_label }}</span>
+                                                <input
+                                                    v-model.number="billingForm.modules[module.code].quantity"
+                                                    type="number"
+                                                    min="1"
+                                                    max="10000"
+                                                    class="w-24 rounded-lg border-neutral-300 py-1.5 text-right text-sm"
+                                                    :disabled="!billingForm.modules[module.code].enabled"
+                                                />
+                                            </label>
+                                        </article>
+                                    </div>
+
+                                    <label class="block text-sm font-medium text-neutral-700">
+                                        Shënime të brendshme
+                                        <textarea v-model="billingForm.notes" rows="2" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" placeholder="Kontrata, marrëveshja ose shënime për pagesën…" />
+                                    </label>
+
+                                    <p v-if="Object.keys(billingForm.errors).length" class="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                                        Kontrollo fushat e abonimit dhe provo përsëri.
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
-                        <label class="block text-sm font-medium text-neutral-700">
-                            Shënime të brendshme
-                            <textarea v-model="billingForm.notes" rows="3" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="Kontrata, marrëveshja ose shënime për pagesën…" />
-                        </label>
-
-                        <p v-if="Object.keys(billingForm.errors).length" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-                            Kontrollo fushat e abonimit dhe provo përsëri.
-                        </p>
-
-                        <div class="sticky bottom-0 flex items-center justify-end gap-3 border-t border-neutral-200 bg-white pt-4">
-                            <Button type="button" variant="outline" @click="closeBilling">Anulo</Button>
-                            <Button type="submit" :disabled="billingForm.processing">
-                                {{ billingForm.processing ? 'Duke ruajtur…' : 'Ruaj abonimin' }}
-                            </Button>
+                        <div class="flex shrink-0 items-center justify-between gap-3 border-t border-neutral-200 bg-white px-5 py-4 sm:px-6">
+                            <p class="hidden text-xs text-neutral-400 sm:block">Ndryshimet aplikohen vetëm pasi të ruhen.</p>
+                            <div class="flex items-center gap-3">
+                                <Button type="button" variant="outline" @click="closeBilling">Anulo</Button>
+                                <Button type="submit" :disabled="billingForm.processing">
+                                    {{ billingForm.processing ? 'Duke ruajtur…' : 'Ruaj abonimin' }}
+                                </Button>
+                            </div>
                         </div>
                     </form>
                 </section>
@@ -765,132 +779,163 @@ function statusLabel(status) {
 
         <Teleport to="body">
             <div v-if="configTenant" class="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/50 p-0 sm:items-center sm:p-6" @click.self="closeConfig">
-                <section class="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
-                    <div class="sticky top-0 z-10 flex items-start justify-between border-b border-neutral-200 bg-white px-5 py-4 sm:px-6">
-                        <div>
-                            <h2 class="text-lg font-semibold text-neutral-900">Konfigurimi — {{ configTenant.name }}</h2>
-                            <p class="mt-1 text-sm text-neutral-500">Domain-et dhe integrimet e këtij hoteli. Sekretet ruhen të enkriptuara dhe nuk rishfaqen.</p>
+                <section role="dialog" aria-modal="true" class="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+                    <div class="flex items-start justify-between border-b border-neutral-200 bg-white px-5 py-4 sm:px-6">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#e8f3ef] text-xs font-bold text-[#24624f]">{{ initials(configTenant.name) }}</span>
+                            <div class="min-w-0">
+                                <h2 class="truncate text-lg font-semibold text-neutral-900">Konfigurimi i hotelit</h2>
+                                <p class="truncate text-sm text-neutral-500">{{ configTenant.name }} · Domain-et dhe integrimet</p>
+                            </div>
                         </div>
-                        <button class="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" type="button" @click="closeConfig">✕</button>
+                        <button class="rounded-xl p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" type="button" aria-label="Mbyll konfigurimin" @click="closeConfig"><X class="h-5 w-5" /></button>
                     </div>
 
-                    <div class="space-y-6 p-5 sm:p-6">
-                        <!-- Domains -->
-                        <section class="overflow-hidden rounded-xl border border-neutral-200">
-                            <div class="flex items-center gap-2.5 border-b border-neutral-100 bg-neutral-50/60 px-4 py-3">
-                                <span class="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 bg-white text-neutral-500"><Globe class="h-4 w-4" :stroke-width="1.8" /></span>
-                                <div>
-                                    <h3 class="font-semibold leading-tight text-neutral-900">Domain-et</h3>
-                                    <p class="text-xs text-neutral-500">Adresat ku hapet ky hotel</p>
-                                </div>
-                            </div>
-                            <div class="p-4">
-                                <ul class="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
-                                    <li v-for="domain in configTenant.domains" :key="domain.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
-                                        <div class="flex min-w-0 items-center gap-2">
-                                            <span class="truncate text-sm text-neutral-800">{{ domain.domain }}</span>
-                                            <span v-if="domain.is_primary" class="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700">Primar</span>
-                                        </div>
-                                        <div class="flex shrink-0 gap-2">
-                                            <Button v-if="!domain.is_primary" size="sm" variant="outline" @click="makePrimary(domain)">Bëje primar</Button>
-                                            <Button v-if="!domain.is_primary" size="sm" variant="outline" class="text-red-600" @click="removeDomain(domain)">Hiq</Button>
-                                        </div>
-                                    </li>
-                                    <li v-if="!configTenant.domains.length" class="px-4 py-3 text-sm text-neutral-500">Ende pa domain.</li>
-                                </ul>
+                    <div class="grid grid-cols-3 border-b border-neutral-200 bg-neutral-50/70 px-3 pt-2 sm:px-6">
+                        <button type="button" class="flex items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition" :class="configTab === 'domains' ? 'border-[#24624f] text-[#24624f]' : 'border-transparent text-neutral-500 hover:text-neutral-800'" @click="configTab = 'domains'">
+                            <Globe class="h-4 w-4" /> Domain-et
+                            <span class="rounded-full bg-neutral-200/70 px-1.5 py-0.5 text-[10px]">{{ configTenant.domains.length }}</span>
+                        </button>
+                        <button type="button" class="flex items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition" :class="configTab === 'channex' ? 'border-[#24624f] text-[#24624f]' : 'border-transparent text-neutral-500 hover:text-neutral-800'" @click="configTab = 'channex'">
+                            <Plug class="h-4 w-4" /> Channex
+                            <span class="h-2 w-2 rounded-full" :class="configTenant.integrations.channex.enabled && configTenant.integrations.channex.has_api_key ? 'bg-emerald-500' : 'bg-neutral-300'" />
+                        </button>
+                        <button type="button" class="flex items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition" :class="configTab === 'pok' ? 'border-[#24624f] text-[#24624f]' : 'border-transparent text-neutral-500 hover:text-neutral-800'" @click="configTab = 'pok'">
+                            <CreditCard class="h-4 w-4" /> POK
+                            <span class="h-2 w-2 rounded-full" :class="configTenant.integrations.pok.enabled && configTenant.integrations.pok.has_key_id ? 'bg-emerald-500' : 'bg-neutral-300'" />
+                        </button>
+                    </div>
 
-                                <form class="mt-3 flex gap-2" @submit.prevent="addDomain">
-                                    <input v-model="domainForm.domain" required class="w-full rounded-lg border-neutral-300 text-sm" placeholder="riviera.lorapms.com" />
-                                    <Button type="submit" :disabled="domainForm.processing">Shto</Button>
-                                </form>
-                                <span v-if="domainForm.errors.domain" class="mt-1 block text-xs text-danger-600">{{ domainForm.errors.domain }}</span>
+                    <div class="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+                        <section v-if="configTab === 'domains'" class="space-y-5">
+                            <div>
+                                <h3 class="font-semibold text-neutral-900">Adresat e hotelit</h3>
+                                <p class="mt-1 text-sm text-neutral-500">Menaxho domain-et ku përdoruesit mund të hapin këtë hotel.</p>
                             </div>
+
+                            <ul class="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200">
+                                <li v-for="domain in configTenant.domains" :key="domain.id" class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-neutral-50 text-neutral-400"><Globe class="h-4 w-4" /></span>
+                                        <div class="min-w-0">
+                                            <p class="truncate text-sm font-medium text-neutral-900">{{ domain.domain }}</p>
+                                            <p class="mt-0.5 text-xs text-neutral-400">{{ domain.is_primary ? 'Domain primar' : 'Domain alternativ' }}</p>
+                                        </div>
+                                        <span v-if="domain.is_primary" class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Primar</span>
+                                    </div>
+                                    <div v-if="!domain.is_primary" class="flex shrink-0 gap-2 pl-12 sm:pl-0">
+                                        <Button size="sm" variant="outline" @click="makePrimary(domain)">Bëje primar</Button>
+                                        <Button size="sm" variant="outline" class="text-red-600" @click="removeDomain(domain)">Hiq</Button>
+                                    </div>
+                                </li>
+                                <li v-if="!configTenant.domains.length" class="px-5 py-10 text-center">
+                                    <span class="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-neutral-50 text-neutral-400"><Globe class="h-5 w-5" /></span>
+                                    <p class="mt-3 text-sm font-medium text-neutral-700">Ende pa domain</p>
+                                    <p class="mt-1 text-xs text-neutral-500">Shto adresën e parë për këtë hotel.</p>
+                                </li>
+                            </ul>
+
+                            <form class="rounded-xl border border-neutral-200 bg-neutral-50/60 p-4" @submit.prevent="addDomain">
+                                <label class="block text-sm font-medium text-neutral-700">
+                                    Domain i ri
+                                    <div class="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                                        <input v-model="domainForm.domain" required class="w-full rounded-xl border-neutral-300 text-sm" placeholder="riviera.lorapms.com" />
+                                        <Button type="submit" class="shrink-0" :disabled="domainForm.processing">{{ domainForm.processing ? 'Duke shtuar…' : 'Shto domain' }}</Button>
+                                    </div>
+                                </label>
+                                <span v-if="domainForm.errors.domain" class="mt-1 block text-xs text-danger-600">{{ domainForm.errors.domain }}</span>
+                            </form>
                         </section>
 
-                        <!-- Channex -->
-                        <section class="overflow-hidden rounded-xl border border-neutral-200">
-                            <div class="flex flex-wrap items-center gap-3 border-b border-neutral-100 bg-neutral-50/60 px-4 py-3">
-                                <span class="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 bg-white text-neutral-500"><Plug class="h-4 w-4" :stroke-width="1.8" /></span>
+                        <form v-else-if="configTab === 'channex'" class="space-y-5" @submit.prevent="saveChannex">
+                            <div class="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 sm:flex-row sm:items-center">
+                                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-neutral-500 shadow-sm"><Plug class="h-5 w-5" /></span>
                                 <div class="mr-auto">
-                                    <div class="flex items-center gap-2">
-                                        <h3 class="font-semibold leading-tight text-neutral-900">Channex</h3>
-                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="configTenant.integrations.channex.has_api_key ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'">
-                                            <Check v-if="configTenant.integrations.channex.has_api_key" class="h-3 w-3" :stroke-width="2.5" />{{ configTenant.integrations.channex.has_api_key ? 'kredencialet e ruajtura' : 'pa kredenciale' }}
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <h3 class="font-semibold text-neutral-900">Channex Channel Manager</h3>
+                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="configTenant.integrations.channex.has_api_key ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-200/70 text-neutral-500'">
+                                            <Check v-if="configTenant.integrations.channex.has_api_key" class="h-3 w-3" />{{ configTenant.integrations.channex.has_api_key ? 'Kredencialet e ruajtura' : 'Pa kredenciale' }}
                                         </span>
                                     </div>
-                                    <p class="text-xs text-neutral-500">Channel Manager — shpërndan dhomat te OTA-t</p>
+                                    <p class="mt-1 text-xs text-neutral-500">Sinkronizon inventarin dhe rezervimet me OTA-t.</p>
                                 </div>
-                                <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-neutral-700">
-                                    <input v-model="channexForm.enabled" type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500" /> Aktiv
+                                <label class="flex shrink-0 cursor-pointer items-center gap-3 text-sm font-medium text-neutral-700">
+                                    Aktiv
+                                    <input v-model="channexForm.enabled" type="checkbox" class="peer sr-only" />
+                                    <span class="relative h-6 w-11 rounded-full bg-neutral-300 transition peer-checked:bg-emerald-600 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition peer-checked:after:translate-x-5" />
                                 </label>
                             </div>
 
-                            <form class="grid gap-3 p-4 sm:grid-cols-2" @submit.prevent="saveChannex">
-                                <label class="text-sm font-medium text-neutral-700">
-                                    API key
-                                    <input v-model="channexForm.api_key" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.channex.has_api_key ? '•••• (lëre bosh për ta mbajtur)' : 'ngjit çelësin Channex'" />
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <label class="text-sm font-medium text-neutral-700">API key
+                                    <input v-model="channexForm.api_key" type="password" autocomplete="new-password" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" :placeholder="configTenant.integrations.channex.has_api_key ? '•••• (lëre bosh për ta mbajtur)' : 'Ngjit çelësin Channex'" />
                                 </label>
-                                <label class="text-sm font-medium text-neutral-700">
-                                    Webhook secret
-                                    <input v-model="channexForm.webhook_secret" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.channex.has_webhook_secret ? '•••• (lëre bosh për ta mbajtur)' : ''" />
+                                <label class="text-sm font-medium text-neutral-700">Webhook secret
+                                    <input v-model="channexForm.webhook_secret" type="password" autocomplete="new-password" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" :placeholder="configTenant.integrations.channex.has_webhook_secret ? '•••• (lëre bosh për ta mbajtur)' : 'Ngjit webhook secret'" />
                                 </label>
-                                <label class="text-sm font-medium text-neutral-700">
-                                    Property ID
-                                    <input v-model="channexForm.property_id" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="p.sh. 5f2a…" />
+                                <label class="text-sm font-medium text-neutral-700">Property ID
+                                    <input v-model="channexForm.property_id" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" placeholder="p.sh. 5f2a…" />
                                     <span v-if="channexForm.errors.property_id" class="mt-1 block text-xs text-danger-600">{{ channexForm.errors.property_id }}</span>
                                 </label>
-                                <label class="text-sm font-medium text-neutral-700">
-                                    Base URL (opsional)
-                                    <input v-model="channexForm.base_url" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" placeholder="https://app.channex.io/api/v1" />
+                                <label class="text-sm font-medium text-neutral-700">Base URL <span class="font-normal text-neutral-400">(opsional)</span>
+                                    <input v-model="channexForm.base_url" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" placeholder="https://app.channex.io/api/v1" />
                                     <span v-if="channexForm.errors.base_url" class="mt-1 block text-xs text-danger-600">{{ channexForm.errors.base_url }}</span>
-                                </label>
-                                <div class="flex justify-end sm:col-span-2">
-                                    <Button type="submit" :disabled="channexForm.processing">{{ channexForm.processing ? 'Duke ruajtur…' : 'Ruaj Channex' }}</Button>
-                                </div>
-                            </form>
-                        </section>
-
-                        <!-- POK -->
-                        <section class="overflow-hidden rounded-xl border border-neutral-200">
-                            <div class="flex flex-wrap items-center gap-3 border-b border-neutral-100 bg-neutral-50/60 px-4 py-3">
-                                <span class="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 bg-white text-neutral-500"><CreditCard class="h-4 w-4" :stroke-width="1.8" /></span>
-                                <div class="mr-auto">
-                                    <div class="flex items-center gap-2">
-                                        <h3 class="font-semibold leading-tight text-neutral-900">POK</h3>
-                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="configTenant.integrations.pok.has_key_id ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'">
-                                            <Check v-if="configTenant.integrations.pok.has_key_id" class="h-3 w-3" :stroke-width="2.5" />{{ configTenant.integrations.pok.has_key_id ? 'kredencialet e ruajtura' : 'pa kredenciale' }}
-                                        </span>
-                                    </div>
-                                    <p class="text-xs text-neutral-500">Pagesat me kartë në booking-un online</p>
-                                </div>
-                                <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-neutral-700">
-                                    <input v-model="pokForm.enabled" type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500" /> Aktiv
                                 </label>
                             </div>
 
-                            <form class="grid gap-3 p-4 sm:grid-cols-2" @submit.prevent="savePok">
-                                <label class="text-sm font-medium text-neutral-700">
-                                    Key ID
-                                    <input v-model="pokForm.key_id" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.pok.has_key_id ? '•••• (lëre bosh për ta mbajtur)' : 'ngjit Key ID'" />
+                            <div class="rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">Fushat sekrete nuk rishfaqen. Lëri bosh nëse dëshiron të mbash vlerat aktuale.</div>
+                            <div class="flex justify-end border-t border-neutral-200 pt-4">
+                                <Button type="submit" :disabled="channexForm.processing">{{ channexForm.processing ? 'Duke ruajtur…' : 'Ruaj Channex' }}</Button>
+                            </div>
+                        </form>
+
+                        <form v-else class="space-y-5" @submit.prevent="savePok">
+                            <div class="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 sm:flex-row sm:items-center">
+                                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-neutral-500 shadow-sm"><CreditCard class="h-5 w-5" /></span>
+                                <div class="mr-auto">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <h3 class="font-semibold text-neutral-900">POK Payments</h3>
+                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="configTenant.integrations.pok.has_key_id ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-200/70 text-neutral-500'">
+                                            <Check v-if="configTenant.integrations.pok.has_key_id" class="h-3 w-3" />{{ configTenant.integrations.pok.has_key_id ? 'Kredencialet e ruajtura' : 'Pa kredenciale' }}
+                                        </span>
+                                    </div>
+                                    <p class="mt-1 text-xs text-neutral-500">Proceson pagesat me kartë në booking-un online.</p>
+                                </div>
+                                <label class="flex shrink-0 cursor-pointer items-center gap-3 text-sm font-medium text-neutral-700">
+                                    Aktiv
+                                    <input v-model="pokForm.enabled" type="checkbox" class="peer sr-only" />
+                                    <span class="relative h-6 w-11 rounded-full bg-neutral-300 transition peer-checked:bg-emerald-600 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition peer-checked:after:translate-x-5" />
                                 </label>
-                                <label class="text-sm font-medium text-neutral-700">
-                                    Key secret
-                                    <input v-model="pokForm.key_secret" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" :placeholder="configTenant.integrations.pok.has_key_secret ? '•••• (lëre bosh për ta mbajtur)' : ''" />
+                            </div>
+
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <label class="text-sm font-medium text-neutral-700">Key ID
+                                    <input v-model="pokForm.key_id" type="password" autocomplete="new-password" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" :placeholder="configTenant.integrations.pok.has_key_id ? '•••• (lëre bosh për ta mbajtur)' : 'Ngjit Key ID'" />
                                 </label>
-                                <label class="text-sm font-medium text-neutral-700">
-                                    Merchant ID
-                                    <input v-model="pokForm.merchant_id" class="mt-1 w-full rounded-lg border-neutral-300 text-sm" />
+                                <label class="text-sm font-medium text-neutral-700">Key secret
+                                    <input v-model="pokForm.key_secret" type="password" autocomplete="new-password" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" :placeholder="configTenant.integrations.pok.has_key_secret ? '•••• (lëre bosh për ta mbajtur)' : 'Ngjit Key secret'" />
+                                </label>
+                                <label class="text-sm font-medium text-neutral-700">Merchant ID
+                                    <input v-model="pokForm.merchant_id" class="mt-1.5 w-full rounded-xl border-neutral-300 text-sm" placeholder="Merchant ID" />
                                     <span v-if="pokForm.errors.merchant_id" class="mt-1 block text-xs text-danger-600">{{ pokForm.errors.merchant_id }}</span>
                                 </label>
-                                <label class="flex items-center gap-2 pt-6 text-sm font-medium text-neutral-700">
-                                    <input v-model="pokForm.production" type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500" /> Production (live)
+                                <label class="flex items-center gap-3 rounded-xl border border-neutral-200 px-4 py-3 text-sm font-medium text-neutral-700 sm:mt-6">
+                                    <input v-model="pokForm.production" type="checkbox" class="rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500" />
+                                    <span><span class="block">Mjedisi Production</span><span class="mt-0.5 block text-xs font-normal text-neutral-400">Aktivizo vetëm për pagesa reale.</span></span>
                                 </label>
-                                <div class="flex justify-end sm:col-span-2">
-                                    <Button type="submit" :disabled="pokForm.processing">{{ pokForm.processing ? 'Duke ruajtur…' : 'Ruaj POK' }}</Button>
-                                </div>
-                            </form>
-                        </section>
-                                        </div>
+                            </div>
+
+                            <div class="rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">Fushat sekrete nuk rishfaqen. Lëri bosh nëse dëshiron të mbash vlerat aktuale.</div>
+                            <div class="flex justify-end border-t border-neutral-200 pt-4">
+                                <Button type="submit" :disabled="pokForm.processing">{{ pokForm.processing ? 'Duke ruajtur…' : 'Ruaj POK' }}</Button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="flex shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50/60 px-5 py-3 sm:px-6">
+                        <p class="text-xs text-neutral-400">Sekretet ruhen të enkriptuara.</p>
+                        <Button type="button" variant="outline" @click="closeConfig">Mbyll</Button>
+                    </div>
                 </section>
             </div>
         </Teleport>
