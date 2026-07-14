@@ -31,9 +31,9 @@ Lora PMS do të përdorë një aplikacion dhe një databazë të përbashkët. �
 - [x] 8. CI para deploy-it dhe branch protection.
 - [ ] 9. Backup off-server dhe provë restore — **në punë**.
   - [x] 9.1. Ofruesi: Backblaze B2 EU me Restic dhe Object Lock.
-  - [ ] 9.2. Bucket privat i dedikuar, Object Lock dhe retention të konfiguruar.
+  - [ ] 9.2. Bucket privat i dedikuar, Object Lock dhe retention të konfiguruar — bucket-i EU u krijua; retention-i pret restore drill-in.
   - [ ] 9.3. Kredenciale të kufizuara vetëm te bucket-i, të ruajtura jashtë kodit.
-  - [ ] 9.4. Backup automatik i DB + storage, kontroll integriteti dhe alarm në dështim.
+  - [ ] 9.4. Backup automatik i DB + storage, kontroll integriteti dhe alarm në dështim — automatizimi është në review/testim.
   - [ ] 9.5. Restore real në ambient të izoluar dhe krahasim para/pas.
 - [ ] 10. Integrim me translations, staging pilot dhe aprovim për `main`.
 
