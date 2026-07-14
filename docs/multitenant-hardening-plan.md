@@ -28,8 +28,8 @@ Lora PMS do të përdorë një aplikacion dhe një databazë të përbashkët. �
 - [x] 5. Handoff i sigurt Control Panel → custom domain.
 - [x] 6. Teste Hotel A/B për modulet kryesore.
 - [x] 7. MySQL fresh/upgrade dhe kontroll integriteti.
-- [ ] 8. CI para deploy-it dhe branch protection — **në punë**.
-- [ ] 9. Backup off-server dhe provë restore.
+- [x] 8. CI para deploy-it dhe branch protection.
+- [ ] 9. Backup off-server dhe provë restore — **në punë**.
 - [ ] 10. Integrim me translations, staging pilot dhe aprovim për `main`.
 
 ## Porta e sigurisë për Villa Mucho
@@ -60,6 +60,15 @@ php artisan tenants:verify-integrity --compare=/path/secure/lora-before.json
 ```
 
 Nëse ka `tenant_id` të pavlefshëm, lidhje cross-tenant, role pa `team_id`, ndryshim numrash ose ndryshim totalësh financiarë, komanda dështon dhe deploy-i ndalet.
+
+## Mbrojtja e degëve dhe deploy-it
+
+- `main` dhe `staging` pranojnë ndryshime vetëm me Pull Request.
+- Kërkohen `application`, `mysql-migrations` dhe `mysql-upgrade`, me branch-in të përditësuar.
+- Rregullat vlejnë edhe për administratorin; force-push dhe fshirja e degës janë të ndaluara.
+- Kërkohet histori lineare dhe zgjidhja e bisedave të PR-it.
+- Meqë repo ka një maintainer, approval-i i jashtëm është `0`; sapo të ketë maintainer të dytë bëhet `1`.
+- Production deploy nis vetëm pasi workflow `Tests` në `main` përfundon me sukses.
 
 ## Kushtet e përfundimit
 
