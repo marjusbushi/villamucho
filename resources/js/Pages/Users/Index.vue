@@ -26,7 +26,6 @@ import Select from '@/Components/UI/Select.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ActionMenu from '@/Components/UI/ActionMenu.vue';
-import SettingsSidebar from '@/Components/SettingsSidebar.vue';
 
 const props = defineProps({
     users: { type: Object, default: () => ({ data: [] }) },
@@ -35,7 +34,6 @@ const props = defineProps({
     stats: { type: Object, default: () => ({}) },
     permissionModules: { type: Array, default: () => [] },
     rolesDetailed: { type: Array, default: () => [] },
-    embedded: { type: Boolean, default: false },
 });
 
 const toasts = ref(null);
@@ -49,11 +47,11 @@ const roleFilter = ref(props.filters.role || '');
 const statusFilter = ref(props.filters.status || '');
 
 const roleLabels = {
-    admin: translate('admin.users.roles.admin'),
-    manager: translate('admin.users.roles.manager'),
-    receptionist: translate('admin.users.roles.receptionist'),
-    housekeeping: translate('admin.users.roles.housekeeping'),
-    maintenance: translate('admin.users.roles.maintenance'),
+    admin: 'Admin',
+    manager: 'Menaxher',
+    receptionist: 'Recepsion',
+    housekeeping: 'Housekeeping',
+    maintenance: 'Mirëmbajtje',
     pos_staff: 'POS',
 };
 const roleBadge = {
@@ -130,29 +128,17 @@ function selectKpi(key) {
 
 let searchTimer = null;
 function applyFilters() {
-    const filters = {};
-    if (searchQuery.value.trim()) filters.search = searchQuery.value.trim();
-    if (roleFilter.value) filters.role = roleFilter.value;
-    if (statusFilter.value) filters.status = statusFilter.value;
+    const params = {};
+    if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
+    if (roleFilter.value) params.role = roleFilter.value;
+    if (statusFilter.value) params.status = statusFilter.value;
 
-    const params = props.embedded
-        ? Object.fromEntries(Object.entries(filters).map(([key, value]) => [`user_${key}`, value]))
-        : filters;
-    if (props.embedded) params.tab = 'users';
-
-    router.get(props.embedded ? route('settings.index') : route('users.index'), params, {
+    router.get(route('users.index'), params, {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: props.embedded ? ['userManagement'] : ['users', 'filters', 'stats'],
+        only: ['users', 'filters', 'stats'],
     });
-}
-
-function paginationUrl(url) {
-    if (!props.embedded || !url) return url;
-    const target = new URL(url, window.location.origin);
-    target.searchParams.set('tab', 'users');
-    return `${target.pathname}${target.search}`;
 }
 
 watch(searchQuery, () => {
@@ -263,11 +249,10 @@ function submitRole() {
 </script>
 
 <template>
-    <component :is="embedded ? 'div' : AppLayout">
+    <AppLayout>
         <PageHeader
-            v-if="!embedded"
-            :title="$t('admin.users.title')"
-            :breadcrumbs="[{ label: $t('admin.sidebar.dashboard'), href: '/dashboard' }, { label: $t('admin.sidebar.users') }]"
+            :title="$t('admin.generated.k_33bf8e325133')"
+            :breadcrumbs="[{ label: $t('admin.generated.k_db09aa5de9ce'), href: '/dashboard' }, { label: $t('admin.generated.k_d589a610b5e6') }]"
         >
             <template #actions>
                 <Button v-if="activeTab === 'users'" variant="primary" @click="showCreateModal = true">
@@ -278,13 +263,9 @@ function submitRole() {
 {{ $t('admin.generated.k_99ca548187bb') }} </Button>
             </template>
         </PageHeader>
-        <p v-if="!embedded" class="mt-1 text-body-sm text-neutral-500">{{ $t('admin.generated.k_ec8630017d31') }}</p>
+        <p class="mt-1 text-body-sm text-neutral-500">{{ $t('admin.generated.k_ec8630017d31') }}</p>
 
-        <div :class="embedded ? '' : 'mt-6 flex flex-col gap-6 lg:flex-row'">
-            <SettingsSidebar v-if="!embedded" active-item="users" />
-
-            <div class="min-w-0 flex-1">
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <button
                 v-for="kpi in kpis"
                 :key="kpi.key"
@@ -408,7 +389,7 @@ function submitRole() {
                     <div class="flex items-center gap-2">
                         <Link
                             v-if="users.prev_page_url"
-                            :href="paginationUrl(users.prev_page_url)"
+                            :href="users.prev_page_url"
                             preserve-scroll
                             class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-50"
                             :aria-label="$t('admin.generated.k_7344e9c850c8')"
@@ -420,7 +401,7 @@ function submitRole() {
                         </span>
                         <Link
                             v-if="users.next_page_url"
-                            :href="paginationUrl(users.next_page_url)"
+                            :href="users.next_page_url"
                             preserve-scroll
                             class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-50"
                             :aria-label="$t('admin.generated.k_68e96d1c2a56')"
@@ -495,8 +476,6 @@ function submitRole() {
                 </div>
             </template>
         </Card>
-            </div>
-        </div>
 
         <Modal :show="showCreateModal" :title="$t('admin.generated.k_293dc9e6dcec')" @close="showCreateModal = false">
             <form class="space-y-4" @submit.prevent="submitCreate">
@@ -562,5 +541,5 @@ function submitRole() {
         </Modal>
 
         <ToastContainer ref="toasts" />
-    </component>
+    </AppLayout>
 </template>

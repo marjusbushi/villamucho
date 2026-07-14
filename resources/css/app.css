@@ -133,6 +133,14 @@
                transition-colors duration-200 hover:bg-brass-dark no-underline
                disabled:opacity-50 disabled:cursor-not-allowed;
     }
+
+    /* Keep CTA labels white even though public-site links use Ionian by default. */
+    .site .btn-reserve,
+    .site .btn-reserve:hover,
+    .site .btn-reserve-light,
+    .site .btn-reserve-light:hover {
+        color: #fff;
+    }
 }
 
 /* Very slow hero "Ken Burns" drift — settles, never springs. */

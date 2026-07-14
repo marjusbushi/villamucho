@@ -46,7 +46,7 @@ class ReservationVisibilityTest extends TestCase
         // It must appear on the calendar (within the default window).
         $this->actingAs($admin)->get(route('reservations.calendar'))
             ->assertInertia(fn (AssertableInertia $p) => $p
-                ->component('Reservations/Calendar')
+                ->component('Reservations/CalendarLive')
                 ->has('reservations', 1));
 
         // And on the list.
@@ -227,5 +227,36 @@ class ReservationVisibilityTest extends TestCase
                 ->assertInertia(fn (AssertableInertia $page) => $page
                     ->where('filters.sort', 'latest'));
         }
+    }
+
+    public function test_list_exposes_financial_summary_links_and_deep_link_focus(): void
+    {
+        $this->withoutVite();
+        $this->seed(RolePermissionSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $type = RoomType::create(['name' => 'Suite', 'base_price' => 150, 'max_occupancy' => 3, 'amenities' => []]);
+        $room = Room::create(['room_type_id' => $type->id, 'room_number' => '701', 'floor' => 7, 'status' => 'available']);
+        $guest = Guest::create(['first_name' => 'Elira', 'last_name' => 'Test']);
+        $reservation = Reservation::create([
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'created_by' => $admin->id,
+            'check_in_date' => '2026-08-10',
+            'check_out_date' => '2026-08-12',
+            'status' => 'confirmed',
+            'total_amount' => 300,
+            'adults' => 2,
+        ]);
+        $reservation->payments()->create(['amount' => 120, 'method' => 'cash', 'created_by' => $admin->id]);
+
+        $this->actingAs($admin)->get(route('reservations.index', ['reservation_id' => $reservation->id]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('focusReservation.id', $reservation->id)
+                ->where('focusReservation.paid_amount', 120)
+                ->where('focusReservation.outstanding_amount', 180)
+                ->where('focusReservation.links.show', route('reservations.show', $reservation))
+                ->where('focusReservation.links.guest', route('guests.show', $guest))
+                ->where('focusReservation.links.finance', route('finance.payments', ['reservation_id' => $reservation->id, 'all_dates' => 1])));
     }
 }

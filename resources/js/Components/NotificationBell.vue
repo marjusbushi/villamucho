@@ -199,9 +199,11 @@ onUnmounted(() => {
             </span>
         </button>
 
-        <!-- Dropdown -->
+        <!-- Dropdown. The bell is not the topbar's rightmost item, so a 320px
+             panel anchored to it overflows a phone screen — on <sm it becomes
+             a fixed sheet spanning the viewport just under the h-16 topbar. -->
         <div v-if="open" class="fixed inset-0 z-40" @click="open = false" />
-        <div v-if="open" class="absolute right-0 mt-2 w-80 z-50 rounded-lg bg-white shadow-dropdown border border-neutral-200 overflow-hidden">
+        <div v-if="open" class="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-80 z-50 rounded-lg bg-white shadow-dropdown border border-neutral-200 overflow-hidden">
             <div class="px-4 py-3 border-b border-neutral-100 flex items-center justify-between gap-3">
                 <div>
                     <span class="block text-body-sm font-medium text-primary-900">{{ $t('admin.generated.k_f3797fba7339') }}</span>
@@ -248,7 +250,7 @@ onUnmounted(() => {
             >
                 <button
                     v-if="toast"
-                    class="fixed bottom-5 right-5 z-[100] w-80 text-left rounded-lg bg-primary-950 text-white shadow-modal p-4 flex items-start gap-3"
+                    class="fixed bottom-5 inset-x-5 sm:inset-x-auto sm:right-5 sm:w-80 z-[100] text-left rounded-lg bg-primary-950 text-white shadow-modal p-4 flex items-start gap-3"
                     @click="goTo(toast.id)"
                 >
                     <span class="h-9 w-9 rounded-full bg-accent-600 flex items-center justify-center shrink-0">

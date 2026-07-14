@@ -45,6 +45,48 @@ class GeminiClient
      */
     public function structured(string $system, string $userMessage, array $tool, string $toolName, int $maxTokens = 8192, int $timeoutSeconds = 60): array
     {
+        return $this->structuredWithParts(
+            $system,
+            [['text' => $userMessage]],
+            $tool,
+            $toolName,
+            $maxTokens,
+            $timeoutSeconds,
+        );
+    }
+
+    /**
+     * Force a structured response while sending a private image or PDF inline.
+     * The binary data and API key are sent only from the server.
+     *
+     * @return array<string,mixed>
+     */
+    public function structuredWithInlineData(
+        string $system,
+        string $userMessage,
+        string $bytes,
+        string $mimeType,
+        array $tool,
+        string $toolName,
+        int $maxTokens = 4096,
+        int $timeoutSeconds = 90,
+    ): array {
+        return $this->structuredWithParts(
+            $system,
+            [
+                ['text' => $userMessage],
+                ['inlineData' => ['mimeType' => $mimeType, 'data' => base64_encode($bytes)]],
+            ],
+            $tool,
+            $toolName,
+            $maxTokens,
+            $timeoutSeconds,
+        );
+    }
+
+    /** @return array<string,mixed> */
+    private function structuredWithParts(string $system, array $parts, array $tool, string $toolName, int $maxTokens, int $timeoutSeconds): array
+    {
         $function = [
             'name' => $tool['name'],
             'description' => $tool['description'] ?? '',
@@ -60,7 +102,7 @@ class GeminiClient
             'x-goog-api-key' => (string) $this->key(),
         ])->timeout($timeoutSeconds)->post($url, [
             'system_instruction' => ['parts' => [['text' => $system]]],
-            'contents' => [['role' => 'user', 'parts' => [['text' => $userMessage]]]],
+            'contents' => [['role' => 'user', 'parts' => $parts]],
             'tools' => [['function_declarations' => [$function]]],
             'tool_config' => ['function_calling_config' => ['mode' => 'ANY', 'allowed_function_names' => [$toolName]]],
             'generationConfig' => [

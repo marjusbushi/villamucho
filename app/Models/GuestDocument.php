@@ -14,7 +14,23 @@ class GuestDocument extends TenantModel
         'mime',
         'size',
         'uploaded_by',
+        'ai_status',
+        'ai_extraction',
+        'ai_model',
+        'ai_error',
+        'ai_extracted_at',
+        'ai_reviewed_at',
+        'ai_reviewed_by',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'ai_extraction' => 'array',
+            'ai_extracted_at' => 'datetime',
+            'ai_reviewed_at' => 'datetime',
+        ];
+    }
 
     public function guest(): BelongsTo
     {
@@ -24,5 +40,10 @@ class GuestDocument extends TenantModel
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function aiReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'ai_reviewed_by');
     }
 }

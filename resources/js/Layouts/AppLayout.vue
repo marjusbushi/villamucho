@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import Sidebar from '@/Components/UI/Sidebar.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
@@ -34,6 +34,94 @@ function can(permission) {
 function hasModule(module) {
     return !module || activeModules.value[module] === true;
 }
+
+// Preserve production's unread OTA-message alert without polling tenants that
+// do not have the channel-manager module enabled.
+const messagingEnabled = computed(() => can('view_reservations') && hasModule('channel_manager'));
+const unreadMessages = ref(0);
+let pollTimer = null;
+let audioCtx = null;
+const baseTitle = typeof document !== 'undefined' ? document.title : '';
+
+function soundMuted() {
+    return typeof window !== 'undefined' && localStorage.getItem('msgSoundMuted') === '1';
+}
+
+function unlockAudio() {
+    try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (error) {
+        // Audio is optional; message polling continues silently.
+    }
+}
+
+function beep(ctx, frequency, at, duration) {
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.linearRampToValueAtTime(0.16, at + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start(at);
+    oscillator.stop(at + duration);
+}
+
+function playDing() {
+    if (soundMuted()) return;
+    unlockAudio();
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    beep(audioCtx, 880, now, 0.14);
+    beep(audioCtx, 1174.66, now + 0.13, 0.18);
+}
+
+function refreshTitle() {
+    if (typeof document === 'undefined') return;
+    document.title = unreadMessages.value > 0 ? `(${unreadMessages.value}) ${baseTitle}` : baseTitle;
+}
+
+async function pollUnread() {
+    if (!messagingEnabled.value || (typeof document !== 'undefined' && document.hidden)) return;
+    try {
+        const response = await fetch(route('messages.unread'), {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+        });
+        if (!response.ok) return;
+        const { count } = await response.json();
+        if (count > unreadMessages.value) playDing();
+        unreadMessages.value = count;
+        refreshTitle();
+    } catch (error) {
+        // Ignore temporary network failures; the next interval retries.
+    }
+}
+
+onMounted(() => {
+    if (!messagingEnabled.value) return;
+    const unlockOnce = () => {
+        unlockAudio();
+        window.removeEventListener('pointerdown', unlockOnce);
+        window.removeEventListener('keydown', unlockOnce);
+    };
+    window.addEventListener('pointerdown', unlockOnce);
+    window.addEventListener('keydown', unlockOnce);
+    document.addEventListener('visibilitychange', pollUnread);
+    pollUnread();
+    pollTimer = setInterval(pollUnread, 25000);
+});
+
+onUnmounted(() => {
+    if (pollTimer) clearInterval(pollTimer);
+    if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', pollUnread);
+        document.title = baseTitle;
+    }
+});
 
 // SVG icons for navigation
 const icons = {

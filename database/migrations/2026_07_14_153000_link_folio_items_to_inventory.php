@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -22,6 +23,18 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'mysql') {
+            $hasTenantIndex = collect(Schema::getIndexes('folio_items'))
+                ->contains(fn (array $index) => $index['name'] !== 'folio_inventory_reference_unique'
+                    && ($index['columns'][0] ?? null) === 'tenant_id');
+
+            if (! $hasTenantIndex) {
+                Schema::table('folio_items', function (Blueprint $table) {
+                    $table->index('tenant_id', 'folio_items_tenant_id_foreign');
+                });
+            }
+        }
+
         Schema::table('folio_items', function (Blueprint $table) {
             $table->dropConstrainedForeignId('warehouse_id');
             $table->dropConstrainedForeignId('inventory_item_id');

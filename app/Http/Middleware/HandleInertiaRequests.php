@@ -94,6 +94,8 @@ class HandleInertiaRequests extends Middleware
                 'slug' => $tenant->slug,
                 'timezone' => $tenant->timezone,
                 'currency' => $tenant->currency,
+                // Transitional compatibility for production views still reading this prop.
+                'addons' => $tenant->addons(),
             ] : null,
             'subscription' => $billingAccess ? [
                 'status' => $billingAccess['status'],
