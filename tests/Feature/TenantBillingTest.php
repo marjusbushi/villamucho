@@ -16,7 +16,7 @@ class TenantBillingTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_existing_hotel_keeps_every_module_enabled_after_billing_migration(): void
+    public function test_existing_hotel_keeps_its_price_and_can_opt_in_to_finance(): void
     {
         $tenant = Tenant::query()->sole();
         $billing = app(TenantBillingService::class)->summary($tenant);
@@ -25,8 +25,10 @@ class TenantBillingTest extends TestCase
         $this->assertSame('monthly', $billing['billing_cycle']);
         $this->assertSame(8300, $billing['monthly_fixed_cents']);
         $this->assertSame(79680, $billing['annual_cents']);
+        $this->assertFalse($billing['modules']['finance']['enabled']);
+        $this->assertSame(1900, $billing['modules']['finance']['unit_price_cents']);
         $this->assertSame(
-            array_keys(config('lora_modules.modules')),
+            array_values(array_diff(array_keys(config('lora_modules.modules')), ['finance'])),
             array_keys(array_filter($billing['modules'], fn (array $module) => $module['enabled'])),
         );
     }
@@ -78,6 +80,7 @@ class TenantBillingTest extends TestCase
                 'housekeeping' => ['enabled' => true, 'quantity' => 2],
                 'pos' => ['enabled' => true, 'quantity' => 3],
                 'smart_pricing' => ['enabled' => true, 'quantity' => 1],
+                'finance' => ['enabled' => true, 'quantity' => 1],
             ],
         ];
 
@@ -93,9 +96,12 @@ class TenantBillingTest extends TestCase
 
         $this->assertTrue($summary['modules']['core']['enabled'], 'Core must stay enabled.');
         $this->assertSame(60, $summary['modules']['channel_manager']['quantity']);
-        $this->assertSame(52300, $summary['monthly_fixed_cents']);
-        $this->assertSame(502080, $summary['annual_cents']);
+        $this->assertSame(53300, $summary['monthly_fixed_cents']);
+        $this->assertSame(511680, $summary['annual_cents']);
+        $this->assertSame(900, $summary['modules']['housekeeping']['monthly_cents']);
         $this->assertSame(100, $summary['modules']['booking_engine']['percentage_bps']);
+        $this->assertSame(1900, $summary['modules']['finance']['unit_price_cents']);
+        $this->assertTrue($summary['modules']['finance']['enabled']);
         $this->assertDatabaseHas('audit_logs', [
             'tenant_id' => $tenant->id,
             'action' => 'tenant.subscription.update',

@@ -30,8 +30,8 @@ return [
         'housekeeping' => [
             'name' => 'Housekeeping',
             'description' => 'Pastrimi, checklistat dhe raportimi i problemeve.',
-            'billing_model' => 'per_user',
-            'unit_label' => 'përdorues',
+            'billing_model' => 'flat',
+            'unit_label' => 'muaj',
             'unit_price_cents' => 900,
         ],
         'pos' => [
@@ -44,6 +44,13 @@ return [
         'smart_pricing' => [
             'name' => 'Çmime Inteligjente',
             'description' => 'Sugjerime çmimesh dhe autopilot.',
+            'billing_model' => 'flat',
+            'unit_label' => 'muaj',
+            'unit_price_cents' => 1900,
+        ],
+        'finance' => [
+            'name' => 'Financa',
+            'description' => 'Arka, pagesa, fatura, furnitorë dhe shpenzime.',
             'billing_model' => 'flat',
             'unit_label' => 'muaj',
             'unit_price_cents' => 1900,

@@ -22,6 +22,8 @@ class TenantBillingService
 
     public const SMART_PRICING = 'smart_pricing';
 
+    public const FINANCE = 'finance';
+
     public function catalog(): array
     {
         return config('lora_modules.modules', []);
