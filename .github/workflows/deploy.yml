@@ -38,11 +38,13 @@ jobs:
             state_dir=/var/lib/lora-backup/releases
             state_file="$state_dir/$(date --utc +%Y%m%dT%H%M%SZ)-deploy.env"
             install -d -m 0700 "$state_dir"
-            umask 077
             pre_deploy_commit="$(git rev-parse HEAD)"
             previous_batch="$(php artisan tinker --execute='echo DB::table("migrations")->max("batch");')"
-            printf 'PRE_DEPLOY_COMMIT=%q\nPREVIOUS_BATCH=%q\n' \
-              "$pre_deploy_commit" "$previous_batch" > "$state_file"
+            (
+              umask 077
+              printf 'PRE_DEPLOY_COMMIT=%q\nPREVIOUS_BATCH=%q\n' \
+                "$pre_deploy_commit" "$previous_batch" > "$state_file"
+            )
 
             git fetch origin main --quiet
             git reset --hard origin/main
