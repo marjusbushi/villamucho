@@ -25,8 +25,8 @@ Lora PMS do të përdorë një aplikacion dhe një databazë të përbashkët. �
 - [x] 2. Commands manuale tenant-aware dhe `fail-closed`.
 - [x] 3. Jobs, cache, locks dhe storage tenant-aware.
 - [x] 4. DB: `tenant_id NOT NULL` dhe kontrolle same-tenant.
-- [ ] 5. Handoff i sigurt Control Panel → custom domain — **në punë**.
-- [ ] 6. Teste Hotel A/B për modulet kryesore.
+- [x] 5. Handoff i sigurt Control Panel → custom domain.
+- [ ] 6. Teste Hotel A/B për modulet kryesore — **në punë**.
 - [ ] 7. MySQL fresh/upgrade dhe kontroll integriteti.
 - [ ] 8. CI para deploy-it dhe branch protection.
 - [ ] 9. Backup off-server dhe provë restore.

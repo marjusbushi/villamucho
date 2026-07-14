@@ -173,10 +173,24 @@ class TenantIsolationTest extends TestCase
         $this->assertTrue($superAdmin->unsetRelation('roles')->hasRole('admin'));
         app(TenantContext::class)->clear();
 
-        $this->actingAs($superAdmin)
+        $switchResponse = $this->actingAs($superAdmin)
             ->post(route('super-admin.tenants.switch', $tenant))
+            ->assertRedirectContains('http://riviera.lorapms.test/tenant-handoff?token=');
+
+        $handoffUrl = $switchResponse->headers->get('Location');
+
+        // A custom domain does not receive the Control Panel cookie. The
+        // one-time handoff must establish a fresh destination session itself.
+        $this->post(route('logout'))->assertRedirect('/');
+
+        $handoffResponse = $this->get($handoffUrl)
             ->assertRedirect('http://riviera.lorapms.test/dashboard')
+            ->assertHeader('Referrer-Policy', 'no-referrer')
             ->assertSessionHas('tenant_id', $tenant->id);
+
+        $this->assertStringContainsString('no-store', (string) $handoffResponse->headers->get('Cache-Control'));
+
+        $this->assertAuthenticatedAs($superAdmin);
 
         $this->assertSame($tenant->id, $superAdmin->fresh()->current_tenant_id);
 

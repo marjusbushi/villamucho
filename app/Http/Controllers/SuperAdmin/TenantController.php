@@ -9,6 +9,7 @@ use App\Models\TenantDomain;
 use App\Models\TenantIntegration;
 use App\Models\User;
 use App\Services\TenantBillingService;
+use App\Services\TenantHandoff;
 use App\Services\TenantRoleService;
 use App\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
@@ -289,20 +290,26 @@ class TenantController extends Controller
         return back()->with('success', "Abonimi i {$tenant->name} u përditësua.");
     }
 
-    public function switch(Request $request, Tenant $tenant): RedirectResponse
+    public function switch(Request $request, Tenant $tenant, TenantHandoff $handoff): RedirectResponse
     {
         abort_unless($tenant->status === 'active', 422, 'Ky hotel nuk eshte aktiv.');
 
-        $request->session()->put('tenant_id', $tenant->id);
-        $request->user()->withoutGlobalScopes()->whereKey($request->user()->id)->update([
-            'current_tenant_id' => $tenant->id,
+        $dashboardUrl = $this->tenantDashboardUrl($tenant);
+        $targetHost = parse_url($dashboardUrl, PHP_URL_HOST);
+        abort_unless(
+            is_string($targetHost)
+                && $targetHost !== ''
+                && $tenant->domains()->where('domain', $targetHost)->exists(),
+            422,
+            'Hoteli nuk ka domain aktiv.',
+        );
+
+        $token = $handoff->issue($request->user(), $tenant, $targetHost);
+
+        return redirect()->away($this->tenantHandoffUrl($dashboardUrl, $token))->withHeaders([
+            'Cache-Control' => 'no-store, max-age=0',
+            'Referrer-Policy' => 'no-referrer',
         ]);
-
-        app(TenantContext::class)->run($tenant, fn () => AuditLog::record('tenant.switch', $tenant, [
-            'super_admin_id' => $request->user()->id,
-        ]));
-
-        return redirect()->away($this->tenantDashboardUrl($tenant));
     }
 
     public function updateStatus(Request $request, Tenant $tenant, TenantContext $context): RedirectResponse
@@ -505,5 +512,16 @@ class TenantController extends Controller
         $local = $domain === 'localhost' || str_ends_with($domain, '.test');
 
         return ($local ? 'http://' : 'https://').$domain.'/dashboard';
+    }
+
+    private function tenantHandoffUrl(string $dashboardUrl, string $token): string
+    {
+        $scheme = parse_url($dashboardUrl, PHP_URL_SCHEME);
+        $host = parse_url($dashboardUrl, PHP_URL_HOST);
+        $port = parse_url($dashboardUrl, PHP_URL_PORT);
+
+        $origin = $scheme.'://'.$host.($port ? ':'.$port : '');
+
+        return $origin.'/tenant-handoff?token='.rawurlencode($token);
     }
 }
