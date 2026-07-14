@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowRight, BedDouble, CalendarDays, CalendarX2, Coffee, ShieldCheck, Users } from 'lucide-vue-next';
+import { ArrowRight, BedDouble, CalendarDays, CalendarX2, ChevronDown, Coffee, ShieldCheck, Users } from 'lucide-vue-next';
 import WebsiteLayout from '@/Layouts/WebsiteLayout.vue';
 import BookingSummary from '@/Components/Website/BookingSummary.vue';
 import RoomGallery from '@/Components/Website/RoomGallery.vue';
@@ -206,12 +206,18 @@ watch(step, (current) => nextTick(() => {
                     <label class="border-b border-driftwood/15 p-4 lg:border-b-0 lg:border-r">
                         <span class="mb-2 flex items-center gap-2 text-tiny font-semibold uppercase tracking-wider text-ink/45"><Users class="h-4 w-4" />{{ $t('book.search.guests') }}</span>
                         <div class="flex gap-3">
-                            <select v-model.number="searchForm.adults" :aria-label="$t('book.search.adults')" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-body font-medium text-ink focus:ring-0">
-                                <option v-for="n in adultsOptions" :key="n" :value="n">{{ n }} {{ $t('book.direct.adults') }}</option>
-                            </select>
-                            <select v-model.number="searchForm.children" :aria-label="$t('book.search.children')" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-body font-medium text-ink focus:ring-0">
-                                <option v-for="n in childrenOptions" :key="n" :value="n">{{ n }} {{ $t('book.direct.children') }}</option>
-                            </select>
+                            <div class="relative min-w-0 flex-1">
+                                <select v-model.number="searchForm.adults" :aria-label="$t('book.search.adults')" class="w-full appearance-none border-0 bg-transparent py-0 pl-0 pr-7 text-body font-medium text-ink focus:ring-0">
+                                    <option v-for="n in adultsOptions" :key="n" :value="n">{{ n }} {{ $t('book.direct.adults') }}</option>
+                                </select>
+                                <ChevronDown class="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/55" aria-hidden="true" />
+                            </div>
+                            <div class="relative min-w-0 flex-1">
+                                <select v-model.number="searchForm.children" :aria-label="$t('book.search.children')" class="w-full appearance-none border-0 bg-transparent py-0 pl-0 pr-7 text-body font-medium text-ink focus:ring-0">
+                                    <option v-for="n in childrenOptions" :key="n" :value="n">{{ n }} {{ $t('book.direct.children') }}</option>
+                                </select>
+                                <ChevronDown class="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/55" aria-hidden="true" />
+                            </div>
                         </div>
                     </label>
                     <label class="border-b border-driftwood/15 p-4 lg:border-b-0 lg:border-r">
