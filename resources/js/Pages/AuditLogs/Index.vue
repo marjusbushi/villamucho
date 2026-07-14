@@ -9,6 +9,7 @@ import TextInput from '@/Components/UI/TextInput.vue';
 import Select from '@/Components/UI/Select.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import AuditTimeline from '@/Components/AuditTimeline.vue';
+import SettingsSidebar from '@/Components/SettingsSidebar.vue';
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
 const props = defineProps({ logs: Object, filters: Object });
@@ -74,8 +75,13 @@ watch(() => props.filters, (value) => {
 <template>
     <AppLayout>
         <PageHeader title="Historia e veprimeve" :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Historia' }]" />
+        <p class="mt-1 text-body-sm text-neutral-500">Kontrollo gjurmën e veprimeve dhe ndryshimeve në hotel.</p>
 
-        <Card class="mt-6">
+        <div class="mt-6 flex flex-col gap-6 lg:flex-row">
+            <SettingsSidebar active-item="history" />
+
+            <div class="min-w-0 flex-1">
+        <Card>
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6 xl:items-end">
                 <div class="xl:col-span-2"><TextInput v-model="search" placeholder="Përdorues, veprim ose ID..." @keyup.enter="applyFilters" /></div>
                 <Select v-model="category" :options="categoryOptions" @change="applyFilters" />
@@ -104,5 +110,7 @@ watch(() => props.filters, (value) => {
                 </div>
             </div>
         </Card>
+            </div>
+        </div>
     </AppLayout>
 </template>

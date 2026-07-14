@@ -1,10 +1,10 @@
 <script setup>
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import SettingsSidebar from '@/Components/SettingsSidebar.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { Link, usePage } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
 import AboutTab from './Tabs/AboutTab.vue';
 import AiTab from './Tabs/AiTab.vue';
 import AmenitiesTab from './Tabs/AmenitiesTab.vue';
@@ -30,9 +30,7 @@ const props = defineProps({
     amenities: Array,
 });
 
-const { locale } = useI18n();
 const toasts = ref(null);
-const activeTab = ref('hotel');
 const modules = computed(() => usePage().props.modules || {});
 
 const allTabs = [
@@ -51,20 +49,8 @@ const allTabs = [
     { id: 'ai', labelSq: 'Asistenti AI', labelEn: 'AI assistant', group: 'system' },
 ];
 
-const tabs = computed(() => allTabs
-    .filter((tab) => !tab.module || modules.value[tab.module] === true)
-    .map((tab) => ({ ...tab, label: locale.value === 'sq' ? tab.labelSq : tab.labelEn })));
-
-const groups = computed(() => [
-    { id: 'hotel', label: locale.value === 'sq' ? 'Hoteli' : 'Hotel' },
-    { id: 'operations', label: locale.value === 'sq' ? 'Operacionet' : 'Operations' },
-    { id: 'system', label: locale.value === 'sq' ? 'Sistemi' : 'System' },
-].map((group) => ({ ...group, tabs: tabs.value.filter((tab) => tab.group === group.id) })));
-
-const administrationLinks = computed(() => [
-    { id: 'users', label: locale.value === 'sq' ? 'Përdoruesit & rolet' : 'Users & roles', href: route('users.index') },
-    { id: 'history', label: locale.value === 'sq' ? 'Historia e veprimeve' : 'Activity history', href: route('audit-logs.index') },
-]);
+const requestedTab = new URLSearchParams(usePage().url.split('?')[1] || '').get('tab');
+const activeTab = ref(allTabs.some((tab) => tab.id === requestedTab) ? requestedTab : 'hotel');
 </script>
 
 <template>
@@ -76,30 +62,7 @@ const administrationLinks = computed(() => [
         <p class="mt-1 text-body-sm text-neutral-500">{{ $t('accountCenter.settingsSubtitle') }}</p>
 
         <div class="mt-6 flex flex-col gap-6 lg:flex-row">
-            <aside class="shrink-0 lg:w-64">
-                <nav class="rounded-xl border border-neutral-200 bg-white p-2 shadow-card">
-                    <div v-for="group in groups" :key="group.id" :class="group.id !== 'hotel' && 'mt-3'">
-                        <p class="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400">{{ group.label }}</p>
-                        <button
-                            v-for="tab in group.tabs"
-                            :key="tab.id"
-                            class="block w-full rounded-lg px-3 py-2.5 text-left text-body-sm transition-colors duration-150"
-                            :class="activeTab === tab.id ? 'bg-accent-50 font-semibold text-accent-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'"
-                            @click="activeTab = tab.id"
-                        >
-                            {{ tab.label }}
-                        </button>
-                        <Link
-                            v-for="item in group.id === 'system' ? administrationLinks : []"
-                            :key="item.id"
-                            :href="item.href"
-                            class="block w-full rounded-lg px-3 py-2.5 text-left text-body-sm text-neutral-600 no-underline transition-colors duration-150 hover:bg-neutral-50 hover:text-neutral-900"
-                        >
-                            {{ item.label }}
-                        </Link>
-                    </div>
-                </nav>
-            </aside>
+            <SettingsSidebar :active-item="activeTab" interactive @select="activeTab = $event" />
 
             <div class="min-w-0 flex-1">
                 <HotelTab v-if="activeTab === 'hotel'" :settings="settings.hotel || {}" :toasts="toasts" />

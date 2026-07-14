@@ -25,6 +25,7 @@ import Select from '@/Components/UI/Select.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ActionMenu from '@/Components/UI/ActionMenu.vue';
+import SettingsSidebar from '@/Components/SettingsSidebar.vue';
 
 const props = defineProps({
     users: { type: Object, default: () => ({ data: [] }) },
@@ -266,7 +267,11 @@ function submitRole() {
         </PageHeader>
         <p class="mt-1 text-body-sm text-neutral-500">Menaxho aksesin e stafit në hotel.</p>
 
-        <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="mt-6 flex flex-col gap-6 lg:flex-row">
+            <SettingsSidebar active-item="users" />
+
+            <div class="min-w-0 flex-1">
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <button
                 v-for="kpi in kpis"
                 :key="kpi.key"
@@ -483,6 +488,8 @@ function submitRole() {
                 </div>
             </template>
         </Card>
+            </div>
+        </div>
 
         <Modal :show="showCreateModal" title="Shto përdorues të ri" @close="showCreateModal = false">
             <form class="space-y-4" @submit.prevent="submitCreate">
