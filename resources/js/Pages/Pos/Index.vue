@@ -1,5 +1,5 @@
 <script setup>
-import { i18n } from '@/i18n';
+import { i18n, translate } from '@/i18n';
 import { ref, computed } from 'vue';
 import { useForm, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
