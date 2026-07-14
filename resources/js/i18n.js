@@ -12,6 +12,15 @@ function initialLocale() {
         const stored = localStorage.getItem('locale');
         if (stored && SUPPORTED.includes(stored)) return stored;
     } catch (e) { /* ignore */ }
+
+    if (typeof document !== 'undefined') {
+        const cookieLocale = document.cookie
+            .split('; ')
+            .find((entry) => entry.startsWith('locale='))
+            ?.split('=')[1];
+        if (cookieLocale && SUPPORTED.includes(cookieLocale)) return cookieLocale;
+    }
+
     return DEFAULT;
 }
 
@@ -33,5 +42,8 @@ export function setLocale(next) {
     if (!SUPPORTED.includes(next)) return;
     i18n.global.locale.value = next;
     try { localStorage.setItem('locale', next); } catch (e) { /* ignore */ }
-    if (typeof document !== 'undefined') document.documentElement.lang = next;
+    if (typeof document !== 'undefined') {
+        document.cookie = `locale=${next}; path=/; max-age=31536000; SameSite=Lax`;
+        document.documentElement.lang = next;
+    }
 }
