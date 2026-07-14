@@ -34,13 +34,14 @@ Lora PMS do të përdorë një aplikacion dhe një databazë të përbashkët. �
   - [ ] 9.2. Bucket aktiv privat me Object Lock pa retention default + bucket i dytë immutable me 30 ditë `compliance`; Cloud Replication `lora-prod-immutable-30d` është aktive dhe backup-i i ri u verifikua. Skedarët ekzistues replikohen pas mesnatës UTC dhe duhen numëruar para mbylljes.
   - [x] 9.3. Application Key i kufizuar vetëm te bucket-i, secrets `root:root 0600` jashtë kodit dhe fjalëkalimi i rikuperimit i ruajtur privatisht në Zoho Vault.
   - [ ] 9.4. Backup automatik i DB + storage, kontroll integriteti dhe alarm në dështim — timer-i production është aktiv; alarmi i jashtëm mbetet për t'u lidhur.
-  - [x] 9.5. Restore real në MySQL të izoluar, migrime mbi kopjen production dhe krahasim para/pas — kaloi më 2026-07-14.
+  - [x] 9.5. Restore real në MySQL 8.0.46 të izoluar, upgrade + rollback mbi kopjen production dhe krahasim i saktë i 64 tabelave — kaloi më 2026-07-15.
 - [ ] 10. Integrim me translations, staging pilot dhe aprovim për `main`.
   - [x] 10.1. Branch-i i release-it u krijua nga staging-u më i fundit dhe translations u integruan pa konflikte.
   - [x] 10.2. Build-i, testet lokale dhe auditimi i varësive kaluan (`0` vulnerabilitete npm).
   - [x] 10.3. Pull Request drejt `staging` dhe tre kontrollet CI: `application`, `mysql-migrations`, `mysql-upgrade` — PR #74 kaloi më 2026-07-14.
   - [ ] 10.4. Smoke test dhe pilot i izoluar në staging.
   - [ ] 10.5. Aprovim eksplicit para release-it në `main`.
+  - [x] 10.6. Rehearsal i rollback-ut: skema dhe checksum-et e 64/64 tabelave identike; kodi i vjetër u ngrit pa migrime pending.
 
 ### Arkitektura e backup-it off-server
 

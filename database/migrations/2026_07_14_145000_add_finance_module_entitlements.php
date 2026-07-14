@@ -36,7 +36,6 @@ return new class extends Migration
 
             DB::table('tenants')->where('id', $tenant->id)->update([
                 'metadata' => json_encode($metadata, JSON_THROW_ON_ERROR),
-                'updated_at' => $now,
             ]);
         });
     }

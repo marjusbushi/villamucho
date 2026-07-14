@@ -118,11 +118,26 @@ return new class extends Migration
             $table->dropForeign(['tenant_id']);
         });
 
+        // MySQL keeps the supporting index it creates implicitly for a
+        // foreign key after that foreign key is removed. It did not exist in
+        // the pre-migration schema, so remove it as part of the rollback.
+        if (DB::getDriverName() === 'mysql' && $this->hasIndex('message_threads', 'message_threads_reservation_id_foreign')) {
+            Schema::table('message_threads', function (Blueprint $table) {
+                $table->dropIndex('message_threads_reservation_id_foreign');
+            });
+        }
+
         foreach ($this->nullableTenantTables as $tableName) {
             Schema::table($tableName, function (Blueprint $table) {
                 $table->unsignedBigInteger('tenant_id')->nullable()->change();
             });
         }
+    }
+
+    private function hasIndex(string $tableName, string $indexName): bool
+    {
+        return collect(Schema::getIndexes($tableName))
+            ->contains(fn (array $index) => $index['name'] === $indexName);
     }
 
     private function assertTenantIdsAreValid(): void

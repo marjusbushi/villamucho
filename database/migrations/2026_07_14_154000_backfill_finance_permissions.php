@@ -49,22 +49,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        Permission::query()
-            ->whereIn('name', [
-                'view_finance',
-                'view_bank_accounts',
-                'create_payment',
-                'pay_bills',
-                'manage_transfers',
-                'manage_invoices',
-                'manage_bills',
-                'manage_suppliers',
-                'manage_finance_settings',
-                'delete_finance_records',
-            ])
-            ->where('guard_name', 'web')
-            ->delete();
-
+        // Intentionally non-destructive. These permissions already exist on
+        // production before this backfill, so deleting them during a release
+        // rollback would remove valid role configuration owned by the hotel.
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 };
