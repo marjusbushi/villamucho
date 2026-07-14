@@ -22,6 +22,7 @@ use App\Services\RoomPricing;
 use App\Services\TenantBillingService;
 use App\Tenancy\TenantContext;
 use App\Tenancy\TenantRule;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
