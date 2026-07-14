@@ -2,11 +2,10 @@
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { usePage } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AboutTab from './Tabs/AboutTab.vue';
-import AdministrationTab from './Tabs/AdministrationTab.vue';
 import AiTab from './Tabs/AiTab.vue';
 import AmenitiesTab from './Tabs/AmenitiesTab.vue';
 import CurrenciesTab from './Tabs/CurrenciesTab.vue';
@@ -50,7 +49,6 @@ const allTabs = [
     { id: 'pricing-programs', labelSq: 'Çmimet & OTA', labelEn: 'Pricing & OTA', group: 'operations' },
     { id: 'market-rates', labelSq: 'Çmimet e tregut', labelEn: 'Market rates', group: 'operations' },
     { id: 'ai', labelSq: 'Asistenti AI', labelEn: 'AI assistant', group: 'system' },
-    { id: 'administration', labelSq: 'Administrimi', labelEn: 'Administration', group: 'system' },
 ];
 
 const tabs = computed(() => allTabs
@@ -62,6 +60,11 @@ const groups = computed(() => [
     { id: 'operations', label: locale.value === 'sq' ? 'Operacionet' : 'Operations' },
     { id: 'system', label: locale.value === 'sq' ? 'Sistemi' : 'System' },
 ].map((group) => ({ ...group, tabs: tabs.value.filter((tab) => tab.group === group.id) })));
+
+const administrationLinks = computed(() => [
+    { id: 'users', label: locale.value === 'sq' ? 'Përdoruesit & rolet' : 'Users & roles', href: route('users.index') },
+    { id: 'history', label: locale.value === 'sq' ? 'Historia e veprimeve' : 'Activity history', href: route('audit-logs.index') },
+]);
 </script>
 
 <template>
@@ -86,6 +89,14 @@ const groups = computed(() => [
                         >
                             {{ tab.label }}
                         </button>
+                        <Link
+                            v-for="item in group.id === 'system' ? administrationLinks : []"
+                            :key="item.id"
+                            :href="item.href"
+                            class="block w-full rounded-lg px-3 py-2.5 text-left text-body-sm text-neutral-600 no-underline transition-colors duration-150 hover:bg-neutral-50 hover:text-neutral-900"
+                        >
+                            {{ item.label }}
+                        </Link>
                     </div>
                 </nav>
             </aside>
@@ -104,7 +115,6 @@ const groups = computed(() => [
                 <PricingProgramsTab v-else-if="activeTab === 'pricing-programs'" :settings="settings.pricing_programs || {}" :financial="settings.financial || {}" :toasts="toasts" />
                 <MarketRatesTab v-else-if="activeTab === 'market-rates'" :settings="settings.market_rates || {}" :toasts="toasts" />
                 <AiTab v-else-if="activeTab === 'ai'" :settings="settings.ai || {}" :toasts="toasts" />
-                <AdministrationTab v-else-if="activeTab === 'administration'" />
             </div>
         </div>
 
