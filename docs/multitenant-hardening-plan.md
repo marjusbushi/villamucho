@@ -23,6 +23,8 @@ Lora PMS do të përdorë një aplikacion dhe një databazë të përbashkët. �
 
 Asnjë migrim multitenant nuk ekzekutohet në production pa kaluar të gjitha pikat:
 
+> **Shënim i detyrueshëm:** Backup i databazës dhe storage-it → kopje jashtë serverit → restore real në ambient testues → provë e migrimeve mbi kopjen më të fundit të production-it → krahasim i rezervimeve, rekordeve dhe totalit financiar para/pas → vetëm pastaj production.
+
 1. Backup i plotë i databazës dhe storage-it të Villa Mucho.
 2. Backup-i kopjohet jashtë serverit të production-it.
 3. Kryhet restore real i backup-it në një databazë të veçantë testimi.
