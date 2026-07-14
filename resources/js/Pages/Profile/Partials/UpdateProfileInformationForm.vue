@@ -44,7 +44,7 @@ const roleLabel = computed(() => {
     </div>
 
     <form class="mt-6 space-y-5" @submit.prevent="form.patch(route('profile.update'), { preserveScroll: true })">
-        <div class="grid gap-5 sm:grid-cols-2">
+        <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             <div>
                 <label for="name" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ $t('accountCenter.name') }}</label>
                 <TextInput id="name" v-model="form.name" type="text" autocomplete="name" required autofocus :error="form.errors.name" />
@@ -58,7 +58,7 @@ const roleLabel = computed(() => {
                 <p v-else class="mt-1 text-tiny text-neutral-400">{{ $t('accountCenter.emailHint') }}</p>
             </div>
 
-            <div class="sm:col-span-2">
+            <div class="sm:col-span-2 xl:col-span-1">
                 <label for="role" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ $t('accountCenter.role') }}</label>
                 <input id="role" :value="roleLabel" disabled class="block w-full cursor-not-allowed rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-body-sm text-neutral-600 opacity-70" />
                 <p class="mt-1 text-tiny text-neutral-400">{{ $t('accountCenter.roleHint') }}</p>

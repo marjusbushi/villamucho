@@ -50,25 +50,27 @@ function updatePassword() {
         </button>
     </div>
 
-    <form class="mt-6 space-y-4" @submit.prevent="updatePassword">
-        <div v-for="field in [
-            { id: 'current_password', label: $t('accountCenter.currentPassword'), autocomplete: 'current-password', inputRef: 'current' },
-            { id: 'password', label: $t('accountCenter.newPassword'), autocomplete: 'new-password', inputRef: 'new' },
-            { id: 'password_confirmation', label: $t('accountCenter.confirmPassword'), autocomplete: 'new-password' },
-        ]" :key="field.id">
-            <label :for="field.id" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ field.label }}</label>
-            <TextInput
-                :id="field.id"
-                :ref="field.inputRef === 'current' ? (element) => currentPasswordInput = element : field.inputRef === 'new' ? (element) => passwordInput = element : undefined"
-                v-model="form[field.id]"
-                :type="showPasswords ? 'text' : 'password'"
-                :autocomplete="field.autocomplete"
-                :error="form.errors[field.id]"
-            />
-            <p v-if="form.errors[field.id]" class="mt-1 text-tiny text-error-600">{{ form.errors[field.id] }}</p>
+    <form class="mt-6" @submit.prevent="updatePassword">
+        <div class="grid gap-4 lg:grid-cols-3">
+            <div v-for="field in [
+                { id: 'current_password', label: $t('accountCenter.currentPassword'), autocomplete: 'current-password', inputRef: 'current' },
+                { id: 'password', label: $t('accountCenter.newPassword'), autocomplete: 'new-password', inputRef: 'new' },
+                { id: 'password_confirmation', label: $t('accountCenter.confirmPassword'), autocomplete: 'new-password' },
+            ]" :key="field.id">
+                <label :for="field.id" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ field.label }}</label>
+                <TextInput
+                    :id="field.id"
+                    :ref="field.inputRef === 'current' ? (element) => currentPasswordInput = element : field.inputRef === 'new' ? (element) => passwordInput = element : undefined"
+                    v-model="form[field.id]"
+                    :type="showPasswords ? 'text' : 'password'"
+                    :autocomplete="field.autocomplete"
+                    :error="form.errors[field.id]"
+                />
+                <p v-if="form.errors[field.id]" class="mt-1 text-tiny text-error-600">{{ form.errors[field.id] }}</p>
+            </div>
         </div>
 
-        <div class="flex items-center justify-end gap-3 border-t border-neutral-100 pt-5">
+        <div class="mt-5 flex items-center justify-end gap-3 border-t border-neutral-100 pt-5">
             <Transition enter-active-class="transition" enter-from-class="opacity-0" leave-active-class="transition" leave-to-class="opacity-0">
                 <span v-if="form.recentlySuccessful" class="inline-flex items-center gap-1.5 text-body-sm font-semibold text-success-700">
                     <CheckCircle2 class="h-4 w-4" /> {{ $t('accountCenter.passwordUpdated') }}
