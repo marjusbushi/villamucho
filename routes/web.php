@@ -15,6 +15,7 @@ use App\Http\Controllers\PricingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\MessagesController;
+use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\SeasonCopyController;
@@ -92,6 +93,20 @@ Route::middleware('auth')->prefix('pms')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::redirect('/maintenance-design', '/pms/maintenance')->name('maintenance.design');
+
+    Route::middleware('permission:view_maintenance')->group(function () {
+        Route::get('/maintenance', [MaintenanceController::class, 'index'])->name('maintenance.index');
+        Route::get('/maintenance/attachments/{attachment}', [MaintenanceController::class, 'previewAttachment'])->name('maintenance.attachments.show');
+        Route::post('/maintenance', [MaintenanceController::class, 'store'])->middleware('permission:create_maintenance')->name('maintenance.store');
+        Route::patch('/maintenance/{maintenanceIssue}', [MaintenanceController::class, 'update'])->middleware('permission:update_maintenance')->name('maintenance.update');
+        Route::patch('/maintenance/{maintenanceIssue}/assign', [MaintenanceController::class, 'assign'])->middleware('permission:update_maintenance')->name('maintenance.assign');
+        Route::patch('/maintenance/{maintenanceIssue}/status', [MaintenanceController::class, 'updateStatus'])->middleware('permission:update_maintenance')->name('maintenance.status');
+        Route::patch('/maintenance/{maintenanceIssue}/room-block', [MaintenanceController::class, 'updateRoomBlock'])->middleware('permission:update_maintenance')->name('maintenance.room-block');
+        Route::post('/maintenance/{maintenanceIssue}/attachments', [MaintenanceController::class, 'storeAttachment'])->middleware('permission:update_maintenance')->name('maintenance.attachments.store');
+        Route::delete('/maintenance/attachments/{attachment}', [MaintenanceController::class, 'destroyAttachment'])->middleware('permission:update_maintenance')->name('maintenance.attachments.destroy');
+    });
 
     // Notifications (new-reservation bell) — any authenticated staff
     Route::get('/notifications/reservations', [NotificationController::class, 'reservations'])->name('notifications.reservations');
