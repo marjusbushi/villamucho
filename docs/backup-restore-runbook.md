@@ -15,8 +15,11 @@
   ndërsa replica nuk mund të fshihet para skadimit të retention-it.
 - Bucket-i destinacion `lora-pms-prod-eu-immutable-7c14a9` u krijua privat më
   2026-07-14 me SSE-B2, Object Lock dhe retention default 30 ditë `compliance`.
-  Aktivizimi i Cloud Replication mbetet në pritje të pagesës njëherëshe `$1 + tax`
-  që Backblaze kërkon për të krijuar payment history; pagesa kreditohet në llogari.
+- Cloud Replication `lora-prod-immutable-30d` kopjon automatikisht nga
+  `lora-pms-prod-eu-backup-7c14a9` te bucket-i immutable, duke përfshirë edhe
+  skedarët ekzistues. Rregulli u aktivizua më 2026-07-14.
+- Snapshot-i test `a2473916` u krijua pas aktivizimit dhe skedarët e tij të rinj
+  u shfaqën në bucket-in immutable, duke verifikuar rrjedhën fund-më-fund.
 
 ## Secrets në server
 
