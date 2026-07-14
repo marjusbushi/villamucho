@@ -4,6 +4,7 @@ namespace App\Tenancy;
 
 use App\Models\Tenant;
 use Closure;
+use RuntimeException;
 use Spatie\Permission\PermissionRegistrar;
 
 class TenantContext
@@ -26,6 +27,11 @@ class TenantContext
     public function id(): ?int
     {
         return $this->tenant?->getKey();
+    }
+
+    public function requireId(): int
+    {
+        return $this->idOrDefault() ?? throw new RuntimeException('Tenant context is required for this operation.');
     }
 
     public function idOrDefault(): ?int
