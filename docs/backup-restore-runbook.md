@@ -35,6 +35,10 @@ Application Key duhet të ketë akses vetëm te ky bucket. Master Key nuk përdo
 Fjalëkalimi Restic ruhet edhe në password manager; humbja e tij e bën backup-in të
 parikuperueshëm.
 
+Më 2026-07-14, fjalëkalimi i rikuperimit u ruajt si hyrje personale në Zoho Vault
+me emrin `Lora PMS Production — Restic Recovery`. Vlera sekrete nuk ruhet në git
+ose në këtë dokument.
+
 ## Instalimi në production
 
 Instalimi production u krye më 2026-07-14. Komandat e riprodhueshme janë:
