@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Console\TenantCommandRunner;
 use App\Jobs\Middleware\UseTenantContext;
 use App\Jobs\PushRoomTypeAri;
+use App\Models\ChannelSyncLog;
 use App\Models\Guest;
 use App\Models\Reservation;
 use App\Models\Room;
@@ -363,17 +365,95 @@ class TenantIsolationTest extends TestCase
 
     public function test_manual_tenant_commands_require_the_tenant_option_outside_testing(): void
     {
+        $commands = [
+            ['housekeeping:archive-inspected', []],
+            ['channex:bootstrap-rooms', []],
+            ['channex:link-rooms', []],
+            ['channex:ping', []],
+            ['channex:pull-bookings', []],
+            ['channex:push-ari', []],
+            ['currency:fetch-rates', []],
+            ['finance:backfill', []],
+            ['hotel:setup', []],
+            ['booking:import', ['file' => 'missing.csv']],
+            ['market:fetch-rates', []],
+            ['pricing:autopilot', []],
+            ['pricing:snapshot', []],
+            ['pricing:weekly-report', []],
+            ['pok:release-unpaid', []],
+        ];
+
         $this->app['env'] = 'production';
 
         try {
-            $this->artisan('housekeeping:archive-inspected')->assertFailed();
+            foreach ($commands as [$command, $parameters]) {
+                app(TenantContext::class)->clear();
+                $this->artisan($command, $parameters)
+                    ->expectsOutputToContain('shto --tenant=<ID>')
+                    ->assertFailed();
+            }
+
+            $this->artisan('finance:backfill', ['--tenant' => '1invalid'])
+                ->expectsOutputToContain('ID numerike pozitive')
+                ->assertFailed();
 
             $this->artisan('housekeeping:archive-inspected', [
                 '--tenant' => Tenant::query()->sole()->id,
             ])->assertSuccessful();
         } finally {
+            app(TenantContext::class)->clear();
             $this->app['env'] = 'testing';
         }
+    }
+
+    public function test_manual_command_rejects_a_tenant_that_differs_from_active_context(): void
+    {
+        $context = app(TenantContext::class);
+        $first = Tenant::query()->sole();
+        $second = Tenant::factory()->create();
+        $context->set($first);
+        $this->app['env'] = 'production';
+
+        try {
+            $this->artisan('currency:fetch-rates', ['--tenant' => $second->id])
+                ->expectsOutputToContain('nuk përputhet me kontekstin aktiv')
+                ->assertFailed();
+        } finally {
+            $context->clear();
+            $this->app['env'] = 'testing';
+        }
+    }
+
+    public function test_scheduled_pruning_runs_inside_each_active_tenant_context(): void
+    {
+        $context = app(TenantContext::class);
+        $tenants = collect([
+            Tenant::query()->sole(),
+            Tenant::factory()->create(),
+        ]);
+
+        foreach ($tenants as $tenant) {
+            $context->run($tenant, function () {
+                ChannelSyncLog::create([
+                    'direction' => 'push',
+                    'status' => 'ok',
+                    'created_at' => now()->subDays(91),
+                ]);
+                ChannelSyncLog::create([
+                    'direction' => 'push',
+                    'status' => 'ok',
+                    'created_at' => now()->subDays(89),
+                ]);
+            });
+        }
+
+        app(TenantCommandRunner::class)->run('model:prune', [
+            '--model' => [ChannelSyncLog::class],
+        ]);
+
+        $this->assertSame(0, ChannelSyncLog::withoutGlobalScopes()->where('created_at', '<', now()->subDays(90))->count());
+        $this->assertSame(2, ChannelSyncLog::withoutGlobalScopes()->count());
+        $this->assertNull($context->id());
     }
 
     public function test_pok_order_ids_are_unique_per_tenant_not_globally(): void

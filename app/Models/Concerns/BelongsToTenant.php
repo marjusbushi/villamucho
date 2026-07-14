@@ -17,7 +17,7 @@ trait BelongsToTenant
             // Fresh/upgrade migrations may query legacy operational tables
             // before the tenancy tables/columns exist. Outside that narrow
             // schema-bootstrap window, missing context always fails closed.
-            if (app()->runningInConsole() && (
+            if (app(TenantContext::class)->schemaBootstrapActive() && (
                 ! Schema::hasTable('tenants')
                 || ! Schema::hasColumn($builder->getModel()->getTable(), 'tenant_id')
             )) {
@@ -66,7 +66,6 @@ trait BelongsToTenant
         static::deleting(function ($model) {
             static::assertOwnedByActiveTenant($model);
         });
-
     }
 
     public function tenant(): BelongsTo

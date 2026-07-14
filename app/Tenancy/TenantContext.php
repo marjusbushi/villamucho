@@ -10,6 +10,8 @@ class TenantContext
 {
     private ?Tenant $tenant = null;
 
+    private int $schemaBootstrapDepth = 0;
+
     public function set(?Tenant $tenant): void
     {
         $this->tenant = $tenant;
@@ -39,6 +41,21 @@ class TenantContext
     public function clear(): void
     {
         $this->set(null);
+    }
+
+    public function beginSchemaBootstrap(): void
+    {
+        $this->schemaBootstrapDepth++;
+    }
+
+    public function endSchemaBootstrap(): void
+    {
+        $this->schemaBootstrapDepth = max(0, $this->schemaBootstrapDepth - 1);
+    }
+
+    public function schemaBootstrapActive(): bool
+    {
+        return $this->schemaBootstrapDepth > 0;
     }
 
     public function run(Tenant $tenant, Closure $callback): mixed

@@ -22,8 +22,8 @@ Lora PMS do të përdorë një aplikacion dhe një databazë të përbashkët. �
 ## Todo aktive
 
 - [x] 1. Izolim `fail-closed` për leximet dhe `tenant_id` i pandryshueshëm.
-- [ ] 2. Commands manuale tenant-aware dhe `fail-closed` — **në punë**.
-- [ ] 3. Jobs, cache, locks dhe storage tenant-aware.
+- [x] 2. Commands manuale tenant-aware dhe `fail-closed`.
+- [ ] 3. Jobs, cache, locks dhe storage tenant-aware — **në punë**.
 - [ ] 4. DB: `tenant_id NOT NULL` dhe kontrolle same-tenant.
 - [ ] 5. Handoff i sigurt Control Panel → custom domain.
 - [ ] 6. Teste Hotel A/B për modulet kryesore.
