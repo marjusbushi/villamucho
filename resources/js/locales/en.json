@@ -164,6 +164,29 @@
             "paymentNote": "Your booking is confirmed after a secure card payment. The room is held for you for 30 minutes.",
             "adultsShort": "adults",
             "childrenShort": "children"
+        },
+        "direct": {
+            "detailsPay": "Details & Pay",
+            "smartEyebrow": "Live rates",
+            "smartIntro": "Smart prices appear immediately. Booking direct automatically receives the best website discount.",
+            "liveSmartPrice": "Live smart price",
+            "direct": "Direct",
+            "adults": "adult",
+            "children": "children",
+            "guestsCount": "{count} guests",
+            "breakfast": "Breakfast included",
+            "selectRoom": "Select this room",
+            "yourStay": "Your stay",
+            "selectedRoom": "Selected room",
+            "smartSubtotal": "Smart price",
+            "discount": "Direct booking discount ({pct}%)",
+            "total": "Total",
+            "taxesIncluded": "Taxes included",
+            "chooseRoomSummary": "Choose a room to see the total.",
+            "bestPrice": "Best price when booking direct",
+            "noHiddenFees": "No hidden fees. Secure booking.",
+            "finalStep": "Final step",
+            "secureBooking": "Secure booking with instant confirmation."
         }
     },
     "contact": {
@@ -222,6 +245,14 @@
         }
     },
     "admin": {
+        "pricingPrograms": {
+            "directTitle": "Direct booking advantage",
+            "directDescription": "Apply an automatic discount to the live smart price for website bookings only.",
+            "recommended": "Recommended",
+            "directEnabled": "Enable direct discount",
+            "discountPercent": "Website discount",
+            "directExample": "Example: €100 smart price → €{price} direct price."
+        },
         "common": {
             "save": "Save",
             "saved": "Saved.",

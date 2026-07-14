@@ -9,11 +9,11 @@ use App\Models\RoomType;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WebsiteSearchLog;
+use App\Services\DirectBookingPricing;
 use App\Services\PokClient;
 use App\Services\PokConfiguration;
 use App\Services\PokPayments;
 use App\Services\PublicRoomPricing;
-use App\Services\RoomPricing;
 use App\Tenancy\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +26,10 @@ use Inertia\Response;
 
 class WebsiteController extends Controller
 {
-    public function __construct(private readonly PublicRoomPricing $publicRoomPricing) {}
+    public function __construct(
+        private readonly PublicRoomPricing $publicRoomPricing,
+        private readonly DirectBookingPricing $directBookingPricing,
+    ) {}
 
     public function home(): Response
     {
@@ -59,7 +62,8 @@ class WebsiteController extends Controller
 
     public function bookingForm(Request $request): Response
     {
-        $roomTypes = RoomType::select('id', 'name', 'base_price', 'max_occupancy')
+        $roomTypes = RoomType::select('id', 'name', 'description', 'base_price', 'max_occupancy', 'amenities', 'breakfast_included')
+            ->with('images')
             ->get();
 
         // Keep base_price intact and expose a separate public headline derived
@@ -70,6 +74,10 @@ class WebsiteController extends Controller
             'roomTypes' => $roomTypes,
             'preselectedType' => $request->input('room_type'),
             'hotel' => Setting::getGroup('hotel'),
+            'directPricing' => [
+                'enabled' => $this->directBookingPricing->enabled(),
+                'discount_pct' => $this->directBookingPricing->discountPercent(),
+            ],
             // A card-payment step follows the form → the submit button says "Vazhdo te pagesa"
             // instead of "Konfirmo", so the money step is never a surprise.
             'paymentRequired' => app(PokClient::class)->configured(),
@@ -80,10 +88,12 @@ class WebsiteController extends Controller
     private function attachPublicFromPrices($roomTypes): void
     {
         $fromPrices = $this->publicRoomPricing->fromPrices($roomTypes);
-        $roomTypes->each(fn (RoomType $roomType) => $roomType->setAttribute(
-            'from_price',
-            $fromPrices[$roomType->id] ?? null,
-        ));
+        $roomTypes->each(function (RoomType $roomType) use ($fromPrices) {
+            $price = $this->directBookingPricing->fromPrice($fromPrices[$roomType->id] ?? null);
+            $roomType->setAttribute('from_price', $price['direct']);
+            $roomType->setAttribute('smart_from_price', $price['original']);
+            $roomType->setAttribute('direct_discount_pct', $price['discount_pct']);
+        });
     }
 
     public function checkAvailability(Request $request)
@@ -95,7 +105,7 @@ class WebsiteController extends Controller
         ]);
 
         $query = Room::select('id', 'room_number', 'room_type_id', 'floor')
-            ->with('roomType:id,name,base_price,max_occupancy,amenities')
+            ->with('roomType:id,name,description,base_price,max_occupancy,amenities,breakfast_included', 'roomType.images')
             ->where('status', '!=', 'maintenance');
 
         if ($request->filled('room_type_id')) {
@@ -125,18 +135,26 @@ class WebsiteController extends Controller
         }
 
         return response()->json([
-            'rooms' => $rooms->map(function ($r) use ($request, $nights) {
-                $total = RoomPricing::total($r->roomType, $request->check_in, $request->check_out);
+            'rooms' => $rooms->map(function ($r) use ($request) {
+                $quote = $this->directBookingPricing->quote($r->roomType, $request->check_in, $request->check_out);
 
                 return [
                     'id' => $r->id,
                     'room_number' => $r->room_number,
+                    'room_type_id' => $r->room_type_id,
                     'floor' => $r->floor,
                     'room_type' => $r->roomType->name,
-                    'price_per_night' => $nights > 0 ? round($total / $nights, 2) : (float) $r->roomType->base_price,
-                    'total_price' => $total,
+                    'price_per_night' => $quote['price_per_night'],
+                    'total_price' => $quote['total'],
+                    'smart_price_per_night' => $quote['original_per_night'],
+                    'smart_total_price' => $quote['original_total'],
+                    'direct_discount_pct' => $quote['discount_pct'],
+                    'direct_discount_amount' => $quote['discount_amount'],
                     'max_occupancy' => $r->roomType->max_occupancy,
                     'amenities' => $r->roomType->amenities,
+                    'description' => $r->roomType->description,
+                    'breakfast_included' => (bool) $r->roomType->breakfast_included,
+                    'images' => $r->roomType->images,
                 ];
             }),
             'nights' => $nights,
@@ -277,13 +295,18 @@ class WebsiteController extends Controller
                     }
                 }
 
+                $quote = $this->directBookingPricing->quote($room->roomType, $request->check_in, $request->check_out);
+
                 return Reservation::create([
                     'room_id' => $room->id,
                     'guest_id' => $guest->id,
                     'check_in_date' => $request->check_in,
                     'check_out_date' => $request->check_out,
                     'status' => 'pending',
-                    'total_amount' => RoomPricing::total($room->roomType, $request->check_in, $request->check_out),
+                    'total_amount' => $quote['total'],
+                    'rate_before_discount' => $quote['original_total'],
+                    'direct_discount_pct' => $quote['discount_pct'],
+                    'direct_discount_amount' => $quote['discount_amount'],
                     'adults' => $request->adults,
                     'children' => (int) $request->children,
                     'notes' => $request->notes,

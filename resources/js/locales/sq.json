@@ -164,6 +164,29 @@
             "paymentNote": "Rezervimi konfirmohet pas pagesës së sigurt me kartë. Dhoma mbahet për ty 30 minuta.",
             "adultsShort": "të rritur",
             "childrenShort": "fëmijë"
+        },
+        "direct": {
+            "detailsPay": "Të dhënat & Pagesa",
+            "smartEyebrow": "Çmime live",
+            "smartIntro": "Çmimet inteligjente shfaqen menjëherë. Rezervimi direkt përfiton automatikisht uljen më të mirë të webit.",
+            "liveSmartPrice": "Çmim inteligjent live",
+            "direct": "Direkt",
+            "adults": "rritur",
+            "children": "fëmijë",
+            "guestsCount": "{count} mysafirë",
+            "breakfast": "Mëngjes i përfshirë",
+            "selectRoom": "Zgjidh këtë dhomë",
+            "yourStay": "Qëndrimi juaj",
+            "selectedRoom": "Dhoma e zgjedhur",
+            "smartSubtotal": "Çmimi inteligjent",
+            "discount": "Ulje rezervimi direkt ({pct}%)",
+            "total": "Totali",
+            "taxesIncluded": "Taksat të përfshira",
+            "chooseRoomSummary": "Zgjidhni një dhomë për të parë totalin.",
+            "bestPrice": "Çmimi më i mirë kur rezervoni direkt",
+            "noHiddenFees": "Pa tarifa të fshehura. Rezervim i sigurt.",
+            "finalStep": "Hapi i fundit",
+            "secureBooking": "Rezervim i sigurt dhe konfirmim i menjëhershëm."
         }
     },
     "contact": {
@@ -222,6 +245,14 @@
         }
     },
     "admin": {
+        "pricingPrograms": {
+            "directTitle": "Avantazhi i rezervimit direkt",
+            "directDescription": "Apliko një ulje automatike mbi çmimin inteligjent vetëm për rezervimet nga webi.",
+            "recommended": "E rekomanduar",
+            "directEnabled": "Aktivizo uljen direkte",
+            "discountPercent": "Ulja në web",
+            "directExample": "Shembull: çmimi inteligjent €100 → çmimi direkt €{price}."
+        },
         "common": {
             "save": "Ruaj",
             "saved": "U ruajt.",

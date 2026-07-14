@@ -109,7 +109,7 @@ function isActive(href) {
                         >
                             {{ $t('nav.' + link.key) }}
                         </Link>
-                        <Link href="/book" class="ml-3 px-5 py-2 rounded-none bg-ink text-bone text-body-sm font-medium tracking-wide hover:bg-brass transition-colors duration-200 no-underline">
+                        <Link href="/book" class="btn-reserve ml-3 !px-5 !py-2">
                             {{ $t('nav.reserve') }}
                         </Link>
                         <LanguageSwitcher :class="['ml-3', solid ? 'text-ink' : 'text-bone']" />
@@ -146,7 +146,7 @@ function isActive(href) {
                     >
                         {{ $t('nav.' + link.key) }}
                     </Link>
-                    <Link href="/book" class="block mt-3 mx-3 px-4 py-3 rounded-none bg-ink text-bone text-body-sm font-medium tracking-wide text-center hover:bg-brass transition-colors no-underline" @click="mobileMenu = false">
+                    <Link href="/book" class="btn-reserve mt-3 mx-3 flex px-4 py-3 text-center" @click="mobileMenu = false">
                         {{ $t('nav.reserve') }}
                     </Link>
                     <div class="mt-4 px-3 text-ink"><LanguageSwitcher /></div>

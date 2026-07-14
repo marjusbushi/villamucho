@@ -272,6 +272,8 @@ class SettingsController extends Controller
     public function updatePricingPrograms(Request $request): RedirectResponse
     {
         $data = $request->validate([
+            'direct_discount_enabled' => ['required', 'boolean'],
+            'direct_discount_pct' => ['required', 'numeric', 'min:0', 'max:50'],
             'booking_genius_enabled' => ['required', 'boolean'],
             'booking_genius_pct' => ['required', 'numeric', 'min:0', 'max:50'],
             'booking_mobile_enabled' => ['required', 'boolean'],
@@ -301,7 +303,7 @@ class SettingsController extends Controller
         // full sync. No-op when Channex is not configured.
         PushRoomTypeAri::dispatchAllMapped();
 
-        return back()->with('success', 'Programet OTA u ruajtën — çmimet e kanaleve po ridërgohen në Channex.');
+        return back()->with('success', 'Programet e çmimeve u ruajtën — webi u përditësua dhe tarifat OTA po ridërgohen.');
     }
 
     // --- Housekeeping ---

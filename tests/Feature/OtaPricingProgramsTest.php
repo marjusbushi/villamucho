@@ -50,6 +50,8 @@ class OtaPricingProgramsTest extends TestCase
         $admin->assignRole('admin');
 
         $this->actingAs($admin)->put(route('settings.pricing-programs'), [
+            'direct_discount_enabled' => true,
+            'direct_discount_pct' => 10,
             'booking_genius_enabled' => true,
             'booking_genius_pct' => 15,
             'booking_mobile_enabled' => true,
@@ -59,9 +61,11 @@ class OtaPricingProgramsTest extends TestCase
             'expedia_member_pct' => 10,
             'expedia_mobile_enabled' => false,
             'expedia_mobile_pct' => 10,
-        ])->assertRedirect();
+        ])->assertRedirect()->assertSessionHasNoErrors();
 
         $this->assertTrue((bool) Setting::get('pricing_programs.booking_genius_enabled'));
+        $this->assertTrue((bool) Setting::get('pricing_programs.direct_discount_enabled'));
+        $this->assertSame(10.0, Setting::get('pricing_programs.direct_discount_pct'));
         $this->assertSame(15.0, Setting::get('pricing_programs.booking_genius_pct'));
         $this->assertTrue((bool) Setting::get('pricing_programs.booking_preferred_enabled'));
     }
