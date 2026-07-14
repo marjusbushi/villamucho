@@ -1,112 +1,85 @@
 <script setup>
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
+import Button from '@/Components/UI/Button.vue';
+import TextInput from '@/Components/UI/TextInput.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
+import { CheckCircle2, UserRound } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 defineProps({
-    mustVerifyEmail: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
+    mustVerifyEmail: Boolean,
+    status: String,
 });
 
+const { locale } = useI18n();
 const user = usePage().props.auth.user;
-
 const form = useForm({
     name: user.name,
     email: user.email,
 });
+
+const roleLabel = computed(() => {
+    const labels = locale.value === 'sq'
+        ? { admin: 'Administrator', manager: 'Menaxher', receptionist: 'Recepsionist', housekeeping: 'Housekeeping' }
+        : { admin: 'Administrator', manager: 'Manager', receptionist: 'Receptionist', housekeeping: 'Housekeeping' };
+
+    return labels[user.role] || user.role || '—';
+});
 </script>
 
 <template>
-    <section>
-        <header>
-            <h2 class="text-lg font-medium text-gray-900">
-                Profile Information
-            </h2>
-
-            <p class="mt-1 text-sm text-gray-600">
-                Update your account's profile information and email address.
-            </p>
-        </header>
-
-        <form
-            @submit.prevent="form.patch(route('profile.update'))"
-            class="mt-6 space-y-6"
-        >
+    <div class="flex items-start justify-between gap-4 border-b border-neutral-100 pb-5">
+        <div class="flex items-start gap-3">
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent-50 text-accent-700">
+                <UserRound class="h-5 w-5" />
+            </span>
             <div>
-                <InputLabel for="name" value="Name" />
+                <h2 class="text-body font-bold text-primary-900">{{ $t('accountCenter.profileTitle') }}</h2>
+                <p class="mt-0.5 text-body-sm text-neutral-500">{{ $t('accountCenter.profileDescription') }}</p>
+            </div>
+        </div>
+        <span v-if="user.email_verified_at" class="hidden items-center gap-1.5 rounded-full bg-success-50 px-3 py-1 text-tiny font-bold text-success-700 sm:inline-flex">
+            <CheckCircle2 class="h-3.5 w-3.5" /> {{ $t('accountCenter.verifiedEmail') }}
+        </span>
+    </div>
 
-                <TextInput
-                    id="name"
-                    type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.name"
-                    required
-                    autofocus
-                    autocomplete="name"
-                />
-
-                <InputError class="mt-2" :message="form.errors.name" />
+    <form class="mt-6 space-y-5" @submit.prevent="form.patch(route('profile.update'), { preserveScroll: true })">
+        <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+                <label for="name" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ $t('accountCenter.name') }}</label>
+                <TextInput id="name" v-model="form.name" type="text" autocomplete="name" required autofocus :error="form.errors.name" />
+                <p v-if="form.errors.name" class="mt-1 text-tiny text-error-600">{{ form.errors.name }}</p>
             </div>
 
             <div>
-                <InputLabel for="email" value="Email" />
-
-                <TextInput
-                    id="email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
-                    required
-                    autocomplete="username"
-                />
-
-                <InputError class="mt-2" :message="form.errors.email" />
+                <label for="email" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ $t('accountCenter.email') }}</label>
+                <TextInput id="email" v-model="form.email" type="email" autocomplete="username" required :error="form.errors.email" />
+                <p v-if="form.errors.email" class="mt-1 text-tiny text-error-600">{{ form.errors.email }}</p>
+                <p v-else class="mt-1 text-tiny text-neutral-400">{{ $t('accountCenter.emailHint') }}</p>
             </div>
 
-            <div v-if="mustVerifyEmail && user.email_verified_at === null">
-                <p class="mt-2 text-sm text-gray-800">
-                    Your email address is unverified.
-                    <Link
-                        :href="route('verification.send')"
-                        method="post"
-                        as="button"
-                        class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                    >
-                        Click here to re-send the verification email.
-                    </Link>
-                </p>
-
-                <div
-                    v-show="status === 'verification-link-sent'"
-                    class="mt-2 text-sm font-medium text-green-600"
-                >
-                    A new verification link has been sent to your email address.
-                </div>
+            <div class="sm:col-span-2">
+                <label for="role" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ $t('accountCenter.role') }}</label>
+                <input id="role" :value="roleLabel" disabled class="block w-full cursor-not-allowed rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-body-sm text-neutral-600 opacity-70" />
+                <p class="mt-1 text-tiny text-neutral-400">{{ $t('accountCenter.roleHint') }}</p>
             </div>
+        </div>
 
-            <div class="flex items-center gap-4">
-                <PrimaryButton :disabled="form.processing">Save</PrimaryButton>
+        <div v-if="mustVerifyEmail && !user.email_verified_at" class="rounded-lg border border-warning-200 bg-warning-50 p-3 text-body-sm text-warning-800">
+            {{ $t('accountCenter.unverifiedEmail') }}
+            <Link :href="route('verification.send')" method="post" as="button" class="font-semibold underline underline-offset-2">
+                {{ $t('accountCenter.resendVerification') }}
+            </Link>
+            <p v-if="status === 'verification-link-sent'" class="mt-2 font-semibold text-success-700">{{ $t('accountCenter.verificationSent') }}</p>
+        </div>
 
-                <Transition
-                    enter-active-class="transition ease-in-out"
-                    enter-from-class="opacity-0"
-                    leave-active-class="transition ease-in-out"
-                    leave-to-class="opacity-0"
-                >
-                    <p
-                        v-if="form.recentlySuccessful"
-                        class="text-sm text-gray-600"
-                    >
-                        Saved.
-                    </p>
-                </Transition>
-            </div>
-        </form>
-    </section>
+        <div class="flex items-center justify-end gap-3 border-t border-neutral-100 pt-5">
+            <Transition enter-active-class="transition" enter-from-class="opacity-0" leave-active-class="transition" leave-to-class="opacity-0">
+                <span v-if="form.recentlySuccessful" class="inline-flex items-center gap-1.5 text-body-sm font-semibold text-success-700">
+                    <CheckCircle2 class="h-4 w-4" /> {{ $t('accountCenter.saved') }}
+                </span>
+            </Transition>
+            <Button type="submit" :loading="form.processing" :disabled="!form.isDirty">{{ $t('accountCenter.saveChanges') }}</Button>
+        </div>
+    </form>
 </template>

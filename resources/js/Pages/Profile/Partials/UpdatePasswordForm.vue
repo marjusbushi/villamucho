@@ -1,13 +1,13 @@
 <script setup>
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
+import Button from '@/Components/UI/Button.vue';
+import TextInput from '@/Components/UI/TextInput.vue';
 import { useForm } from '@inertiajs/vue3';
+import { CheckCircle2, Eye, EyeOff, KeyRound } from 'lucide-vue-next';
 import { ref } from 'vue';
 
 const passwordInput = ref(null);
 const currentPasswordInput = ref(null);
+const showPasswords = ref(false);
 
 const form = useForm({
     current_password: '',
@@ -15,108 +15,68 @@ const form = useForm({
     password_confirmation: '',
 });
 
-const updatePassword = () => {
+function updatePassword() {
     form.put(route('password.update'), {
         preserveScroll: true,
         onSuccess: () => form.reset(),
         onError: () => {
             if (form.errors.password) {
                 form.reset('password', 'password_confirmation');
-                passwordInput.value.focus();
+                passwordInput.value?.focus();
             }
             if (form.errors.current_password) {
                 form.reset('current_password');
-                currentPasswordInput.value.focus();
+                currentPasswordInput.value?.focus();
             }
         },
     });
-};
+}
 </script>
 
 <template>
-    <section>
-        <header>
-            <h2 class="text-lg font-medium text-gray-900">
-                Update Password
-            </h2>
-
-            <p class="mt-1 text-sm text-gray-600">
-                Ensure your account is using a long, random password to stay
-                secure.
-            </p>
-        </header>
-
-        <form @submit.prevent="updatePassword" class="mt-6 space-y-6">
+    <div class="flex items-start justify-between gap-4 border-b border-neutral-100 pb-5">
+        <div class="flex items-start gap-3">
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent-50 text-accent-700">
+                <KeyRound class="h-5 w-5" />
+            </span>
             <div>
-                <InputLabel for="current_password" value="Current Password" />
-
-                <TextInput
-                    id="current_password"
-                    ref="currentPasswordInput"
-                    v-model="form.current_password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="current-password"
-                />
-
-                <InputError
-                    :message="form.errors.current_password"
-                    class="mt-2"
-                />
+                <h2 class="text-body font-bold text-primary-900">{{ $t('accountCenter.securityTitle') }}</h2>
+                <p class="mt-0.5 text-body-sm text-neutral-500">{{ $t('accountCenter.securityDescription') }}</p>
             </div>
+        </div>
+        <button type="button" class="rounded-lg p-2 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700" :aria-label="showPasswords ? $t('accountCenter.hidePassword') : $t('accountCenter.showPassword')" @click="showPasswords = !showPasswords">
+            <EyeOff v-if="showPasswords" class="h-5 w-5" />
+            <Eye v-else class="h-5 w-5" />
+        </button>
+    </div>
 
-            <div>
-                <InputLabel for="password" value="New Password" />
+    <form class="mt-6 space-y-4" @submit.prevent="updatePassword">
+        <div v-for="field in [
+            { id: 'current_password', label: $t('accountCenter.currentPassword'), autocomplete: 'current-password', inputRef: 'current' },
+            { id: 'password', label: $t('accountCenter.newPassword'), autocomplete: 'new-password', inputRef: 'new' },
+            { id: 'password_confirmation', label: $t('accountCenter.confirmPassword'), autocomplete: 'new-password' },
+        ]" :key="field.id">
+            <label :for="field.id" class="mb-1.5 block text-body-sm font-semibold text-primary-900">{{ field.label }}</label>
+            <TextInput
+                :id="field.id"
+                :ref="field.inputRef === 'current' ? (element) => currentPasswordInput = element : field.inputRef === 'new' ? (element) => passwordInput = element : undefined"
+                v-model="form[field.id]"
+                :type="showPasswords ? 'text' : 'password'"
+                :autocomplete="field.autocomplete"
+                :error="form.errors[field.id]"
+            />
+            <p v-if="form.errors[field.id]" class="mt-1 text-tiny text-error-600">{{ form.errors[field.id] }}</p>
+        </div>
 
-                <TextInput
-                    id="password"
-                    ref="passwordInput"
-                    v-model="form.password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="new-password"
-                />
-
-                <InputError :message="form.errors.password" class="mt-2" />
-            </div>
-
-            <div>
-                <InputLabel
-                    for="password_confirmation"
-                    value="Confirm Password"
-                />
-
-                <TextInput
-                    id="password_confirmation"
-                    v-model="form.password_confirmation"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="new-password"
-                />
-
-                <InputError
-                    :message="form.errors.password_confirmation"
-                    class="mt-2"
-                />
-            </div>
-
-            <div class="flex items-center gap-4">
-                <PrimaryButton :disabled="form.processing">Save</PrimaryButton>
-
-                <Transition
-                    enter-active-class="transition ease-in-out"
-                    enter-from-class="opacity-0"
-                    leave-active-class="transition ease-in-out"
-                    leave-to-class="opacity-0"
-                >
-                    <p
-                        v-if="form.recentlySuccessful"
-                        class="text-sm text-gray-600"
-                    >
-                        Saved.
-                    </p>
-                </Transition>
-            </div>
-        </form>
-    </section>
+        <div class="flex items-center justify-end gap-3 border-t border-neutral-100 pt-5">
+            <Transition enter-active-class="transition" enter-from-class="opacity-0" leave-active-class="transition" leave-to-class="opacity-0">
+                <span v-if="form.recentlySuccessful" class="inline-flex items-center gap-1.5 text-body-sm font-semibold text-success-700">
+                    <CheckCircle2 class="h-4 w-4" /> {{ $t('accountCenter.passwordUpdated') }}
+                </span>
+            </Transition>
+            <Button type="submit" :loading="form.processing" :disabled="!form.current_password || !form.password || !form.password_confirmation">
+                {{ $t('accountCenter.updatePassword') }}
+            </Button>
+        </div>
+    </form>
 </template>
