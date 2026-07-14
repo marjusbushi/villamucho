@@ -34,6 +34,7 @@ const props = defineProps({
     stats: { type: Object, default: () => ({}) },
     permissionModules: { type: Array, default: () => [] },
     rolesDetailed: { type: Array, default: () => [] },
+    embedded: { type: Boolean, default: false },
 });
 
 const toasts = ref(null);
@@ -128,17 +129,29 @@ function selectKpi(key) {
 
 let searchTimer = null;
 function applyFilters() {
-    const params = {};
-    if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
-    if (roleFilter.value) params.role = roleFilter.value;
-    if (statusFilter.value) params.status = statusFilter.value;
+    const filters = {};
+    if (searchQuery.value.trim()) filters.search = searchQuery.value.trim();
+    if (roleFilter.value) filters.role = roleFilter.value;
+    if (statusFilter.value) filters.status = statusFilter.value;
 
-    router.get(route('users.index'), params, {
+    const params = props.embedded
+        ? Object.fromEntries(Object.entries(filters).map(([key, value]) => [`user_${key}`, value]))
+        : filters;
+    if (props.embedded) params.tab = 'users';
+
+    router.get(props.embedded ? route('settings.index') : route('users.index'), params, {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['users', 'filters', 'stats'],
+        only: props.embedded ? ['userManagement'] : ['users', 'filters', 'stats'],
     });
+}
+
+function paginationUrl(url) {
+    if (!props.embedded || !url) return url;
+    const target = new URL(url, window.location.origin);
+    target.searchParams.set('tab', 'users');
+    return `${target.pathname}${target.search}`;
 }
 
 watch(searchQuery, () => {
@@ -249,8 +262,9 @@ function submitRole() {
 </script>
 
 <template>
-    <AppLayout>
+    <component :is="embedded ? 'div' : AppLayout">
         <PageHeader
+            v-if="!embedded"
             title="Përdoruesit & rolet"
             :breadcrumbs="[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Përdoruesit' }]"
         >
@@ -265,10 +279,10 @@ function submitRole() {
                 </Button>
             </template>
         </PageHeader>
-        <p class="mt-1 text-body-sm text-neutral-500">Menaxho aksesin e stafit në hotel.</p>
+        <p v-if="!embedded" class="mt-1 text-body-sm text-neutral-500">Menaxho aksesin e stafit në hotel.</p>
 
-        <div class="mt-6 flex flex-col gap-6 lg:flex-row">
-            <SettingsSidebar active-item="users" />
+        <div :class="embedded ? '' : 'mt-6 flex flex-col gap-6 lg:flex-row'">
+            <SettingsSidebar v-if="!embedded" active-item="users" />
 
             <div class="min-w-0 flex-1">
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -401,7 +415,7 @@ function submitRole() {
                     <div class="flex items-center gap-2">
                         <Link
                             v-if="users.prev_page_url"
-                            :href="users.prev_page_url"
+                            :href="paginationUrl(users.prev_page_url)"
                             preserve-scroll
                             class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-50"
                             aria-label="Faqja e mëparshme"
@@ -413,7 +427,7 @@ function submitRole() {
                         </span>
                         <Link
                             v-if="users.next_page_url"
-                            :href="users.next_page_url"
+                            :href="paginationUrl(users.next_page_url)"
                             preserve-scroll
                             class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-50"
                             aria-label="Faqja tjetër"
@@ -556,5 +570,5 @@ function submitRole() {
         </Modal>
 
         <ToastContainer ref="toasts" />
-    </AppLayout>
+    </component>
 </template>

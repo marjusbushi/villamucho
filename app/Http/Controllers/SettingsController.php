@@ -15,6 +15,7 @@ use App\Models\RoomType;
 use App\Models\RoomTypeImage;
 use App\Models\Setting;
 use App\Models\Warehouse;
+use App\Services\AuditTimeline;
 use App\Services\CurrencyRates;
 use App\Services\MarketRates;
 use App\Services\PricingRulesVersion;
@@ -29,7 +30,12 @@ use Inertia\Response;
 
 class SettingsController extends Controller
 {
-    public function index(): Response
+    public function index(
+        Request $request,
+        UserController $userController,
+        AuditLogController $auditLogController,
+        AuditTimeline $timeline,
+    ): Response
     {
         $settings = Setting::allGrouped();
 
@@ -80,6 +86,8 @@ class SettingsController extends Controller
                 ->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'type']),
             'floors' => Floor::orderBy('number')->get(),
             'amenities' => Amenity::orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
+            'userManagement' => $userController->pageData($request, 'user_'),
+            'auditHistory' => $auditLogController->pageData($request, $timeline, 'audit_'),
         ]);
     }
 

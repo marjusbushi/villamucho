@@ -76,15 +76,25 @@ const itemClass = (id) => [
                     </Link>
                 </template>
 
-                <Link
-                    v-for="item in group.id === 'system' ? administrationLinks : []"
-                    :key="item.id"
-                    :href="item.href"
-                    :class="itemClass(item.id)"
-                    :aria-current="activeItem === item.id ? 'page' : undefined"
-                >
-                    {{ item.label }}
-                </Link>
+                <template v-for="item in group.id === 'system' ? administrationLinks : []" :key="item.id">
+                    <button
+                        v-if="interactive"
+                        type="button"
+                        :class="itemClass(item.id)"
+                        :aria-pressed="activeItem === item.id"
+                        @click="emit('select', item.id)"
+                    >
+                        {{ item.label }}
+                    </button>
+                    <Link
+                        v-else
+                        :href="item.href"
+                        :class="itemClass(item.id)"
+                        :aria-current="activeItem === item.id ? 'page' : undefined"
+                    >
+                        {{ item.label }}
+                    </Link>
+                </template>
             </div>
         </nav>
     </aside>

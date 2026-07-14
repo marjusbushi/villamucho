@@ -3,6 +3,8 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import SettingsSidebar from '@/Components/SettingsSidebar.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import AuditLogsPage from '@/Pages/AuditLogs/Index.vue';
+import UsersPage from '@/Pages/Users/Index.vue';
 import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AboutTab from './Tabs/AboutTab.vue';
@@ -28,6 +30,8 @@ const props = defineProps({
     inventoryWarehouses: { type: Array, default: () => [] },
     floors: Array,
     amenities: Array,
+    userManagement: { type: Object, default: () => ({}) },
+    auditHistory: { type: Object, default: () => ({}) },
 });
 
 const toasts = ref(null);
@@ -50,7 +54,16 @@ const allTabs = [
 ];
 
 const requestedTab = new URLSearchParams(usePage().url.split('?')[1] || '').get('tab');
-const activeTab = ref(allTabs.some((tab) => tab.id === requestedTab) ? requestedTab : 'hotel');
+const validTabs = [...allTabs.map((tab) => tab.id), 'users', 'history'];
+const activeTab = ref(validTabs.includes(requestedTab) ? requestedTab : 'hotel');
+
+function selectTab(tab) {
+    activeTab.value = tab;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
 </script>
 
 <template>
@@ -62,7 +75,7 @@ const activeTab = ref(allTabs.some((tab) => tab.id === requestedTab) ? requested
         <p class="mt-1 text-body-sm text-neutral-500">{{ $t('accountCenter.settingsSubtitle') }}</p>
 
         <div class="mt-6 flex flex-col gap-6 lg:flex-row">
-            <SettingsSidebar :active-item="activeTab" interactive @select="activeTab = $event" />
+            <SettingsSidebar :active-item="activeTab" interactive @select="selectTab" />
 
             <div class="min-w-0 flex-1">
                 <HotelTab v-if="activeTab === 'hotel'" :settings="settings.hotel || {}" :toasts="toasts" />
@@ -78,6 +91,8 @@ const activeTab = ref(allTabs.some((tab) => tab.id === requestedTab) ? requested
                 <PricingProgramsTab v-else-if="activeTab === 'pricing-programs'" :settings="settings.pricing_programs || {}" :financial="settings.financial || {}" :toasts="toasts" />
                 <MarketRatesTab v-else-if="activeTab === 'market-rates'" :settings="settings.market_rates || {}" :toasts="toasts" />
                 <AiTab v-else-if="activeTab === 'ai'" :settings="settings.ai || {}" :toasts="toasts" />
+                <UsersPage v-else-if="activeTab === 'users'" v-bind="userManagement" embedded />
+                <AuditLogsPage v-else-if="activeTab === 'history'" v-bind="auditHistory" embedded />
             </div>
         </div>
 
