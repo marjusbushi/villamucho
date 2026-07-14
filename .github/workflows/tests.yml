@@ -180,6 +180,9 @@ jobs:
 
       - name: Snapshot pre-upgrade schema and data
         run: |
+          mysql -h 127.0.0.1 -P 3307 -uroot -proot -N testing_upgrade \
+            -e 'SELECT COALESCE(MAX(batch), 0) FROM migrations' \
+            > /tmp/lora-pre-upgrade-batch
           mysqldump -h 127.0.0.1 -P 3307 -uroot -proot \
             --no-data --skip-comments --skip-dump-date --compact testing_upgrade \
             | php scripts/canonicalize-mysql-schema.php \
@@ -200,10 +203,22 @@ jobs:
 
       - name: Verify exact database rollback
         run: |
+          baseline_batch="$(cat /tmp/lora-pre-upgrade-batch)"
           release_batch="$(mysql -h 127.0.0.1 -P 3307 -uroot -proot -N \
             testing_upgrade -e 'SELECT MAX(batch) FROM migrations')"
+          test -n "$baseline_batch"
           test -n "$release_batch"
-          php artisan migrate:rollback --batch="$release_batch" --force
+          case "$baseline_batch:$release_batch" in
+            *[!0-9:]*) echo "Invalid migration batch values" >&2; exit 1 ;;
+          esac
+          if (( release_batch > baseline_batch )); then
+            php artisan migrate:rollback --batch="$release_batch" --force
+          elif (( release_batch < baseline_batch )); then
+            echo "Candidate removed an existing migration batch" >&2
+            exit 1
+          else
+            echo "No candidate migrations to roll back"
+          fi
           php artisan tenants:verify-integrity --compare=/tmp/lora-upgrade-baseline.json
           mysqldump -h 127.0.0.1 -P 3307 -uroot -proot \
             --no-data --skip-comments --skip-dump-date --compact testing_upgrade \
