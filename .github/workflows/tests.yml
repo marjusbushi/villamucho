@@ -169,17 +169,6 @@ jobs:
       - name: Seed representative staging data
         run: php artisan db:seed --force
 
-      - name: Snapshot pre-upgrade schema and data
-        run: |
-          mysqldump -h 127.0.0.1 -P 3307 -uroot -proot \
-            --no-data --skip-comments --skip-dump-date --compact testing_upgrade \
-            | sed -E 's/AUTO_INCREMENT=[0-9]+/AUTO_INCREMENT=N/g' \
-            > /tmp/lora-schema-before.sql
-          checksum_sql="$(mysql -h 127.0.0.1 -P 3307 -uroot -proot -N -e \
-            "SET SESSION group_concat_max_len = 1000000; SELECT CONCAT('CHECKSUM TABLE ', GROUP_CONCAT(CONCAT('testing_upgrade.', table_name) ORDER BY table_name SEPARATOR ', '), ';') FROM information_schema.tables WHERE table_schema = 'testing_upgrade' AND table_type = 'BASE TABLE'")"
-          mysql -h 127.0.0.1 -P 3307 -uroot -proot -N -e "$checksum_sql" \
-            > /tmp/lora-data-before.tsv
-
       - name: Checkout candidate code
         uses: actions/checkout@v5
         with:
@@ -188,6 +177,17 @@ jobs:
 
       - name: Refresh candidate Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Snapshot pre-upgrade schema and data
+        run: |
+          mysqldump -h 127.0.0.1 -P 3307 -uroot -proot \
+            --no-data --skip-comments --skip-dump-date --compact testing_upgrade \
+            | php scripts/canonicalize-mysql-schema.php \
+            > /tmp/lora-schema-before.sql
+          checksum_sql="$(mysql -h 127.0.0.1 -P 3307 -uroot -proot -N -e \
+            "SET SESSION group_concat_max_len = 1000000; SELECT CONCAT('CHECKSUM TABLE ', GROUP_CONCAT(CONCAT('testing_upgrade.', table_name) ORDER BY table_name SEPARATOR ', '), ';') FROM information_schema.tables WHERE table_schema = 'testing_upgrade' AND table_type = 'BASE TABLE'")"
+          mysql -h 127.0.0.1 -P 3307 -uroot -proot -N -e "$checksum_sql" \
+            > /tmp/lora-data-before.tsv
 
       - name: Snapshot pre-upgrade integrity
         run: php artisan tenants:verify-integrity --snapshot=/tmp/lora-upgrade-baseline.json
@@ -207,7 +207,7 @@ jobs:
           php artisan tenants:verify-integrity --compare=/tmp/lora-upgrade-baseline.json
           mysqldump -h 127.0.0.1 -P 3307 -uroot -proot \
             --no-data --skip-comments --skip-dump-date --compact testing_upgrade \
-            | sed -E 's/AUTO_INCREMENT=[0-9]+/AUTO_INCREMENT=N/g' \
+            | php scripts/canonicalize-mysql-schema.php \
             > /tmp/lora-schema-after-rollback.sql
           diff -u /tmp/lora-schema-before.sql /tmp/lora-schema-after-rollback.sql
           checksum_sql="$(mysql -h 127.0.0.1 -P 3307 -uroot -proot -N -e \

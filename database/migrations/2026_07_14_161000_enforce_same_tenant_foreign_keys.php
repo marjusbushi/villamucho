@@ -197,8 +197,12 @@ return new class extends Migration
                         && ($index['columns'][0] ?? null) === 'tenant_id');
 
                 if (! $hasTenantIndex) {
-                    Schema::table($tableName, function (Blueprint $table) {
-                        $table->index('tenant_id');
+                    $indexName = $tableName === 'message_threads'
+                        ? 'message_threads_tenant_id_index'
+                        : "{$tableName}_tenant_id_foreign";
+
+                    Schema::table($tableName, function (Blueprint $table) use ($indexName) {
+                        $table->index('tenant_id', $indexName);
                     });
                 }
             }
