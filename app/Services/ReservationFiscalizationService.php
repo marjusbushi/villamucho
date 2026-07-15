@@ -38,7 +38,13 @@ class ReservationFiscalizationService
         }
 
         try {
-            $invoice = $this->client->createCashInvoice($payload);
+            // A failed/uncertain attempt may have reached fature.al even when
+            // its response did not reach us. Reconcile by the stable internalId
+            // before another create request so retries cannot duplicate invoices.
+            $invoice = $document->wasRecentlyCreated
+                ? null
+                : $this->client->findInvoiceByInternalId($document->internal_id);
+            $invoice ??= $this->client->createCashInvoice($payload);
         } catch (Throwable $exception) {
             $message = Str::limit($exception->getMessage(), 1000, '');
             $document->forceFill([
