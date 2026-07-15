@@ -37,11 +37,7 @@ const submit = () => {
         <Alert v-if="status" variant="success" class="mb-4">{{ status }}</Alert>
 
         <form @submit.prevent="submit" class="space-y-5">
-            <div class="space-y-1.5">
-                <label for="email" class="block text-label text-neutral-700">
-                    {{ $t('admin.generated.k_46418004f188') }}
-                    <span class="text-error-500">*</span>
-                </label>
+            <FormGroup :label="$t('admin.generated.k_46418004f188')" html-for="email" :error="form.errors.email" required>
                 <input
                     id="email"
                     name="email"
@@ -63,10 +59,7 @@ const submit = () => {
                             : 'border-neutral-200 focus:border-accent-500 focus:ring-accent-500/40',
                     ]"
                 />
-                <p v-if="form.errors.email" class="text-small text-error-600">
-                    {{ form.errors.email }}
-                </p>
-            </div>
+            </FormGroup>
 
             <FormGroup :label="$t('admin.generated.k_2f77fb4fd984')" html-for="password" :error="form.errors.password" required>
                 <TextInput
