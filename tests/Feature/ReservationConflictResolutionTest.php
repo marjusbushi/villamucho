@@ -123,4 +123,35 @@ class ReservationConflictResolutionTest extends TestCase
 
         $this->assertSame($room201->id, $second->refresh()->room_id);
     }
+
+    public function test_room_suggestions_include_children_in_the_capacity_check(): void
+    {
+        [$admin, $room201, $room202, , , $second] = $this->conflictScenario();
+        $second->update(['adults' => 2, 'children' => 1]);
+        $smallType = RoomType::create(['name' => 'Double', 'base_price' => 90, 'max_occupancy' => 2, 'amenities' => []]);
+        Room::create(['room_type_id' => $smallType->id, 'room_number' => '101', 'floor' => 1, 'status' => 'available']);
+
+        $this->actingAs($admin)->get(route('reservations.calendar', [
+            'start' => '2026-07-20',
+            'days' => 14,
+        ]))->assertInertia(fn (AssertableInertia $page) => $page
+            ->has('conflicts', 1)
+            ->where('conflicts.0.room_id', $room201->id)
+            ->has('conflicts.0.reservations.1.suggested_rooms', 1)
+            ->where('conflicts.0.reservations.1.suggested_rooms.0.id', $room202->id));
+    }
+
+    public function test_conflict_resolution_includes_children_in_the_capacity_check(): void
+    {
+        [$admin, $room201, , , , $second] = $this->conflictScenario();
+        $second->update(['adults' => 2, 'children' => 1]);
+        $smallType = RoomType::create(['name' => 'Double', 'base_price' => 90, 'max_occupancy' => 2, 'amenities' => []]);
+        $smallRoom = Room::create(['room_type_id' => $smallType->id, 'room_number' => '101', 'floor' => 1, 'status' => 'available']);
+
+        $this->actingAs($admin)->post(route('reservations.resolve-conflict', $second), [
+            'room_id' => $smallRoom->id,
+        ])->assertSessionHasErrors(['room_id']);
+
+        $this->assertSame($room201->id, $second->refresh()->room_id);
+    }
 }

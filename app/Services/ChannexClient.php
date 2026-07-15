@@ -324,7 +324,9 @@ class ChannexClient
     /** Unacknowledged booking revisions (the canonical catch-up feed). */
     public function getBookingFeed(): array
     {
-        return $this->getList('/booking_revisions/feed');
+        return $this->getList('/booking_revisions/feed', [
+            'filter' => ['property_id' => $this->propertyId],
+        ]);
     }
 
     /**
