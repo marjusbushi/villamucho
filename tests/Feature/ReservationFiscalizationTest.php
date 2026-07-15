@@ -135,6 +135,7 @@ class ReservationFiscalizationTest extends TestCase
 
         Http::preventStrayRequests();
         Http::fake([
+            'https://demo.fature.al/api/v1/invoice/details/*' => Http::response([], 404),
             'https://demo.fature.al/api/v1/invoice/cash' => Http::sequence()
                 ->push(['message' => 'temporary'], 500)
                 ->push($this->successResponse(), 200),
@@ -150,7 +151,9 @@ class ReservationFiscalizationTest extends TestCase
             ->assertSessionHasNoErrors();
 
         Http::assertSent(function (Request $request) use (&$internalIds) {
-            $internalIds[] = $request->data()['internalId'];
+            if ($request->url() === 'https://demo.fature.al/api/v1/invoice/cash') {
+                $internalIds[] = $request->data()['internalId'];
+            }
 
             return true;
         });
@@ -160,6 +163,47 @@ class ReservationFiscalizationTest extends TestCase
         $this->assertSame(FiscalDocument::STATUS_FISCALIZED, FiscalDocument::query()->sole()->status);
         $this->assertSame(1, FiscalDocument::query()->count());
         $this->assertSame(1, AuditLog::query()->where('action', 'fiscalization.failed')->count());
+    }
+
+    public function test_retry_reconciles_an_existing_remote_invoice_before_creating_again(): void
+    {
+        $reservation = $this->checkedOutStay('cash');
+        $internalId = 'LORA-T'.$this->tenant->id.'-RES-'.$reservation->id;
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://demo.fature.al/api/v1/invoice/cash' => Http::response(['message' => 'upstream timeout'], 500),
+            'https://demo.fature.al/api/v1/invoice/details/*' => Http::response([
+                'status' => true,
+                'data' => [
+                    'invoice' => [
+                        'id' => 9001,
+                        'number' => 'TEST-2026-1',
+                        'iic' => 'IIC-TEST',
+                        'issue_date' => now()->toIso8601String(),
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('reservations.fiscalize', $reservation))
+            ->assertSessionHasErrors('fiscalization');
+
+        $this->actingAs($this->admin)
+            ->post(route('reservations.fiscalize', $reservation))
+            ->assertSessionHasNoErrors();
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request) => $request->url()
+            === 'https://demo.fature.al/api/v1/invoice/details/'.rawurlencode($internalId));
+        $this->assertSame(1, Http::recorded(fn (Request $request) => $request->url()
+            === 'https://demo.fature.al/api/v1/invoice/cash')->count());
+
+        $document = FiscalDocument::query()->sole();
+        $this->assertSame(FiscalDocument::STATUS_FISCALIZED, $document->status);
+        $this->assertSame('TEST-2026-1', $document->fiscal_number);
+        $this->assertSame('IIC-TEST', $document->iic);
     }
 
     public function test_production_configuration_is_blocked_by_this_sandbox_phase(): void
