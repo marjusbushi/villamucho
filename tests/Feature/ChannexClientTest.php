@@ -52,6 +52,21 @@ class ChannexClientTest extends TestCase
         Http::assertSent(fn ($r) => $r->hasHeader('user-api-key', 'test-key') && str_contains($r->url(), '/properties'));
     }
 
+    public function test_booking_feed_is_scoped_to_the_configured_property(): void
+    {
+        Http::fake(['*booking_revisions/feed*' => Http::response(['data' => [], 'meta' => ['total' => 0]])]);
+
+        (new ChannexClient)->getBookingFeed();
+
+        Http::assertSent(function ($request) {
+            $filter = $request->data()['filter'] ?? [];
+
+            return $request->method() === 'GET'
+                && str_contains($request->url(), '/booking_revisions/feed')
+                && ($filter['property_id'] ?? null) === 'PROP-1';
+        });
+    }
+
     public function test_get_availability_range_uses_property_and_inclusive_date_filters(): void
     {
         Http::fake(['*availability*' => Http::response(['data' => [
