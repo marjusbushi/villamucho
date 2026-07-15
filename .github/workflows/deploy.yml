@@ -82,3 +82,14 @@ jobs:
             deploy_succeeded=true
             trap - EXIT
             echo "Deployed at $(date)"
+
+      - name: Configure Lora Control Panel domain
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -Eeuo pipefail
+            cd /var/www/villamucho
+            bash deploy/scripts/configure-control-panel-domain.sh
