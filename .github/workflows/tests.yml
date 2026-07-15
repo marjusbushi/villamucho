@@ -57,6 +57,9 @@ jobs:
       - name: Frontend dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Validate deployment scripts
+        run: bash -n deploy/scripts/configure-control-panel-domain.sh
+
       - name: Build frontend
         run: npm run build
 
