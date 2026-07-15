@@ -7,6 +7,7 @@ use App\Http\Controllers\CleaningTaskController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GuestController;
+use App\Http\Controllers\GuestMergeController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\MessagesController;
@@ -74,6 +75,28 @@ Route::get('/tenant-handoff', TenantHandoffController::class)
     ->middleware(['hotel_host', 'throttle:10,1'])
     ->name('tenant-handoff.consume');
 
+// PWA manifest — dynamic so the installed app carries the hotel's own name
+// (same cached branding the <title> uses). display:standalone is what removes
+// the browser URL bar when the site is added to a phone's home screen.
+Route::get('/manifest.webmanifest', function () {
+    $brand = \Illuminate\Support\Facades\Cache::get('app.settings', []);
+    $name = $brand['hotel_name'] ?? 'Villa Mucho';
+
+    return response()->json([
+        'name' => $name,
+        'short_name' => $name,
+        'start_url' => '/dashboard',
+        'scope' => '/',
+        'display' => 'standalone',
+        'background_color' => '#fafaf9',
+        'theme_color' => '#2d6a4f',
+        'icons' => [
+            ['src' => '/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any maskable'],
+            ['src' => '/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any maskable'],
+        ],
+    ], 200, ['Content-Type' => 'application/manifest+json'])->setCache(['public' => true, 'max_age' => 3600]);
+})->name('pwa.manifest');
+
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'hotel_host', 'dedicated_control_redirect'])->name('dashboard');
 
@@ -138,6 +161,12 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
     // Guest Profiles
     Route::middleware('permission:view_guests')->group(function () {
         Route::get('/guests', [GuestController::class, 'index'])->name('guests.index');
+        Route::get('/guests/profile-design', fn () => Inertia::render('Guests/ProfileDesign'))->name('guests.profile-design');
+        Route::middleware(['permission:update_guests', 'permission:delete_guests'])->group(function () {
+            Route::get('/guests/{guest}/merge/{duplicate}', [GuestMergeController::class, 'show'])->name('guests.merge.show');
+            Route::post('/guests/{guest}/merge/{duplicate}/suggest', [GuestMergeController::class, 'suggest'])->name('guests.merge.suggest');
+            Route::post('/guests/{guest}/merge/{duplicate}', [GuestMergeController::class, 'store'])->name('guests.merge.store');
+        });
         Route::get('/guests/{guest}', [GuestController::class, 'show'])->name('guests.show');
         Route::post('/guests', [GuestController::class, 'store'])->middleware('permission:create_guests')->name('guests.store');
         Route::put('/guests/{guest}', [GuestController::class, 'update'])->middleware('permission:update_guests')->name('guests.update');
@@ -145,6 +174,8 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
 
         // Identity documents (passport/ID/…) — private storage, served only here.
         Route::post('/guests/{guest}/documents', [GuestController::class, 'storeDocument'])->middleware('permission:update_guests')->name('guests.documents.store');
+        Route::post('/guests/{guest}/documents/{document}/analyze', [GuestController::class, 'analyzeDocument'])->middleware('permission:update_guests')->name('guests.documents.analyze');
+        Route::put('/guests/{guest}/documents/{document}/apply-ai', [GuestController::class, 'applyDocumentAnalysis'])->middleware('permission:update_guests')->name('guests.documents.apply-ai');
         Route::get('/guests/documents/{document}', [GuestController::class, 'downloadDocument'])->name('guests.documents.show');
         Route::delete('/guests/documents/{document}', [GuestController::class, 'destroyDocument'])->middleware('permission:update_guests')->name('guests.documents.destroy');
     });
@@ -155,8 +186,13 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
 
         // Guest messaging (Channex Messages) — front desk replies to OTA guests.
         Route::get('/messages', [MessagesController::class, 'index'])->middleware(['permission:view_reservations', 'module:channel_manager'])->name('messages.index');
+        Route::get('/messages/unread', [MessagesController::class, 'unread'])->middleware(['permission:view_reservations', 'module:channel_manager'])->name('messages.unread');
         Route::post('/messages/{thread}/reply', [MessagesController::class, 'reply'])->middleware(['permission:view_reservations', 'module:channel_manager'])->name('messages.reply');
+        Route::post('/messages/quick-replies', [MessagesController::class, 'saveQuickReplies'])->middleware(['permission:view_reservations', 'module:channel_manager'])->name('messages.quick-replies');
+        Route::post('/messages/{thread}/close', [MessagesController::class, 'close'])->middleware(['permission:view_reservations', 'module:channel_manager'])->name('messages.close');
+        Route::post('/messages/{thread}/reopen', [MessagesController::class, 'reopen'])->middleware(['permission:view_reservations', 'module:channel_manager'])->name('messages.reopen');
         Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])->name('reservations.calendar');
+        Route::get('/reservations/calendar-design', fn () => Inertia::render('Reservations/CalendarDesign'))->name('reservations.calendar-design');
         // Seasonal price quote for the create/edit form (server-computed; MUST stay before the {reservation} wildcard).
         Route::get('/reservations/quote', [ReservationController::class, 'quote'])->name('reservations.quote');
         Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
@@ -170,6 +206,7 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
         Route::post('/reservations/{reservation}/request-cleaning', [ReservationController::class, 'requestCleaning'])->middleware(['module:housekeeping', 'permission:update_reservations'])->name('reservations.request-cleaning');
         Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])->middleware('permission:update_reservations')->name('reservations.cancel');
         Route::post('/reservations/{reservation}/move-room', [ReservationController::class, 'moveRoom'])->middleware('permission:update_reservations')->name('reservations.move-room');
+        Route::post('/reservations/{reservation}/resolve-conflict', [ReservationController::class, 'resolveConflict'])->middleware('permission:update_reservations')->name('reservations.resolve-conflict');
         Route::post('/reservations/{reservation}/folio', [ReservationController::class, 'addFolioLine'])->middleware('permission:update_reservations')->name('reservations.folio.add');
         Route::post('/reservations/{reservation}/folio/inventory', [ReservationController::class, 'addInventoryFolioLine'])
             ->middleware(['module:finance', 'permission:update_reservations'])->name('reservations.folio.inventory');

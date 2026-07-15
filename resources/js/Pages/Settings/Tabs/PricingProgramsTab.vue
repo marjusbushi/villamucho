@@ -10,6 +10,8 @@ import TextInput from '@/Components/UI/TextInput.vue';
 const props = defineProps({ settings: Object, financial: Object, toasts: Object });
 
 const form = useForm({
+    direct_discount_enabled: props.settings.direct_discount_enabled ?? false,
+    direct_discount_pct: props.settings.direct_discount_pct ?? 10,
     booking_genius_enabled: Boolean(props.settings.booking_genius_enabled),
     booking_genius_pct: props.settings.booking_genius_pct ?? 15,
     booking_mobile_enabled: Boolean(props.settings.booking_mobile_enabled),
@@ -61,6 +63,35 @@ function submit() {
         </template>
 
         <form class="space-y-6" @submit.prevent="submit">
+            <div class="rounded-xl border border-success-200 bg-success-50/40 p-4 space-y-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h4 class="text-body font-bold text-primary-900">{{ $t('admin.pricingPrograms.directTitle') }}</h4>
+                        <p class="mt-1 text-tiny text-neutral-600">{{ $t('admin.pricingPrograms.directDescription') }}</p>
+                    </div>
+                    <span class="rounded-full bg-success-100 px-2.5 py-1 text-tiny font-bold text-success-800">
+                        {{ $t('admin.pricingPrograms.recommended') }}
+                    </span>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="rounded-lg bg-white p-3">
+                        <Checkbox v-model="form.direct_discount_enabled" :label="$t('admin.pricingPrograms.directEnabled')" />
+                    </div>
+                    <div class="rounded-lg bg-white p-3">
+                        <label class="mb-2 block text-tiny font-semibold text-neutral-700">{{ $t('admin.pricingPrograms.discountPercent') }}</label>
+                        <div class="flex items-center gap-2">
+                            <TextInput v-model="form.direct_discount_pct" type="number" min="0" max="50" step="0.5" :disabled="!form.direct_discount_enabled" />
+                            <span class="text-body-sm text-neutral-500">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="rounded-lg bg-white p-3 text-body-sm text-primary-900">
+                    {{ $t('admin.pricingPrograms.directExample', { price: (100 * (1 - Number(form.direct_discount_enabled ? form.direct_discount_pct : 0) / 100)).toFixed(2) }) }}
+                </p>
+            </div>
+
             <div class="rounded-xl border border-neutral-200 p-4 space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>

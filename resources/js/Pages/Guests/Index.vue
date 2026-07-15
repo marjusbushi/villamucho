@@ -225,9 +225,9 @@ function selectSegment(value) {
     refreshList();
 }
 
-function showAttention() {
+function showDuplicates() {
     clearTimeout(searchTimeout);
-    router.get(route('guests.index'), { segment: 'attention' }, {
+    router.get(route('guests.index'), { segment: 'duplicates' }, {
         preserveState: true,
         preserveScroll: true,
         replace: true,
@@ -437,7 +437,7 @@ function profileBarClass(guest) {
                     <p class="mt-0.5 text-small text-warning-700">{{ $t('admin.generated.k_a155229f2afb') }}</p>
                 </div>
             </div>
-            <Button size="sm" variant="outline" class="border-warning-300 bg-transparent text-warning-800" @click="showAttention">
+            <Button size="sm" variant="outline" class="border-warning-300 bg-transparent text-warning-800" @click="showDuplicates">
 {{ $t('admin.generated.k_561cfaccc25e') }} </Button>
         </section>
 

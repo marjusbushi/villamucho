@@ -23,13 +23,13 @@ function closeMenu() {
 const page = usePage();
 const settings = computed(() => page.props.settings || {});
 const bookingEnabled = computed(() => page.props.modules?.booking_engine === true);
-const hotelName = settings.value.hotel_name || 'Hotel';
+const hotelName = computed(() => settings.value.hotel_name || 'Hotel');
 const logo = computed(() => settings.value.logo ? `/storage/${settings.value.logo}` : null);
 
 // Contact details → actionable links
-const addr = computed(() => settings.value.address || '');
-const phone = computed(() => settings.value.phone || '');
-const email = computed(() => settings.value.email || '');
+const addr = computed(() => settings.value.address || 'Ksamil, Sarande, Shqiperi');
+const phone = computed(() => settings.value.phone || '+355 69 000 0000');
+const email = computed(() => settings.value.email || 'info@villamucho.com');
 const telHref = computed(() => 'tel:' + phone.value.replace(/[^+\d]/g, ''));
 const mailHref = computed(() => 'mailto:' + email.value);
 const mapsDest = computed(() => {
@@ -111,7 +111,7 @@ function isActive(href) {
                         >
                             {{ $t('nav.' + link.key) }}
                         </Link>
-                        <Link v-if="bookingEnabled" href="/book" class="ml-3 px-5 py-2 rounded-none bg-ink text-bone text-body-sm font-medium tracking-wide hover:bg-brass transition-colors duration-200 no-underline">
+                        <Link v-if="bookingEnabled" href="/book" class="btn-reserve ml-3 !px-5 !py-2">
                             {{ $t('nav.reserve') }}
                         </Link>
                         <LanguageSwitcher :class="['ml-3', solid ? 'text-ink' : 'text-bone']" />
@@ -148,7 +148,7 @@ function isActive(href) {
                     >
                         {{ $t('nav.' + link.key) }}
                     </Link>
-                    <Link v-if="bookingEnabled" href="/book" class="block mt-3 mx-3 px-4 py-3 rounded-none bg-ink text-bone text-body-sm font-medium tracking-wide text-center hover:bg-brass transition-colors no-underline" @click="mobileMenu = false">
+                    <Link v-if="bookingEnabled" href="/book" class="btn-reserve mt-3 mx-3 flex px-4 py-3 text-center" @click="mobileMenu = false">
                         {{ $t('nav.reserve') }}
                     </Link>
                     <div class="mt-4 px-3 text-ink"><LanguageSwitcher /></div>

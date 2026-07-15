@@ -321,12 +321,9 @@ class ChannexClient
         return $resp->json('data');
     }
 
-    /** Unacknowledged booking revisions for THIS property (the canonical catch-up feed). */
+    /** Unacknowledged booking revisions (the canonical catch-up feed). */
     public function getBookingFeed(): array
     {
-        // Scoped to the tenant's own property: one Channex account can hold many
-        // hotels' properties, and an unfiltered feed would drain (and later ack)
-        // other tenants' revisions — permanently losing their OTA bookings.
         return $this->getList('/booking_revisions/feed', [
             'filter' => ['property_id' => $this->propertyId],
         ]);
@@ -342,6 +339,36 @@ class ChannexClient
         $this->log('pull', 'ack_booking', ['revision_id' => $id], $resp);
 
         return $resp->successful();
+    }
+
+    /** Fetch one booking (attributes carry ota_reservation_code = the OTA's own ref). */
+    public function getBooking(string $id): ?array
+    {
+        $resp = $this->http(idempotent: true)->get("{$this->baseUrl}/bookings/{$id}");
+
+        return $resp->successful() ? $resp->json('data') : null;
+    }
+
+    /** Close a guest-message thread on Channex (mirrors our 'closed' status). */
+    public function closeMessageThread(string $id): void
+    {
+        $resp = $this->http()->post("{$this->baseUrl}/message_threads/{$id}/close");
+        $this->log('push', 'close_thread', ['thread_id' => $id], $resp);
+
+        if (! $resp->successful()) {
+            throw new RuntimeException("Channex close thread {$id} failed: HTTP {$resp->status()}");
+        }
+    }
+
+    /** Reopen a closed guest-message thread on Channex. */
+    public function openMessageThread(string $id): void
+    {
+        $resp = $this->http()->post("{$this->baseUrl}/message_threads/{$id}/open");
+        $this->log('push', 'open_thread', ['thread_id' => $id], $resp);
+
+        if (! $resp->successful()) {
+            throw new RuntimeException("Channex open thread {$id} failed: HTTP {$resp->status()}");
+        }
     }
 
     /** Fetch one guest-message thread (title = guest name, channel, status). */
@@ -364,6 +391,57 @@ class ChannexClient
         }
 
         return $resp->json('data') ?? [];
+    }
+
+    /**
+     * All guest-message threads of the configured property (paginated until
+     * exhausted, capped at $maxPages). Used by the backfill, so existing OTA
+     * conversations reach the inbox — the webhook only delivers new ones.
+     */
+    public function listMessageThreads(int $maxPages = 10, int $limit = 100): array
+    {
+        $threads = [];
+        for ($page = 1; $page <= $maxPages; $page++) {
+            $resp = $this->http(idempotent: true)->get("{$this->baseUrl}/message_threads", [
+                'filter' => ['property_id' => $this->propertyId],
+                'pagination' => ['page' => $page, 'limit' => $limit],
+            ]);
+
+            if (! $resp->successful()) {
+                throw new RuntimeException("Channex GET /message_threads failed: HTTP {$resp->status()}");
+            }
+
+            $batch = $resp->json('data') ?? [];
+            $threads = array_merge($threads, $batch);
+            if (count($batch) < $limit) {
+                break;
+            }
+        }
+
+        return $threads;
+    }
+
+    /** Every message of one thread (paginated like listMessageThreads). */
+    public function getThreadMessages(string $threadId, int $maxPages = 10, int $limit = 100): array
+    {
+        $messages = [];
+        for ($page = 1; $page <= $maxPages; $page++) {
+            $resp = $this->http(idempotent: true)->get("{$this->baseUrl}/message_threads/{$threadId}/messages", [
+                'pagination' => ['page' => $page, 'limit' => $limit],
+            ]);
+
+            if (! $resp->successful()) {
+                throw new RuntimeException("Channex GET messages of thread {$threadId} failed: HTTP {$resp->status()}");
+            }
+
+            $batch = $resp->json('data') ?? [];
+            $messages = array_merge($messages, $batch);
+            if (count($batch) < $limit) {
+                break;
+            }
+        }
+
+        return $messages;
     }
 
     // -- internals --------------------------------------------------------

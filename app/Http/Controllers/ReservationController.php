@@ -18,10 +18,12 @@ use App\Models\Setting;
 use App\Models\Warehouse;
 use App\Services\AuditTimeline;
 use App\Services\InventoryLedger;
+use App\Services\ReservationConflictService;
 use App\Services\RoomPricing;
 use App\Services\TenantBillingService;
 use App\Tenancy\TenantContext;
 use App\Tenancy\TenantRule;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,11 +48,7 @@ class ReservationController extends Controller
             $sort = 'latest';
         }
 
-        $query = Reservation::select(
-            'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
-            'status', 'total_amount', 'adults', 'children', 'channel', 'created_via', 'created_at'
-        )
-            ->with(['room:id,room_number', 'room.roomType:id,name', 'guest:id,first_name,last_name']);
+        $query = $this->reservationListQuery();
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -61,11 +59,18 @@ class ReservationController extends Controller
                 ->filter()
                 ->take(6);
 
-            $query->whereHas('guest', function ($guestQuery) use ($searchTerms) {
+            $query->where(function ($searchQuery) use ($searchTerms) {
                 foreach ($searchTerms as $term) {
-                    $guestQuery->where(function ($fieldQuery) use ($term) {
-                        $fieldQuery->where('first_name', 'like', "%{$term}%")
-                            ->orWhere('last_name', 'like', "%{$term}%");
+                    $like = "%{$term}%";
+                    $searchQuery->where(function ($termQuery) use ($term, $like) {
+                        $termQuery->where('id', ctype_digit((string) $term) ? (int) $term : -1)
+                            ->orWhere('channel_ref', 'like', $like)
+                            ->orWhereHas('room', fn ($room) => $room->where('room_number', 'like', $like))
+                            ->orWhereHas('guest', fn ($guest) => $guest
+                                ->where('first_name', 'like', $like)
+                                ->orWhere('last_name', 'like', $like)
+                                ->orWhere('email', 'like', $like)
+                                ->orWhere('phone', 'like', $like));
                     });
                 }
             });
@@ -126,8 +131,18 @@ class ReservationController extends Controller
             'sort' => $sort,
         ]);
 
+        $reservations = $query->paginate($perPage)->appends($filters)
+            ->through(fn (Reservation $reservation) => $this->reservationListRow($reservation, $request));
+
+        $focusReservation = null;
+        if ($focusId = $request->integer('reservation_id')) {
+            $focus = $this->reservationListQuery()->find($focusId);
+            $focusReservation = $focus ? $this->reservationListRow($focus, $request) : null;
+        }
+
         return Inertia::render('Reservations/Index', [
-            'reservations' => $query->paginate($perPage)->appends($filters),
+            'reservations' => $reservations,
+            'focusReservation' => $focusReservation,
             'latestReservationId' => Reservation::orderByDesc('created_at')->orderByDesc('id')->value('id'),
             'rooms' => Room::select('id', 'room_number', 'room_type_id')
                 ->with('roomType:id,name,base_price,max_occupancy')
@@ -143,14 +158,21 @@ class ReservationController extends Controller
                 'pending' => Reservation::where('status', 'pending')->count(),
                 'confirmed' => Reservation::where('status', 'confirmed')->count(),
                 'checked_in' => Reservation::where('status', 'checked_in')->count(),
+                'arrivals_today' => Reservation::whereDate('check_in_date', $today)
+                    ->whereIn('status', ['pending', 'confirmed'])->count(),
             ],
         ]);
     }
 
-    public function calendar(Request $request): Response
+    public function calendar(Request $request, ReservationConflictService $conflictService): Response
     {
+        $visibleDays = (int) $request->input('days', 14);
+        if (! in_array($visibleDays, [7, 14, 30], true)) {
+            $visibleDays = 14;
+        }
+
         $startDate = $request->input('start', now()->startOfWeek()->toDateString());
-        $endDate = now()->parse($startDate)->addDays(13)->toDateString();
+        $endDate = now()->parse($startDate)->addDays($visibleDays - 1)->toDateString();
 
         $rooms = Room::select('id', 'room_number', 'room_type_id', 'floor', 'status')
             ->with('roomType:id,name,base_price,max_occupancy')
@@ -160,9 +182,11 @@ class ReservationController extends Controller
 
         $reservations = Reservation::select(
             'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status',
-            'total_amount', 'adults', 'children', 'channel', 'created_via', 'notes', 'booking_group_id'
+            'total_amount', 'adults', 'children', 'channel', 'channel_ref', 'created_via',
+            'payment_collect', 'notes', 'eta', 'booking_group_id', 'created_at'
         )
-            ->with('guest:id,first_name,last_name,phone,email')
+            ->with('guest:id,first_name,last_name,phone,email,nationality')
+            ->withSum(['payments as paid_amount' => fn ($query) => $query->notVoided()], 'amount')
             ->whereNotIn('status', ['cancelled'])
             ->where('check_in_date', '<=', $endDate)
             ->where('check_out_date', '>=', $startDate)
@@ -180,15 +204,21 @@ class ReservationController extends Controller
                 'adults' => $r->adults,
                 'children' => $r->children,
                 'channel' => $r->channel,
+                'channel_ref' => $r->channel_ref,
                 'created_via' => $r->created_via,
+                'payment_collect' => $r->payment_collect,
                 'notes' => $r->notes,
+                'eta' => $r->eta,
+                'paid_amount' => round((float) $r->paid_amount, 2),
                 'booking_group_id' => $r->booking_group_id,
+                'created_at' => $r->created_at?->toIso8601String(),
                 'guest' => $r->guest ? [
                     'id' => $r->guest->id,
                     'first_name' => $r->guest->first_name,
                     'last_name' => $r->guest->last_name,
                     'phone' => $r->guest->phone,
                     'email' => $r->guest->email,
+                    'nationality' => $r->guest->nationality,
                 ] : null,
             ]);
 
@@ -196,13 +226,15 @@ class ReservationController extends Controller
             ->orderBy('last_name')
             ->get();
 
-        return Inertia::render('Reservations/Calendar', [
+        return Inertia::render('Reservations/CalendarLive', [
             'rooms' => $rooms,
             'reservations' => $reservations,
             'guests' => $guests,
             'startDate' => $startDate,
             'endDate' => $endDate,
+            'visibleDays' => $visibleDays,
             'channelFees' => Setting::get('financial.channel_fees', []),
+            'conflicts' => $conflictService->detect($startDate, $endDate),
         ]);
     }
 
@@ -299,14 +331,17 @@ class ReservationController extends Controller
                 'channel_ref' => $reservation->channel_ref,
                 'payment_collect' => $reservation->payment_collect,
                 'guest' => [
+                    'id' => $reservation->guest?->id,
                     'name' => $reservation->guest?->full_name,
                     'email' => $reservation->guest?->email,
                     'phone' => $reservation->guest?->phone,
                 ],
                 'room' => [
+                    'id' => $reservation->room?->id,
                     'room_number' => $reservation->room?->room_number,
                     'room_type' => $reservation->room?->roomType?->name,
                 ],
+                'links' => $this->reservationLinks($reservation, request()),
             ],
             'folio' => [
                 'roomCharge' => $roomCharge,
@@ -472,20 +507,55 @@ class ReservationController extends Controller
         return back()->with('success', 'Minibari u shtua në folio dhe stoku u përditësua.');
     }
 
-    public function recordPayment(Request $request, Reservation $reservation): RedirectResponse
+    public function recordPayment(Request $request, Reservation $reservation): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01', 'max:1000000'],
             'method' => ['required', 'in:cash,card'],
         ]);
 
-        $reservation->payments()->create([
-            'amount' => $data['amount'],
-            'method' => $data['method'],
-            'created_by' => auth()->id(),
-        ]);
+        $payment = DB::transaction(function () use ($reservation, $data) {
+            $lockedReservation = Reservation::query()->lockForUpdate()->findOrFail($reservation->id);
+
+            if ($lockedReservation->status === 'cancelled') {
+                throw ValidationException::withMessages([
+                    'amount' => 'Nuk mund të regjistrohet pagesë për një rezervim të anulluar.',
+                ]);
+            }
+
+            $charges = (float) $lockedReservation->total_amount
+                + (float) $lockedReservation->folioItems()->whereNotIn('type', ['discount', 'room'])->sum('amount');
+            $discounts = (float) $lockedReservation->folioItems()->where('type', 'discount')->sum('amount');
+            $paid = (float) $lockedReservation->payments()->notVoided()->sum('amount');
+            $outstanding = round($charges - $discounts - $paid, 2);
+
+            if ($outstanding <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Ky rezervim është paguar plotësisht.',
+                ]);
+            }
+
+            if ((float) $data['amount'] > $outstanding) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Pagesa nuk mund të jetë më e madhe se shuma e mbetur prej '.number_format($outstanding, 2).' €.',
+                ]);
+            }
+
+            return $lockedReservation->payments()->create([
+                'amount' => $data['amount'],
+                'method' => $data['method'],
+                'created_by' => auth()->id(),
+            ]);
+        });
 
         AuditLog::record('payment.record', $reservation, ['amount' => $data['amount'], 'method' => $data['method']]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Pagesa u regjistrua.',
+                'payment_id' => $payment->id,
+            ], 201);
+        }
 
         return back()->with('success', 'Pagesa u regjistrua.');
     }
@@ -551,6 +621,7 @@ class ReservationController extends Controller
             'check_out_date' => ['required', 'date', 'after:check_in_date'],
             'status' => ['sometimes', 'in:pending,confirmed'],
             'channel' => ['sometimes', 'nullable', Rule::in(Reservation::CHANNELS)],
+            'channel_ref' => ['nullable', 'string', 'max:120'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'rooms' => ['required', 'array', 'min:1'],
             'rooms.*.room_id' => ['required', TenantRule::exists('rooms')],
@@ -624,6 +695,7 @@ class ReservationController extends Controller
                         'children' => $row['children'] ?? 0,
                         'notes' => $data['notes'] ?? null,
                         'channel' => $channel,
+                        'channel_ref' => $data['channel_ref'] ?? null,
                         'commission_amount' => $this->channelCommission($channel, (float) $total),
                         'booking_group_id' => $groupId,
                     ]);
@@ -835,6 +907,52 @@ class ReservationController extends Controller
         return back()->with('success', "Mysafiri u zhvendos te dhoma {$newRoom->room_number}.");
     }
 
+    public function resolveConflict(Request $request, Reservation $reservation, ReservationConflictService $conflictService): RedirectResponse
+    {
+        $data = $request->validate([
+            'room_id' => ['required', TenantRule::exists('rooms')],
+        ]);
+
+        DB::transaction(function () use ($reservation, $data, $conflictService) {
+            $lockedReservation = Reservation::query()->lockForUpdate()->findOrFail($reservation->id);
+            $newRoom = Room::query()->with('roomType')->lockForUpdate()->findOrFail($data['room_id']);
+
+            if (! in_array($lockedReservation->status, ['pending', 'confirmed'], true)) {
+                throw ValidationException::withMessages([
+                    'room_id' => 'Vetem rezervimet ne pritje ose te konfirmuara mund te zgjidhen nga qendra e konflikteve.',
+                ]);
+            }
+
+            if ((int) $newRoom->id === (int) $lockedReservation->room_id) {
+                throw ValidationException::withMessages(['room_id' => 'Zgjidh nje dhome tjeter.']);
+            }
+
+            if (! $conflictService->hasConflict($lockedReservation)) {
+                throw ValidationException::withMessages([
+                    'room_id' => 'Konflikti nuk ekziston me. Rifresko kalendarin.',
+                ]);
+            }
+
+            $guestCount = (int) $lockedReservation->adults + (int) $lockedReservation->children;
+
+            if (($newRoom->roomType?->max_occupancy ?? 0) < $guestCount
+                || ! Reservation::isRoomAvailable(
+                    $newRoom->id,
+                    $lockedReservation->check_in_date->toDateString(),
+                    $lockedReservation->check_out_date->toDateString(),
+                    $lockedReservation->id
+                )) {
+                throw ValidationException::withMessages([
+                    'room_id' => "Dhoma {$newRoom->room_number} nuk eshte me e lire ose nuk ka kapacitetin e nevojshem.",
+                ]);
+            }
+
+            $lockedReservation->update(['room_id' => $newRoom->id]);
+        });
+
+        return back()->with('success', 'Konflikti u zgjidh dhe rezervimi u zhvendos.');
+    }
+
     public function checkOut(Request $request, Reservation $reservation): RedirectResponse
     {
         if ($reservation->status !== 'checked_in') {
@@ -956,6 +1074,89 @@ class ReservationController extends Controller
         AuditLog::record('housekeeping.stayover_requested', $reservation, ['room' => $reservation->room->room_number]);
 
         return back()->with('success', 'Pastrimi ditor u kerkua — housekeeping do ta shohe ne board.');
+    }
+
+    private function reservationListQuery(): Builder
+    {
+        return Reservation::query()
+            ->select(
+                'id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
+                'status', 'total_amount', 'adults', 'children', 'channel', 'channel_ref',
+                'payment_collect', 'notes', 'created_via', 'created_at'
+            )
+            ->with([
+                'room:id,room_number,room_type_id',
+                'room.roomType:id,name',
+                'guest:id,first_name,last_name,email,phone',
+            ])
+            ->withSum(['payments as paid_amount' => fn ($query) => $query->notVoided()], 'amount')
+            ->withSum(['folioItems as extra_charges' => fn ($query) => $query->whereNotIn('type', ['discount', 'room'])], 'amount')
+            ->withSum(['folioItems as discount_amount' => fn ($query) => $query->where('type', 'discount')], 'amount');
+    }
+
+    private function reservationListRow(Reservation $reservation, Request $request): array
+    {
+        $gross = round(
+            (float) $reservation->total_amount
+            + (float) $reservation->extra_charges
+            - (float) $reservation->discount_amount,
+            2
+        );
+        $paid = round((float) $reservation->paid_amount, 2);
+
+        return [
+            'id' => $reservation->id,
+            'room_id' => $reservation->room_id,
+            'guest_id' => $reservation->guest_id,
+            'check_in_date' => $reservation->check_in_date?->toDateString(),
+            'check_out_date' => $reservation->check_out_date?->toDateString(),
+            'nights' => $reservation->nights,
+            'status' => $reservation->status,
+            'total_amount' => (float) $reservation->total_amount,
+            'gross_amount' => $gross,
+            'paid_amount' => $paid,
+            'outstanding_amount' => round($gross - $paid, 2),
+            'adults' => $reservation->adults,
+            'children' => $reservation->children,
+            'channel' => $reservation->channel,
+            'channel_ref' => $reservation->channel_ref,
+            'payment_collect' => $reservation->payment_collect,
+            'notes' => $reservation->notes,
+            'created_via' => $reservation->created_via,
+            'created_at' => $reservation->created_at?->toIso8601String(),
+            'guest' => $reservation->guest ? [
+                'id' => $reservation->guest->id,
+                'first_name' => $reservation->guest->first_name,
+                'last_name' => $reservation->guest->last_name,
+                'name' => $reservation->guest->full_name,
+                'email' => $reservation->guest->email,
+                'phone' => $reservation->guest->phone,
+            ] : null,
+            'room' => $reservation->room ? [
+                'id' => $reservation->room->id,
+                'room_number' => $reservation->room->room_number,
+                'room_type' => $reservation->room->roomType ? [
+                    'name' => $reservation->room->roomType->name,
+                ] : null,
+            ] : null,
+            'links' => $this->reservationLinks($reservation, $request),
+        ];
+    }
+
+    private function reservationLinks(Reservation $reservation, Request $request): array
+    {
+        return [
+            'show' => route('reservations.show', $reservation),
+            'guest' => $request->user()?->can('view_guests') && $reservation->guest_id
+                ? route('guests.show', $reservation->guest_id)
+                : null,
+            'room' => $request->user()?->can('view_rooms') && $reservation->room?->room_number
+                ? route('rooms.index', ['search' => $reservation->room->room_number])
+                : null,
+            'finance' => $request->user()?->can('view_finance')
+                ? route('finance.payments', ['reservation_id' => $reservation->id, 'all_dates' => 1])
+                : null,
+        ];
     }
 
     public function cancel(Reservation $reservation): RedirectResponse

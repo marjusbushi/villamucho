@@ -69,6 +69,16 @@ class GuestDirectoryTest extends TestCase
         $this->assertSame(0, $rows[$incomplete->id]['profile_completeness']);
         $this->assertSame(['email', 'phone', 'nationality'], $rows[$incomplete->id]['missing_fields']);
         $this->assertArrayNotHasKey('lifetime_spend', $rows[$past->id]);
+
+        $duplicateProps = $this->props($this->actingAs($admin)->get(route('guests.index', [
+            'segment' => 'duplicates',
+            'sort' => 'name',
+        ]))->assertOk());
+        $this->assertSame('duplicates', $duplicateProps['filters']['segment']);
+        $this->assertEqualsCanonicalizing(
+            [$past->id, $duplicate->id],
+            collect($duplicateProps['guests']['data'])->pluck('id')->all(),
+        );
     }
 
     public function test_multi_room_booking_group_counts_as_one_completed_stay(): void

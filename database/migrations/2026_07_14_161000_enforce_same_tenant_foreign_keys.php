@@ -86,6 +86,61 @@ return new class extends Migration
         ['website_search_logs', 'room_type_id', 'room_types'],
     ];
 
+    /**
+     * MySQL creates these supporting indexes implicitly when the composite
+     * foreign keys are added. It does not remove them with the foreign keys,
+     * so rollback must remove exactly the indexes introduced by this migration.
+     *
+     * @var list<array{0:string,1:string}>
+     */
+    private array $mysqlImplicitIndexes = [
+        ['bill_items', 'warehouse_id'],
+        ['bills', 'supplier_id'],
+        ['channel_mappings', 'room_type_id'],
+        ['channel_sync_logs', 'reservation_id'],
+        ['channel_sync_logs', 'room_type_id'],
+        ['cleaning_tasks', 'room_id'],
+        ['finance_payments', 'bill_id'],
+        ['finance_payments', 'counter_account_id'],
+        ['finance_payments', 'invoice_id'],
+        ['folio_items', 'inventory_item_id'],
+        ['folio_items', 'pos_order_id'],
+        ['folio_items', 'reservation_id'],
+        ['folio_items', 'warehouse_id'],
+        ['guest_documents', 'guest_id'],
+        ['inventory_movements', 'warehouse_id'],
+        ['inventory_transfers', 'from_warehouse_id'],
+        ['inventory_transfers', 'inventory_item_id'],
+        ['inventory_transfers', 'to_warehouse_id'],
+        ['invoices', 'guest_id'],
+        ['invoices', 'reservation_id'],
+        ['maintenance_issues', 'cleaning_task_id'],
+        ['maintenance_issues', 'room_id'],
+        ['menu_categories', 'warehouse_id'],
+        ['menu_item_inventory', 'inventory_item_id'],
+        ['menu_items', 'menu_category_id'],
+        ['message_threads', 'reservation_id'],
+        ['payments', 'reservation_id'],
+        ['pos_order_items', 'menu_item_id'],
+        ['pos_order_items', 'pos_order_id'],
+        ['pos_orders', 'pos_shift_id'],
+        ['pos_orders', 'reservation_id'],
+        ['pricing_autopilot_logs', 'room_type_id'],
+        ['pricing_manual_protections', 'room_type_id'],
+        ['rate_overrides', 'room_type_id'],
+        ['reservation_status_logs', 'reservation_id'],
+        ['reservations', 'guest_id'],
+        ['reservations', 'room_id'],
+        ['reviews', 'guest_id'],
+        ['reviews', 'reservation_id'],
+        ['room_inventory_snapshots', 'room_type_id'],
+        ['room_type_images', 'room_type_id'],
+        ['rooms', 'room_type_id'],
+        ['season_rates', 'room_type_id'],
+        ['season_rates', 'season_id'],
+        ['website_search_logs', 'room_type_id'],
+    ];
+
     public function up(): void
     {
         $this->assertRelationsAreValid();
@@ -116,24 +171,76 @@ return new class extends Migration
             });
         }
 
+        if (DB::getDriverName() === 'mysql') {
+            foreach ($this->mysqlImplicitIndexes as [$tableName, $column]) {
+                $indexName = "{$tableName}_tenant_id_{$column}_foreign";
+
+                if ($this->hasIndex($tableName, $indexName)) {
+                    $this->ensureTenantIndexSurvives($tableName, $indexName);
+
+                    Schema::table($tableName, function (Blueprint $table) use ($indexName) {
+                        $table->dropIndex($indexName);
+                    });
+                }
+            }
+        }
+
         foreach (array_reverse($this->parentTables) as $tableName) {
             // MySQL may remove the old single-column tenant_id index as
             // redundant when the (tenant_id, id) unique index is created.
             // The table's own tenant_id foreign key still needs an index, so
             // restore one before dropping the composite unique on rollback.
             if (DB::getDriverName() === 'mysql') {
+                $uniqueName = "{$tableName}_tenant_id_id_unique";
                 $hasTenantIndex = collect(Schema::getIndexes($tableName))
-                    ->contains(fn (array $index) => array_values($index['columns']) === ['tenant_id']);
+                    ->contains(fn (array $index) => $index['name'] !== $uniqueName
+                        && ($index['columns'][0] ?? null) === 'tenant_id');
 
                 if (! $hasTenantIndex) {
-                    Schema::table($tableName, function (Blueprint $table) {
-                        $table->index('tenant_id');
+                    $indexName = $tableName === 'message_threads'
+                        ? 'message_threads_tenant_id_index'
+                        : "{$tableName}_tenant_id_foreign";
+
+                    Schema::table($tableName, function (Blueprint $table) use ($indexName) {
+                        $table->index('tenant_id', $indexName);
                     });
                 }
             }
 
             Schema::table($tableName, function (Blueprint $table) {
                 $table->dropUnique(['tenant_id', 'id']);
+            });
+        }
+    }
+
+    private function hasIndex(string $tableName, string $indexName): bool
+    {
+        return collect(Schema::getIndexes($tableName))
+            ->contains(fn (array $index) => $index['name'] === $indexName);
+    }
+
+    private function ensureTenantIndexSurvives(string $tableName, string $droppingIndex): void
+    {
+        $parentUnique = "{$tableName}_tenant_id_id_unique";
+        $hasSurvivingIndex = collect(Schema::getIndexes($tableName))
+            ->contains(fn (array $index) => $index['name'] !== $droppingIndex
+                && $index['name'] !== $parentUnique
+                && ($index['columns'][0] ?? null) === 'tenant_id');
+
+        if ($hasSurvivingIndex) {
+            return;
+        }
+
+        // InnoDB may remove the original single-column index as redundant
+        // after the composite relation is added. Recreate it with its
+        // pre-migration name before removing the composite index.
+        $indexName = $tableName === 'message_threads'
+            ? 'message_threads_tenant_id_index'
+            : "{$tableName}_tenant_id_foreign";
+
+        if (! $this->hasIndex($tableName, $indexName)) {
+            Schema::table($tableName, function (Blueprint $table) use ($indexName) {
+                $table->index('tenant_id', $indexName);
             });
         }
     }

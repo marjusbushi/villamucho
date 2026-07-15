@@ -2,8 +2,8 @@
 import { getIntlLocale, translate } from '@/i18n';
 import { ref, computed } from 'vue';
 import { router, usePage, useForm, Link } from '@inertiajs/vue3';
+import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
 import Card from '@/Components/UI/Card.vue';
 import Button from '@/Components/UI/Button.vue';
 import Badge from '@/Components/UI/Badge.vue';
@@ -15,7 +15,22 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import AuditTimeline from '@/Components/AuditTimeline.vue';
 import { channelMeta } from '@/channels';
-import { ArrowLeft, PackageOpen, Plus } from 'lucide-vue-next';
+import {
+    ArrowLeft,
+    ArrowRight,
+    Banknote,
+    CalendarDays,
+    Check,
+    ChevronDown,
+    CircleAlert,
+    CreditCard,
+    DoorOpen,
+    FileText,
+    Plus,
+    RefreshCcw,
+    ShieldCheck,
+    UserRound,
+} from 'lucide-vue-next';
 
 const props = defineProps({
     reservation: Object,
@@ -23,24 +38,19 @@ const props = defineProps({
     payments: Array,
     openPosOrders: Array,
     history: { type: Array, default: () => [] },
-    inventoryEnabled: { type: Boolean, default: false },
-    inventoryItems: { type: Array, default: () => [] },
-    inventoryWarehouses: { type: Array, default: () => [] },
     currency: { type: String, default: '€' },
 });
 
 const toasts = ref(null);
 const checkingOut = ref(false);
 const showLineModal = ref(false);
-const showMinibarModal = ref(false);
 const showPayModal = ref(false);
 const showInvoice = ref(false);
 const checkoutMode = ref(false);
+const paymentSubmitting = ref(false);
 
-const page = usePage();
-const perms = page.props.auth.user?.permissions || [];
+const perms = usePage().props.auth.user?.permissions || [];
 const canUpdate = perms.includes('update_reservations');
-const housekeepingEnabled = computed(() => page.props.modules?.housekeeping === true);
 
 // Front desk asks housekeeping for a daily (stayover) clean while the guest is in-house.
 const requestingCleaning = ref(false);
@@ -71,11 +81,11 @@ const typeLabel = {
 };
 const methodLabel = { cash: 'Kesh', card: 'Karte' };
 
-const lineTypeOptions = computed(() => [
-    ...(!props.inventoryEnabled ? [{ value: 'minibar', label: 'Minibar' }] : []),
-    { value: 'extra', label: translate('reservationShow.hotelService') },
-    { value: 'discount', label: 'Zbritje' },
-]);
+const lineTypeOptions = [
+    { value: 'minibar', label: translate('admin.generated.k_c88066bb10cd') },
+    { value: 'extra', label: translate('admin.generated.k_74f0c49d9770') },
+    { value: 'discount', label: translate('admin.generated.k_0f4209c81496') },
+];
 const methodOptions = [
     { value: 'cash', label: translate('admin.generated.k_da508864861c') },
     { value: 'card', label: translate('admin.generated.k_6d64b27daef1') },
@@ -84,8 +94,36 @@ const methodOptions = [
 const hasOpenOrders = computed(() => (props.openPosOrders?.length || 0) > 0);
 const unsettled = computed(() => Number(props.folio.outstanding) > 0.005);
 const canAddCharge = computed(() => canUpdate && ['pending', 'confirmed', 'checked_in'].includes(props.reservation.status));
-const isCheckedIn = computed(() => props.reservation.status === 'checked_in');
 const hotelName = usePage().props.settings?.hotel_name || 'Hotel';
+const isCheckedIn = computed(() => props.reservation.status === 'checked_in');
+const guestInitials = computed(() => (props.reservation.guest?.name || '?')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase());
+
+const checkoutState = computed(() => {
+    if (hasOpenOrders.value) {
+        return {
+            tone: 'warning',
+            title: translate('reservationShow.ordersTitle'),
+            description: translate('reservationShow.ordersDescription'),
+        };
+    }
+    if (unsettled.value) {
+        return {
+            tone: 'warning',
+            title: translate('reservationShow.paymentTitle'),
+            description: translate('reservationShow.paymentDescription'),
+        };
+    }
+    return {
+        tone: 'success',
+        title: translate('reservationShow.readyTitle'),
+        description: translate('reservationShow.readyDescription'),
+    };
+});
 
 // Group folio charges by category for the invoice (room + bar + restaurant + ...).
 const invoiceGroups = computed(() => {
@@ -101,43 +139,15 @@ function printInvoice() {
 }
 
 const lineForm = useForm({ type: 'extra', description: '', amount: '', charge_date: '' });
-const newInventoryReference = () => globalThis.crypto?.randomUUID?.()
-    || '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (digit) => (
-        Number(digit) ^ Math.floor(Math.random() * 16) >> Number(digit) / 4
-    ).toString(16));
-const minibarForm = useForm({
-    inventory_item_id: '',
-    warehouse_id: '',
-    quantity: 1,
-    inventory_reference: newInventoryReference(),
-});
 const payForm = useForm({ amount: '', method: 'cash' });
 
-const minibarItemOptions = computed(() => props.inventoryItems.map((item) => ({
-    value: item.id,
-    label: `${item.name} · ${item.sku}`,
-})));
-const minibarWarehouseOptions = computed(() => props.inventoryWarehouses.map((warehouse) => ({
-    value: warehouse.id,
-    label: warehouse.name,
-})));
-const selectedMinibarItem = computed(() => props.inventoryItems.find(
-    (item) => Number(item.id) === Number(minibarForm.inventory_item_id),
+const paymentAmount = computed(() => Number(payForm.amount));
+const paymentIsValid = computed(() => (
+    Number.isFinite(paymentAmount.value)
+    && paymentAmount.value > 0
+    && paymentAmount.value <= Number(props.folio.outstanding) + 0.005
 ));
-const minibarAvailable = computed(() => Number(
-    selectedMinibarItem.value?.warehouse_stock?.[String(minibarForm.warehouse_id)] ?? 0,
-));
-const minibarQuantity = computed(() => Number(minibarForm.quantity));
-const minibarTotal = computed(() => (
-    Number(selectedMinibarItem.value?.selling_price || 0) * Math.max(0, minibarQuantity.value || 0)
-));
-const minibarCanSubmit = computed(() => (
-    minibarForm.inventory_item_id
-    && minibarForm.warehouse_id
-    && Number.isFinite(minibarQuantity.value)
-    && minibarQuantity.value > 0
-    && minibarQuantity.value <= minibarAvailable.value + 0.00005
-));
+
 function openLineModal() {
     lineForm.reset();
     lineForm.clearErrors();
@@ -149,39 +159,21 @@ function closeLineModal() {
     lineForm.clearErrors();
 }
 
-function openMinibarModal() {
-    minibarForm.clearErrors();
-    const warehouse = props.inventoryWarehouses[0];
-    minibarForm.warehouse_id = warehouse?.id || '';
-    const itemWithStock = props.inventoryItems.find(
-        (item) => Number(item.warehouse_stock?.[String(warehouse?.id)] || 0) > 0,
-    );
-    minibarForm.inventory_item_id = itemWithStock?.id || props.inventoryItems[0]?.id || '';
-    minibarForm.quantity = 1;
-    minibarForm.inventory_reference = newInventoryReference();
-    showMinibarModal.value = true;
+function openPaymentModal() {
+    payForm.reset();
+    payForm.clearErrors();
+    payForm.amount = Number(props.folio.outstanding).toFixed(2);
+    payForm.method = 'cash';
+    showPayModal.value = true;
 }
 
-function closeMinibarModal() {
-    if (minibarForm.processing) return;
-    showMinibarModal.value = false;
-    minibarForm.clearErrors();
+function closePaymentModal() {
+    if (paymentSubmitting.value) return;
+    showPayModal.value = false;
+    payForm.reset();
+    payForm.clearErrors();
 }
 
-function submitMinibar() {
-    if (!minibarCanSubmit.value || minibarForm.processing) return;
-    minibarForm.post(route('reservations.folio.inventory', props.reservation.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            showMinibarModal.value = false;
-            minibarForm.inventory_reference = newInventoryReference();
-            toasts.value?.success(translate('reservationShow.minibarSuccess'));
-        },
-        onError: (errors) => {
-            toasts.value?.error(Object.values(errors)[0] || translate('reservationShow.minibarError'));
-        },
-    });
-}
 function money(v) {
     return `${props.currency}${Number(v ?? 0).toFixed(2)}`;
 }
@@ -201,12 +193,44 @@ function submitLine() {
         onError: () => toasts.value?.error(addingDiscount ? translate('admin.generated.k_b9f48849d2d6') : translate('admin.generated.k_0c499a05caf5')),
     });
 }
-function submitPay() {
-    payForm.post(route('reservations.payment', props.reservation.id), {
-        preserveScroll: true,
-        onSuccess: () => { showPayModal.value = false; payForm.reset(); toasts.value?.success(translate('admin.generated.k_7a56956c0f26')); },
-        onError: () => toasts.value?.error(translate('admin.generated.k_039b4528088a')),
-    });
+async function submitPay() {
+    if (paymentSubmitting.value) return;
+
+    payForm.clearErrors();
+
+    if (!paymentIsValid.value) {
+        payForm.setError('amount', `Shuma duhet të jetë nga 0.01 deri në ${money(props.folio.outstanding)}.`);
+        return;
+    }
+
+    paymentSubmitting.value = true;
+    try {
+        const recordedAmount = paymentAmount.value;
+        await axios.post(
+            route('reservations.payment', props.reservation.id),
+            { amount: recordedAmount, method: payForm.method },
+            { headers: { Accept: 'application/json' } },
+        );
+
+        paymentSubmitting.value = false;
+        closePaymentModal();
+        router.reload({ only: ['folio', 'payments'] });
+        toasts.value?.success(`Pagesa ${money(recordedAmount)} u regjistrua me sukses.`);
+    } catch (error) {
+        const status = error.response?.status;
+        const errors = error.response?.data?.errors;
+
+        if (status === 422 && errors) {
+            Object.entries(errors).forEach(([field, messages]) => payForm.setError(field, messages[0]));
+            toasts.value?.error(Object.values(errors)[0]?.[0] || 'Kontrollo të dhënat e pagesës.');
+        } else if (status === 503) {
+            toasts.value?.warning('Sistemi po përditësohet. Pagesa nuk u regjistrua; provo përsëri pas pak sekondash.');
+        } else {
+            toasts.value?.error('Pagesa nuk u regjistrua. Provo përsëri.');
+        }
+    } finally {
+        paymentSubmitting.value = false;
+    }
 }
 // "Faturë" just views/prints the bill. "Check-out" opens the SAME invoice in checkout mode,
 // where you settle the outstanding (cash/card) and only THEN does the guest leave.
@@ -247,47 +271,88 @@ function settleAndCheckout(method) {
     <AppLayout>
         <Link
             :href="route('reservations.index')"
-            class="mb-3 inline-flex items-center gap-1.5 text-body-sm font-medium text-neutral-600 no-underline transition-colors hover:text-accent-700"
+            class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 no-underline transition-colors hover:text-accent-700"
         >
             <ArrowLeft class="h-4 w-4" :stroke-width="1.75" />
-{{ $t('admin.generated.k_d363cf7a6377') }} </Link>
+            {{ $t('reservationShow.back') }}
+        </Link>
 
-        <PageHeader
-            :title="`Rezervimi #${reservation.id}`"
-            :breadcrumbs="[{ label: $t('admin.generated.k_00001da4b7fd'), href: '/dashboard' }, { label: $t('admin.generated.k_5c62abaa3794'), href: route('reservations.index') }, { label: `#${reservation.id}` }]"
+        <div class="mt-3 text-xs text-neutral-400">
+            <Link href="/dashboard" class="text-neutral-400 no-underline hover:text-neutral-700">{{ $t('admin.generated.k_00001da4b7fd') }}</Link>
+            <span class="mx-2">/</span>
+            <Link :href="route('reservations.index')" class="text-neutral-400 no-underline hover:text-neutral-700">{{ $t('admin.generated.k_5c62abaa3794') }}</Link>
+            <span class="mx-2">/</span>
+            <span class="font-medium text-neutral-600">#{{ reservation.id }}</span>
+        </div>
+
+        <div class="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-semibold tracking-tight text-neutral-950">{{ $t('reservationShow.reservation') }} #{{ reservation.id }}</h1>
+                <p class="mt-2 text-sm text-neutral-500">{{ $t('reservationShow.activeStay') }} · {{ formatDate(reservation.check_in_date) }} – {{ formatDate(reservation.check_out_date) }}</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <Button variant="outline" @click="openInvoice"><FileText class="h-4 w-4" /> {{ $t('reservationShow.invoice') }}</Button>
+                <details class="group relative">
+                    <summary class="flex cursor-pointer list-none items-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50">
+                        {{ $t('reservationShow.more') }} <ChevronDown class="h-4 w-4 transition group-open:rotate-180" />
+                    </summary>
+                    <div class="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl">
+                        <button v-if="canAddCharge" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" @click="openLineModal"><Plus class="h-4 w-4" />{{ $t('reservationShow.addCharge') }}</button>
+                        <button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" @click="openPaymentModal"><CreditCard class="h-4 w-4" />{{ $t('reservationShow.recordPayment') }}</button>
+                        <button v-if="canUpdate && isCheckedIn" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50" :disabled="requestingCleaning" @click="requestCleaning"><RefreshCcw class="h-4 w-4" />{{ $t('reservationShow.requestCleaning') }}</button>
+                    </div>
+                </details>
+                <Button v-if="canUpdate && isCheckedIn" variant="primary" :disabled="hasOpenOrders" @click="openCheckout">
+                    {{ $t('reservationShow.completeCheckout') }} <ArrowRight class="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+
+        <section class="mt-5 grid gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm shadow-neutral-200/30 sm:grid-cols-2 xl:grid-cols-[minmax(300px,1fr)_repeat(3,minmax(130px,.32fr))] xl:items-center">
+            <div class="flex min-w-0 items-center gap-3 sm:col-span-2 xl:col-span-1">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-sm font-bold text-emerald-700">{{ guestInitials }}</span>
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="truncate text-lg font-semibold text-neutral-900">{{ reservation.guest?.name }}</h2>
+                        <Badge :variant="statusBadge[reservation.status]?.variant" dot>{{ statusBadge[reservation.status]?.label }}</Badge>
+                    </div>
+                    <p class="mt-1 truncate text-xs text-neutral-500">{{ channelMeta(reservation.channel).label }}<template v-if="reservation.channel_ref"> · #{{ reservation.channel_ref }}</template> · {{ reservation.adults }} {{ $t('reservationShow.adults') }}<template v-if="reservation.children">, {{ reservation.children }} {{ $t('reservationShow.children') }}</template></p>
+                </div>
+            </div>
+            <div class="border-t border-neutral-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"><p class="text-xs text-neutral-400">{{ $t('reservationShow.room') }}</p><p class="mt-1 truncate text-sm font-semibold text-neutral-900">{{ reservation.room?.room_number }} · {{ reservation.room?.room_type }}</p></div>
+            <div class="border-t border-neutral-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"><p class="text-xs text-neutral-400">{{ $t('reservationShow.stay') }}</p><p class="mt-1 text-sm font-semibold text-neutral-900">{{ reservation.nights }} {{ $t('reservationShow.nights') }}</p></div>
+            <div class="border-t border-neutral-100 pt-3 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"><p class="text-xs text-neutral-400">{{ $t('reservationShow.total') }}</p><p class="mt-1 text-sm font-semibold text-neutral-900">{{ money(folio.gross) }}</p></div>
+        </section>
+
+        <section
+            v-if="isCheckedIn"
+            class="mt-4 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"
+            :class="checkoutState.tone === 'success' ? 'border-success-200 bg-success-50/70' : 'border-warning-200 bg-warning-50/70'"
         >
-            <template #actions>
-                <Badge :variant="statusBadge[reservation.status]?.variant" dot>
-                    {{ statusBadge[reservation.status]?.label }}
-                </Badge>
-                <Button v-if="canAddCharge" variant="outline" @click="openLineModal">{{ $t('admin.generated.k_1252ae021860') }}</Button>
-                <Button v-if="canUpdate && reservation.status !== 'cancelled' && unsettled" variant="success" @click="showPayModal = true">{{ $t('admin.generated.k_d22b4ace12b9') }}</Button>
-                <Button variant="outline" @click="openInvoice">{{ $t('admin.generated.k_bd826ba509ce') }}</Button>
-                <Button
-                    v-if="canUpdate && housekeepingEnabled && reservation.status === 'checked_in'"
-                    variant="outline"
-                    :loading="requestingCleaning"
-                    @click="requestCleaning"
-                >
-{{ $t('admin.generated.k_779f68027976') }} </Button>
-                <Button
-                    v-if="canUpdate && reservation.status === 'checked_in'"
-                    variant="primary"
-                    :disabled="hasOpenOrders"
-                    @click="openCheckout"
-                >
-{{ $t('admin.generated.k_a1fbe4f93a19') }} </Button>
-            </template>
-        </PageHeader>
+            <div class="flex items-start gap-3">
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" :class="checkoutState.tone === 'success' ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'">
+                    <Check v-if="checkoutState.tone === 'success'" class="h-5 w-5" />
+                    <CircleAlert v-else class="h-5 w-5" />
+                </span>
+                <div><p class="font-semibold" :class="checkoutState.tone === 'success' ? 'text-success-800' : 'text-warning-800'">{{ checkoutState.title }}</p><p class="mt-0.5 text-sm" :class="checkoutState.tone === 'success' ? 'text-success-700' : 'text-warning-700'">{{ checkoutState.description }}</p></div>
+            </div>
+            <Button variant="primary" :disabled="hasOpenOrders" @click="openCheckout">{{ $t('reservationShow.completeCheckout') }} <ArrowRight class="h-4 w-4" /></Button>
+        </section>
 
-        <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
             <!-- Reservation details -->
-            <Card class="lg:col-span-1">
-                <h3 class="text-label text-neutral-600 uppercase tracking-wider mb-4">{{ $t('admin.generated.k_6431140c47b8') }}</h3>
+            <Card class="lg:order-2 lg:col-span-1">
+                <div class="mb-4 flex items-start justify-between gap-3 border-b border-neutral-100 pb-4">
+                    <div><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.stayDetails') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.stayDetailsSubtitle') }}</p></div>
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-neutral-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-700"><span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: channelMeta(reservation.channel).color }" />{{ channelMeta(reservation.channel).label }}</span>
+                </div>
                 <dl class="space-y-3">
                     <div class="flex justify-between">
                         <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_93eeb8e2c428') }}</dt>
-                        <dd class="text-body-sm text-primary-900 font-medium text-right">{{ reservation.guest?.name }}</dd>
+                        <dd class="text-body-sm font-medium text-right">
+                            <Link v-if="reservation.links?.guest" :href="reservation.links.guest" class="text-primary-900 no-underline hover:text-accent-700">{{ reservation.guest?.name }}</Link>
+                            <span v-else class="text-primary-900">{{ reservation.guest?.name }}</span>
+                        </dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_7b00d0ffb62a') }}</dt>
@@ -299,7 +364,10 @@ function settleAndCheckout(method) {
                     </div>
                     <div class="flex justify-between border-t border-neutral-100 pt-3">
                         <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_7765353fdc9c') }}</dt>
-                        <dd class="text-body-sm text-primary-900 text-right">{{ reservation.room?.room_number }} — {{ reservation.room?.room_type }}</dd>
+                        <dd class="text-body-sm text-right">
+                            <Link v-if="reservation.links?.room" :href="reservation.links.room" class="text-primary-900 no-underline hover:text-accent-700">{{ reservation.room?.room_number }} — {{ reservation.room?.room_type }}</Link>
+                            <span v-else class="text-primary-900">{{ reservation.room?.room_number }} — {{ reservation.room?.room_type }}</span>
+                        </dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="text-body-sm text-neutral-500">{{ $t('admin.generated.k_a2d639c1c1c3') }}</dt>
@@ -340,20 +408,10 @@ function settleAndCheckout(method) {
             </Card>
 
             <!-- Folio -->
-            <Card class="lg:col-span-2" :padding="false">
+            <Card class="lg:order-1 lg:col-span-2" :padding="false">
                 <div class="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
-                    <h3 class="text-label uppercase tracking-wider text-neutral-600">{{ $t('reservationShow.folioTitle') }}</h3>
-                    <div v-if="canAddCharge" class="flex flex-wrap items-center justify-end gap-2">
-                        <Button
-                            v-if="isCheckedIn && inventoryEnabled && inventoryItems.length"
-                            size="sm"
-                            variant="primary"
-                            @click="openMinibarModal"
-                        >
-                            <PackageOpen class="h-4 w-4" />{{ $t('reservationShow.addMinibar') }}
-                        </Button>
-                        <Button size="sm" variant="outline" @click="openLineModal"><Plus class="h-4 w-4" />{{ $t('reservationShow.addCharge') }}</Button>
-                    </div>
+                    <div><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.folioTitle') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.folioSubtitle') }}</p></div>
+                    <Button v-if="canAddCharge" size="sm" variant="outline" @click="openLineModal"><Plus class="h-4 w-4" />{{ $t('reservationShow.addCharge') }}</Button>
                 </div>
 
                 <!-- Open POS warning -->
@@ -367,18 +425,19 @@ function settleAndCheckout(method) {
                     </ul>
                 </div>
 
-                <table class="min-w-full divide-y divide-neutral-200 mt-2">
+                <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-neutral-200">
                     <thead class="bg-neutral-50">
                         <tr>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_aa12398d381b') }}</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_eb57b84ec04c') }}</th>
-                            <th class="px-5 py-3 text-left text-label text-neutral-600">{{ $t('admin.generated.k_184c1eb85e4a') }}</th>
-                            <th class="px-5 py-3 text-right text-label text-neutral-600">{{ $t('admin.generated.k_66a4a0389558') }}</th>
+                            <th class="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.description') }}</th>
+                            <th class="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.type') }}</th>
+                            <th class="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.date') }}</th>
+                            <th class="px-5 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{{ $t('reservationShow.amount') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
                         <tr>
-                            <td class="px-5 py-3 text-body-sm text-primary-900 font-medium">{{ $t('admin.generated.k_383951845884') }}</td>
+                            <td class="px-5 py-3 text-body-sm text-primary-900 font-medium">{{ $t('reservationShow.roomStay') }}<p class="mt-0.5 text-xs font-normal text-neutral-400">{{ reservation.nights }} {{ $t('reservationShow.nights') }} · {{ $t('reservationShow.room') }} {{ reservation.room?.room_number }}</p></td>
                             <td class="px-5 py-3"><Badge variant="info">{{ typeLabel.room }}</Badge></td>
                             <td class="px-5 py-3 text-body-sm text-neutral-500">{{ formatDate(reservation.check_in_date) }}</td>
                             <td class="px-5 py-3 text-right text-body-sm text-primary-900">{{ money(folio.roomCharge) }}</td>
@@ -393,26 +452,27 @@ function settleAndCheckout(method) {
                         </tr>
                     </tbody>
                 </table>
+                </div>
 
                 <!-- Payments -->
                 <div v-if="payments.length" class="border-t border-neutral-200">
-                    <p class="px-5 pt-3 text-label text-neutral-500 uppercase tracking-wider">{{ $t('admin.generated.k_dfd9fd8d57a7') }}</p>
-                    <ul class="px-5 py-2 space-y-1">
-                        <li v-for="p in payments" :key="p.id" class="flex justify-between text-body-sm">
-                            <span class="text-neutral-600">{{ methodLabel[p.method] || p.method }} · {{ formatDate(p.date) }}</span>
+                    <ul class="divide-y divide-neutral-100">
+                        <li v-for="p in payments" :key="p.id" class="flex justify-between px-5 py-3 text-body-sm">
+                            <Link v-if="reservation.links?.finance" :href="reservation.links.finance" class="text-neutral-600 no-underline hover:text-accent-700">{{ methodLabel[p.method] || p.method }} · {{ formatDate(p.date) }}</Link>
+                            <span v-else class="text-neutral-600">{{ methodLabel[p.method] || p.method }} · {{ formatDate(p.date) }}</span>
                             <span class="text-success-600">− {{ money(p.amount) }}</span>
                         </li>
                     </ul>
                 </div>
 
                 <!-- Summary -->
-                <div class="border-t border-neutral-200 px-5 py-4 space-y-2">
+                <div class="space-y-2 border-t border-neutral-200 px-5 py-4">
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>{{ $t('admin.generated.k_8e7d78994587') }}</span>
+                        <span>{{ $t('reservationShow.subtotal') }}</span>
                         <span>{{ money(folio.net) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>{{ $t('admin.generated.k_aca304907dc3') }}{{ folio.taxRate }}%)</span>
+                        <span>{{ $t('reservationShow.vat') }} ({{ folio.taxRate }}%)</span>
                         <span>{{ money(folio.taxAmount) }}</span>
                     </div>
                     <div v-if="folio.discounts > 0" class="flex justify-between text-body-sm text-success-600">
@@ -420,15 +480,15 @@ function settleAndCheckout(method) {
                         <span>− {{ money(folio.discounts) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-700 border-t border-neutral-100 pt-2">
-                        <span>{{ $t('admin.generated.k_eb3e69f5ad4a') }}</span>
+                        <span>{{ $t('reservationShow.total') }}</span>
                         <span>{{ money(folio.gross) }}</span>
                     </div>
                     <div class="flex justify-between text-body-sm text-neutral-500">
-                        <span>{{ $t('admin.generated.k_ea1bc96b45a5') }}</span>
+                        <span>{{ $t('reservationShow.paid') }}</span>
                         <span>− {{ money(folio.paid) }}</span>
                     </div>
-                    <div v-if="reservation.status !== 'cancelled'" class="flex justify-between border-t border-neutral-200 pt-2">
-                        <span class="text-label text-neutral-700">{{ $t('admin.generated.k_224908982d79') }}</span>
+                    <div v-if="reservation.status !== 'cancelled'" class="mt-3 flex items-center justify-between rounded-xl p-3" :class="unsettled ? 'bg-warning-50' : 'bg-success-50'">
+                        <span class="font-semibold text-neutral-800">{{ $t('reservationShow.outstanding') }}</span>
                         <span class="text-h4" :class="unsettled ? 'text-error-600' : 'text-success-600'">{{ money(folio.outstanding) }}</span>
                     </div>
                     <div v-else class="flex justify-between border-t border-neutral-200 pt-2">
@@ -439,77 +499,24 @@ function settleAndCheckout(method) {
             </Card>
         </div>
 
-        <Card class="mt-6" :padding="false">
-            <div class="border-b border-neutral-200 px-5 py-4">
-                <h3 class="text-label uppercase tracking-wider text-neutral-600">{{ $t('admin.generated.k_4b669a4a3082') }}</h3>
-                <p class="mt-0.5 text-tiny text-neutral-400">{{ $t('admin.generated.k_a5d6ddbd4f1e') }}</p>
-            </div>
-            <AuditTimeline :entries="history" />
-        </Card>
-
-        <!-- Inventory-backed minibar: folio charge and stock movement are one transaction. -->
-        <Modal
-            :show="showMinibarModal"
-            :title="$t('reservationShow.minibarTitle')"
-            max-width="md"
-            :closeable="!minibarForm.processing"
-            @close="closeMinibarModal"
-        >
-            <form class="space-y-4" @submit.prevent="submitMinibar">
-                <div class="rounded-lg border border-accent-100 bg-accent-50/60 px-3 py-2.5 text-small text-accent-900">
-                    {{ $t('reservationShow.minibarHint') }}
+        <div class="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+            <Card class="lg:order-2">
+                <div class="mb-3"><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.quickLinks') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.quickLinksSubtitle') }}</p></div>
+                <div class="space-y-1">
+                    <Link v-if="reservation.links?.guest" :href="reservation.links.guest" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><UserRound class="h-4 w-4" /></span>{{ $t('reservationShow.guestProfile') }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
+                    <Link v-if="reservation.links?.room" :href="reservation.links.room" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><DoorOpen class="h-4 w-4" /></span>{{ $t('reservationShow.room') }} {{ reservation.room?.room_number }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
+                    <Link v-if="reservation.links?.finance" :href="reservation.links.finance" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><CreditCard class="h-4 w-4" /></span>{{ $t('reservationShow.financePayments') }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
+                    <Link :href="route('reservations.calendar')" class="flex items-center gap-3 rounded-xl p-2.5 text-sm font-medium text-primary-900 no-underline transition hover:bg-neutral-50"><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><CalendarDays class="h-4 w-4" /></span>{{ $t('reservationShow.calendar') }}<ArrowRight class="ml-auto h-4 w-4 text-neutral-400" /></Link>
                 </div>
-                <FormGroup :label="$t('reservationShow.inventoryItem')" :error="minibarForm.errors.inventory_item_id" required>
-                    <Select
-                        v-model="minibarForm.inventory_item_id"
-                        :options="minibarItemOptions"
-                        :error="minibarForm.errors.inventory_item_id"
-                    />
-                </FormGroup>
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <FormGroup :label="$t('reservationShow.warehouse')" :error="minibarForm.errors.warehouse_id" required>
-                        <Select
-                            v-model="minibarForm.warehouse_id"
-                            :options="minibarWarehouseOptions"
-                            :error="minibarForm.errors.warehouse_id"
-                        />
-                    </FormGroup>
-                    <FormGroup :label="$t('reservationShow.quantity')" :error="minibarForm.errors.quantity" required>
-                        <TextInput
-                            v-model="minibarForm.quantity"
-                            type="number"
-                            min="0.0001"
-                            :max="minibarAvailable"
-                            step="0.0001"
-                            :error="minibarForm.errors.quantity"
-                        />
-                    </FormGroup>
+            </Card>
+            <Card class="lg:order-1" :padding="false">
+                <div class="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+                    <div><h3 class="text-lg font-semibold text-neutral-900">{{ $t('reservationShow.history') }}</h3><p class="mt-1 text-xs text-neutral-500">{{ $t('reservationShow.historySubtitle') }}</p></div>
+                    <span class="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600">{{ history.length }} {{ $t('reservationShow.actions') }}</span>
                 </div>
-                <div class="grid grid-cols-2 gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-body-sm">
-                    <div>
-                        <p class="text-neutral-500">{{ $t('reservationShow.availableStock') }}</p>
-                        <p class="mt-1 font-semibold" :class="minibarAvailable > 0 ? 'text-success-700' : 'text-error-600'">
-                            {{ minibarAvailable }} {{ selectedMinibarItem?.unit || '' }}
-                        </p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-neutral-500">{{ $t('reservationShow.folioTotal') }}</p>
-                        <p class="mt-1 font-semibold text-primary-900">{{ money(minibarTotal) }}</p>
-                    </div>
-                </div>
-                <p v-if="minibarQuantity > minibarAvailable" class="text-small font-medium text-error-600">
-                    {{ $t('reservationShow.insufficientStock') }}
-                </p>
-            </form>
-            <template #footer>
-                <Button variant="outline" :disabled="minibarForm.processing" @click="closeMinibarModal">
-                    {{ $t('admin.generated.k_1ae76507a0e9') }}
-                </Button>
-                <Button variant="primary" :loading="minibarForm.processing" :disabled="!minibarCanSubmit" @click="submitMinibar">
-                    {{ $t('reservationShow.postMinibar') }}
-                </Button>
-            </template>
-        </Modal>
+                <AuditTimeline :entries="history" />
+            </Card>
+        </div>
 
         <!-- Add a hotel charge to the guest account. Food/drinks come from POS. -->
         <Modal
@@ -527,7 +534,7 @@ function settleAndCheckout(method) {
                     <FormGroup :label="$t('admin.generated.k_db85f6c8ba94')" :error="lineForm.errors.type" required>
                         <Select v-model="lineForm.type" :options="lineTypeOptions" :error="lineForm.errors.type" />
                     </FormGroup>
-                    <FormGroup :label="lineForm.type === 'discount' ? $t('reservationShow.discountAmount') : $t('reservationShow.amount')" :error="lineForm.errors.amount" required>
+                    <FormGroup :label="lineForm.type === 'discount' ? 'Shuma e zbritjes' : 'Shuma'" :error="lineForm.errors.amount" required>
                         <TextInput type="number" step="0.01" min="0.01" v-model="lineForm.amount" placeholder="0.00" :error="lineForm.errors.amount" />
                     </FormGroup>
                 </div>
@@ -547,18 +554,80 @@ function settleAndCheckout(method) {
         </Modal>
 
         <!-- Record payment modal -->
-        <Modal :show="showPayModal" :title="$t('admin.generated.k_d38fb40fdcb5')" max-width="sm" @close="showPayModal = false">
-            <form @submit.prevent="submitPay" class="space-y-4">
+        <Modal :show="showPayModal" :title="$t('admin.generated.k_d38fb40fdcb5')" max-width="md" :closeable="!paymentSubmitting" @close="closePaymentModal">
+            <form @submit.prevent="submitPay" class="space-y-5">
+                <div class="rounded-lg border border-accent-100 bg-accent-50/60 p-4">
+                    <div class="grid grid-cols-2 gap-4 text-body-sm">
+                        <div>
+                            <p class="text-neutral-500">Totali i rezervimit</p>
+                            <p class="mt-1 font-semibold text-neutral-900">{{ money(folio.gross) }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-neutral-500">Paguar deri tani</p>
+                            <p class="mt-1 font-semibold text-success-700">{{ money(folio.paid) }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex items-center justify-between border-t border-accent-100 pt-3">
+                        <span class="font-medium text-neutral-700">Mbetur për t'u paguar</span>
+                        <span class="text-h4 text-error-600">{{ money(folio.outstanding) }}</span>
+                    </div>
+                </div>
+
                 <FormGroup :label="$t('admin.generated.k_522d709a6d49')" :error="payForm.errors.amount" required>
-                    <TextInput type="number" step="0.01" min="0.01" v-model="payForm.amount" placeholder="0.00" :error="payForm.errors.amount" />
+                    <div class="relative">
+                        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 font-semibold text-neutral-500">{{ currency }}</span>
+                        <TextInput
+                            v-model="payForm.amount"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            :max="folio.outstanding"
+                            inputmode="decimal"
+                            class="pl-8 text-lg font-semibold"
+                            placeholder="0.00"
+                            :error="payForm.errors.amount"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        class="mt-2 text-body-sm font-medium text-accent-700 hover:text-accent-800"
+                        @click="payForm.amount = Number(folio.outstanding).toFixed(2)"
+                    >
+                        Paguaj të gjithë shumën
+                    </button>
                 </FormGroup>
+
                 <FormGroup :label="$t('admin.generated.k_de3b5772305c')" :error="payForm.errors.method" required>
-                    <Select v-model="payForm.method" :options="methodOptions" :error="payForm.errors.method" />
+                    <div class="grid grid-cols-2 gap-3">
+                        <button
+                            v-for="option in methodOptions"
+                            :key="option.value"
+                            type="button"
+                            :class="[
+                                'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                                payForm.method === option.value
+                                    ? 'border-accent-500 bg-accent-50 text-accent-800 ring-1 ring-accent-500'
+                                    : 'border-neutral-200 text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50',
+                            ]"
+                            @click="payForm.method = option.value"
+                        >
+                            <Banknote v-if="option.value === 'cash'" class="h-5 w-5 shrink-0" />
+                            <CreditCard v-else class="h-5 w-5 shrink-0" />
+                            <span class="font-medium">{{ option.label }}</span>
+                        </button>
+                    </div>
                 </FormGroup>
+
+                <div class="flex items-start gap-2 text-tiny text-neutral-500">
+                    <ShieldCheck class="mt-0.5 h-4 w-4 shrink-0 text-success-600" />
+                    <span>Pagesa ruhet vetëm një herë dhe zbritet menjëherë nga balanca e rezervimit.</span>
+                </div>
             </form>
             <template #footer>
-                <Button variant="outline" @click="showPayModal = false">{{ $t('admin.generated.k_1ae76507a0e9') }}</Button>
-                <Button variant="primary" :loading="payForm.processing" @click="submitPay">{{ $t('admin.generated.k_02f7c6d23f37') }}</Button>
+                <Button variant="outline" :disabled="paymentSubmitting" @click="closePaymentModal">{{ $t('admin.generated.k_1ae76507a0e9') }}</Button>
+                <Button variant="success" :loading="paymentSubmitting" :disabled="!paymentIsValid" @click="submitPay">
+                    Regjistro {{ paymentIsValid ? money(paymentAmount) : 'pagesën' }}
+                </Button>
             </template>
         </Modal>
 

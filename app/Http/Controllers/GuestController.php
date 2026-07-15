@@ -9,13 +9,18 @@ use App\Models\Guest;
 use App\Models\GuestDocument;
 use App\Models\Reservation;
 use App\Services\AuditTimeline;
+use App\Services\GeminiClient;
+use App\Services\GuestDocumentAiExtractor;
+use App\Tenancy\TenantRule;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Support\TenantStorage;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,7 +33,7 @@ class GuestController extends Controller
             // The UI stores ISO alpha-2 codes, while older imported profiles may
             // still contain alpha-3 values. Accept both formats during filtering.
             'nationality' => ['nullable', 'string', 'between:2,3', 'regex:/^[A-Za-z]{2,3}$/'],
-            'segment' => ['nullable', 'in:all,in_house,arriving_7_days,returning,incomplete,attention'],
+            'segment' => ['nullable', 'in:all,in_house,arriving_7_days,returning,incomplete,duplicates,attention'],
             'sort' => ['nullable', 'in:name,last_stay,next_stay,stays'],
         ]);
 
@@ -44,9 +49,6 @@ class GuestController extends Controller
         $segment = (string) ($validated['segment'] ?? 'all');
         $sort = (string) ($validated['sort'] ?? 'last_stay');
         $nationalityAliases = $nationality !== '' ? $this->nationalityAliases($nationality) : [];
-
-        $returningGuestIds = $this->returningGuestIds();
-        $duplicateGuestIds = $this->duplicateGuestIds();
 
         $columns = [
             'id', 'first_name', 'last_name', 'email', 'phone',
@@ -94,9 +96,10 @@ class GuestController extends Controller
                 ->where('status', 'confirmed')
                 ->whereNull('no_show_at')
                 ->whereBetween('check_in_date', [$todayString, $windowEndString])),
-            'returning' => $query->whereIn('id', $returningGuestIds->all()),
+            'returning' => $this->whereReturningGuest($query),
             'incomplete' => $this->whereProfileIncomplete($query),
-            'attention' => $this->whereNeedsAttention($query, $duplicateGuestIds),
+            'duplicates' => $this->whereDuplicateProfile($query),
+            'attention' => $this->whereNeedsAttention($query),
             default => null,
         };
 
@@ -136,6 +139,13 @@ class GuestController extends Controller
             ->withQueryString();
 
         $guestIds = collect($paginator->items())->pluck('id');
+        $duplicateGuestIds = $guestIds->isEmpty()
+            ? collect()
+            : $this->duplicateGuestsQuery()
+                ->whereIn('id', $guestIds->all())
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values();
         $reservationsByGuest = $guestIds->isEmpty()
             ? collect()
             : Reservation::query()
@@ -257,16 +267,16 @@ class GuestController extends Controller
                 ->where('status', 'confirmed')
                 ->whereNull('no_show_at')
                 ->whereBetween('check_in_date', [$todayString, $windowEndString]))->count(),
-            'arriving_returning' => Guest::whereIn('id', $returningGuestIds->all())
+            'arriving_returning' => $this->returningGuestsQuery()
                 ->whereHas('reservations', fn (Builder $reservation) => $reservation
                     ->where('status', 'confirmed')
                     ->whereNull('no_show_at')
                     ->whereBetween('check_in_date', [$todayString, $windowEndString]))
                 ->count(),
-            'returning' => $returningGuestIds->count(),
+            'returning' => $this->returningGuestsQuery()->count(),
             'incomplete' => $this->profileIncompleteQuery()->count(),
-            'duplicate_profiles' => $duplicateGuestIds->count(),
-            'attention' => $this->needsAttentionQuery($duplicateGuestIds)->count(),
+            'duplicate_profiles' => $this->duplicateGuestsQuery()->count(),
+            'attention' => $this->needsAttentionQuery()->count(),
         ];
 
         return Inertia::render('Guests/Index', [
@@ -388,9 +398,16 @@ class GuestController extends Controller
                 'uploaded_by' => $d->uploader?->name,
                 'created_at' => $d->created_at?->toDateString(),
                 'url' => route('guests.documents.show', $d->id),
+                'ai_status' => $d->ai_status,
+                'ai_extraction' => $d->ai_extraction,
+                'ai_model' => $d->ai_model,
+                'ai_error' => $d->ai_error,
+                'ai_extracted_at' => $d->ai_extracted_at?->toIso8601String(),
+                'ai_reviewed_at' => $d->ai_reviewed_at?->toIso8601String(),
             ]),
             'duplicates' => $duplicates,
             'history' => $timeline->entries($historyLogs, $historySubjects),
+            'aiConfigured' => app(GeminiClient::class)->configured(),
         ]);
     }
 
@@ -470,6 +487,103 @@ class GuestController extends Controller
         return back()->with('success', 'Dokumenti u fshi.');
     }
 
+    public function analyzeDocument(Guest $guest, GuestDocument $document, GuestDocumentAiExtractor $extractor): JsonResponse
+    {
+        abort_unless($document->guest_id === $guest->id, 404);
+
+        $document->update(['ai_status' => 'processing', 'ai_error' => null]);
+
+        try {
+            $extraction = $extractor->extract($document);
+            $document->update([
+                'ai_status' => 'ready',
+                'ai_extraction' => $extraction,
+                'ai_model' => $extractor->model(),
+                'ai_extracted_at' => now(),
+                'ai_reviewed_at' => null,
+                'ai_reviewed_by' => null,
+            ]);
+
+            return response()->json([
+                'document' => [
+                    'id' => $document->id,
+                    'ai_status' => $document->ai_status,
+                    'ai_extraction' => $document->ai_extraction,
+                    'ai_model' => $document->ai_model,
+                    'ai_extracted_at' => $document->ai_extracted_at?->toIso8601String(),
+                ],
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+            $message = $exception instanceof \RuntimeException
+                ? $exception->getMessage()
+                : 'Dokumenti nuk u analizua. Provo sërish.';
+            $document->update(['ai_status' => 'failed', 'ai_error' => $message]);
+
+            return response()->json(['message' => $message], 422);
+        }
+    }
+
+    public function applyDocumentAnalysis(Request $request, Guest $guest, GuestDocument $document): JsonResponse
+    {
+        abort_unless($document->guest_id === $guest->id, 404);
+
+        $allowed = ['first_name', 'last_name', 'nationality', 'date_of_birth', 'document_type', 'document_number'];
+        $validated = $request->validate([
+            'fields' => ['required', 'array', 'min:1'],
+            'fields.*' => ['required', 'string', 'distinct', 'in:'.implode(',', $allowed)],
+        ]);
+
+        abort_unless($document->ai_status === 'ready' && is_array($document->ai_extraction), 422, 'Analiza AI nuk është gati për konfirmim.');
+
+        $extracted = $document->ai_extraction['fields'] ?? [];
+        $updates = [];
+        foreach ($validated['fields'] as $field) {
+            $value = $extracted[$field]['value'] ?? null;
+            if ($value !== null && $value !== '') {
+                $updates[$field] = $value;
+            }
+        }
+
+        abort_if($updates === [], 422, 'Fushat e zgjedhura nuk kanë të dhëna të lexueshme.');
+
+        Validator::make($updates, [
+            'first_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'last_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'nationality' => ['sometimes', 'nullable', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
+            'date_of_birth' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before:today'],
+            'document_type' => ['sometimes', 'nullable', 'in:id_card,passport,drivers_license'],
+            'document_number' => ['sometimes', 'nullable', 'string', 'max:50', TenantRule::unique('guests', 'document_number')->ignore($guest->id)],
+        ])->validate();
+
+        DB::transaction(function () use ($guest, $document, $updates, $request) {
+            $guest->update($updates);
+            $document->update([
+                'ai_status' => 'reviewed',
+                'ai_reviewed_at' => now(),
+                'ai_reviewed_by' => $request->user()->id,
+                'ai_error' => null,
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Të dhënat e konfirmuara u aplikuan në profil.',
+            'guest' => [
+                'first_name' => $guest->first_name,
+                'last_name' => $guest->last_name,
+                'nationality' => $guest->nationality,
+                'date_of_birth' => $guest->date_of_birth?->toDateString(),
+                'document_type' => $guest->document_type,
+                'document_number' => $guest->document_number,
+            ],
+            'document' => [
+                'id' => $document->id,
+                'ai_status' => $document->ai_status,
+                'ai_reviewed_at' => $document->ai_reviewed_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
     private function visitKeySql(): string
     {
         if (DB::getDriverName() === 'sqlite') {
@@ -479,19 +593,22 @@ class GuestController extends Controller
         return "CASE WHEN reservations.booking_group_id IS NULL THEN CONCAT('reservation:', reservations.id) ELSE CONCAT('group:', reservations.booking_group_id) END";
     }
 
-    /** @return Collection<int, int> */
-    private function returningGuestIds(): Collection
+    private function returningGuestsQuery(): Builder
     {
-        return Reservation::query()
+        return $this->whereReturningGuest(Guest::query());
+    }
+
+    private function whereReturningGuest(Builder $query): Builder
+    {
+        $returningGuestIds = Reservation::query()
             ->select('guest_id')
             ->whereNotNull('guest_id')
             ->where('status', 'checked_out')
             ->whereHas('guest')
             ->groupBy('guest_id')
-            ->havingRaw('COUNT(DISTINCT '.$this->visitKeySql().') >= 2')
-            ->pluck('guest_id')
-            ->map(fn ($id) => (int) $id)
-            ->values();
+            ->havingRaw('COUNT(DISTINCT '.$this->visitKeySql().') >= 2');
+
+        return $query->whereIn('id', $returningGuestIds);
     }
 
     /** @return list<string> */
@@ -550,50 +667,26 @@ class GuestController extends Controller
         return $code;
     }
 
-    /** @return Collection<int, int> */
-    private function duplicateGuestIds(): Collection
+    private function duplicateGuestsQuery(): Builder
     {
-        $duplicateEmails = Guest::query()
-            ->whereNotNull('email')
-            ->where('email', '!=', '')
-            ->select('email')
-            ->groupBy('email')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('email');
-        $duplicatePhones = Guest::query()
-            ->whereNotNull('phone')
-            ->where('phone', '!=', '')
-            ->select('phone')
-            ->groupBy('phone')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('phone');
-        $duplicateDocuments = Guest::query()
-            ->whereNotNull('document_number')
-            ->where('document_number', '!=', '')
-            ->select('document_number')
-            ->groupBy('document_number')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('document_number');
+        return $this->whereDuplicateProfile(Guest::query());
+    }
 
-        if ($duplicateEmails->isEmpty() && $duplicatePhones->isEmpty() && $duplicateDocuments->isEmpty()) {
-            return collect();
-        }
+    private function whereDuplicateProfile(Builder $query): Builder
+    {
+        return $query->where(function (Builder $duplicates) {
+            foreach (['email', 'phone', 'document_number'] as $index => $field) {
+                $duplicateValues = Guest::query()
+                    ->select($field)
+                    ->whereNotNull($field)
+                    ->where($field, '!=', '')
+                    ->groupBy($field)
+                    ->havingRaw('COUNT(*) > 1');
 
-        return Guest::query()
-            ->where(function (Builder $query) use ($duplicateEmails, $duplicatePhones, $duplicateDocuments) {
-                if ($duplicateEmails->isNotEmpty()) {
-                    $query->orWhereIn('email', $duplicateEmails->all());
-                }
-                if ($duplicatePhones->isNotEmpty()) {
-                    $query->orWhereIn('phone', $duplicatePhones->all());
-                }
-                if ($duplicateDocuments->isNotEmpty()) {
-                    $query->orWhereIn('document_number', $duplicateDocuments->all());
-                }
-            })
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values();
+                $method = $index === 0 ? 'whereIn' : 'orWhereIn';
+                $duplicates->{$method}($field, $duplicateValues);
+            }
+        });
     }
 
     private function whereProfileIncomplete(Builder $query): Builder
@@ -603,16 +696,15 @@ class GuestController extends Controller
         });
     }
 
-    private function whereNeedsAttention(Builder $query, Collection $duplicateGuestIds): Builder
+    private function whereNeedsAttention(Builder $query): Builder
     {
-        return $query->where(function (Builder $attention) use ($duplicateGuestIds) {
+        return $query->where(function (Builder $attention) {
             $attention->where(function (Builder $missing) {
                 $this->addMissingProfileConditions($missing);
             });
-
-            if ($duplicateGuestIds->isNotEmpty()) {
-                $attention->orWhereIn('id', $duplicateGuestIds->all());
-            }
+            $attention->orWhere(function (Builder $duplicates) {
+                $this->whereDuplicateProfile($duplicates);
+            });
         });
     }
 
@@ -621,9 +713,9 @@ class GuestController extends Controller
         return $this->whereProfileIncomplete(Guest::query());
     }
 
-    private function needsAttentionQuery(Collection $duplicateGuestIds): Builder
+    private function needsAttentionQuery(): Builder
     {
-        return $this->whereNeedsAttention(Guest::query(), $duplicateGuestIds);
+        return $this->whereNeedsAttention(Guest::query());
     }
 
     private function addMissingProfileConditions(Builder $query): void
