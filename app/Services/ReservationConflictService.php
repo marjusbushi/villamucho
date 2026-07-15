@@ -13,7 +13,7 @@ class ReservationConflictService
     public function detect(string $startDate, string $endDate): array
     {
         $reservations = Reservation::query()
-            ->select('id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status', 'adults', 'channel', 'channel_ref', 'created_at')
+            ->select('id', 'room_id', 'guest_id', 'check_in_date', 'check_out_date', 'status', 'adults', 'children', 'channel', 'channel_ref', 'created_at')
             ->with('guest:id,first_name,last_name')
             ->whereIn('status', self::ACTIVE_STATUSES)
             ->where('check_in_date', '<=', $endDate)
@@ -155,11 +155,12 @@ class ReservationConflictService
     private function suggestRooms(Reservation $reservation, Collection $rooms): array
     {
         $currentRoom = $rooms->firstWhere('id', $reservation->room_id);
+        $guestCount = (int) $reservation->adults + (int) $reservation->children;
 
         return $rooms
             ->filter(fn (Room $room) => $room->id !== $reservation->room_id
                 && $room->status !== 'maintenance'
-                && ($room->roomType?->max_occupancy ?? 0) >= $reservation->adults)
+                && ($room->roomType?->max_occupancy ?? 0) >= $guestCount)
             ->sort(function (Room $left, Room $right) use ($currentRoom) {
                 $leftSame = $left->room_type_id === $currentRoom?->room_type_id;
                 $rightSame = $right->room_type_id === $currentRoom?->room_type_id;

@@ -933,7 +933,9 @@ class ReservationController extends Controller
                 ]);
             }
 
-            if (($newRoom->roomType?->max_occupancy ?? 0) < $lockedReservation->adults
+            $guestCount = (int) $lockedReservation->adults + (int) $lockedReservation->children;
+
+            if (($newRoom->roomType?->max_occupancy ?? 0) < $guestCount
                 || ! Reservation::isRoomAvailable(
                     $newRoom->id,
                     $lockedReservation->check_in_date->toDateString(),
