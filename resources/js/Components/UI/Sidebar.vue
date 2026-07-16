@@ -68,6 +68,18 @@ function isActive(item) {
     return currentPath === base || currentPath.startsWith(base + '/');
 }
 
+function isCurrentChild(child, group) {
+    const matchingChildren = (group.children || [])
+        .filter((item) => isActive(item))
+        .sort((left, right) => {
+            const leftBase = left.match || left.href || '';
+            const rightBase = right.match || right.href || '';
+            return rightBase.length - leftBase.length;
+        });
+
+    return matchingChildren[0] === child;
+}
+
 async function revealActiveItem() {
     await nextTick();
     navigationRef.value
@@ -131,15 +143,15 @@ onMounted(revealActiveItem);
                             v-for="child in item.children"
                             :key="child.href"
                             :href="child.href"
-                            :data-sidebar-active="isActive(child) ? 'true' : undefined"
+                            :data-sidebar-active="isCurrentChild(child, item) ? 'true' : undefined"
                             :class="[
                                 'relative flex items-center rounded-md py-2 pl-11 pr-3 text-body-sm leading-5 no-underline transition-colors duration-150',
-                                isActive(child)
+                                isCurrentChild(child, item)
                                     ? 'text-accent-400 font-medium'
                                     : 'text-neutral-500 hover:bg-primary-800/60 hover:text-neutral-200',
                             ]"
                         >
-                            <span v-if="isActive(child)" class="absolute left-6 h-1.5 w-1.5 rounded-full bg-accent-500" />
+                            <span v-if="isCurrentChild(child, item)" class="absolute left-6 h-1.5 w-1.5 rounded-full bg-accent-500" />
                             {{ child.label }}
                         </Link>
                     </div>
