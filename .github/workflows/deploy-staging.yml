@@ -1,0 +1,79 @@
+name: Deploy staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_SERVER_IP }}
+          username: root
+          key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          script: |
+            set -Eeuo pipefail
+
+            app_dir=""
+            while IFS= read -r env_file; do
+              if grep -Eq '^APP_URL=https://staging\.lorapms\.com/?$' "$env_file"; then
+                app_dir="$(dirname "$env_file")"
+                break
+              fi
+            done < <(find /var/www -maxdepth 4 -type f -name .env -readable)
+
+            if [ -z "$app_dir" ] || [ ! -d "$app_dir/.git" ]; then
+              echo "The staging application directory could not be identified." >&2
+              exit 1
+            fi
+
+            cd "$app_dir"
+            php artisan down --retry=15 || true
+            deploy_succeeded=false
+            trap 'if [ "$deploy_succeeded" = true ]; then php artisan up || true; else echo "Staging deploy failed; the application remains in maintenance mode." >&2; fi' EXIT
+
+            git fetch origin staging --quiet
+            git reset --hard origin/staging
+
+            export COMPOSER_ALLOW_SUPERUSER=1
+            composer install --no-dev --optimize-autoloader -q
+            npm ci --no-audit --no-fund
+            npm run build
+
+            php artisan migrate --force
+
+            if [ ! -s storage/oauth-private.key ] || [ ! -s storage/oauth-public.key ]; then
+              php artisan passport:keys --force
+            fi
+
+            chown www-data:www-data storage/oauth-private.key storage/oauth-public.key
+            chmod 0600 storage/oauth-private.key
+            chmod 0644 storage/oauth-public.key
+
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan queue:restart || true
+            chown -R www-data:www-data storage bootstrap/cache
+
+            php_fpm_service="$(systemctl list-units --type=service --state=running 'php*-fpm.service' --no-legend | awk 'NR == 1 { print $1 }')"
+            if [ -n "$php_fpm_service" ]; then
+              systemctl reload "$php_fpm_service"
+            fi
+
+            php artisan up
+            deploy_succeeded=true
+            trap - EXIT
+            echo "Staging deployed at $(date --iso-8601=seconds)"
