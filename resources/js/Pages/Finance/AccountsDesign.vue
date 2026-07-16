@@ -26,11 +26,11 @@ import Button from '@/Components/UI/Button.vue';
 const { t, locale } = useI18n();
 
 const accounts = [
-    { id: 1, name: 'Arka kryesore', type: 'cash', currency: 'EUR', balance: 8996.49, baseBalance: 8996.49, todayIn: 1016.49, todayOut: 120, active: true },
-    { id: 2, name: 'Banka', type: 'bank', currency: 'EUR', balance: 6447.55, baseBalance: 6447.55, todayIn: 880, todayOut: 420, active: true, iban: 'AL47 •••• •••• 8741' },
-    { id: 3, name: 'POS Terminal', type: 'pos', currency: 'EUR', balance: 1284.20, baseBalance: 1284.20, todayIn: 316.49, todayOut: 0, active: true },
-    { id: 4, name: 'Arka ALL', type: 'cash', currency: 'ALL', balance: 125000, baseBalance: 1250, todayIn: 18500, todayOut: 5200, active: true },
-    { id: 5, name: 'Banka e vjetër', type: 'bank', currency: 'EUR', balance: 0, baseBalance: 0, todayIn: 0, todayOut: 0, active: false, iban: 'AL19 •••• •••• 1102' },
+    { id: 1, name: 'Arka kryesore', type: 'cash', currency: 'EUR', balance: 8996.49, baseBalance: 8996.49, todayIn: 1016.49, todayOut: 120, todayInBase: 1016.49, todayOutBase: 120, active: true },
+    { id: 2, name: 'Banka', type: 'bank', currency: 'EUR', balance: 6447.55, baseBalance: 6447.55, todayIn: 880, todayOut: 420, todayInBase: 880, todayOutBase: 420, active: true, iban: 'AL47 •••• •••• 8741' },
+    { id: 3, name: 'POS Terminal', type: 'pos', currency: 'EUR', balance: 1284.20, baseBalance: 1284.20, todayIn: 316.49, todayOut: 0, todayInBase: 316.49, todayOutBase: 0, active: true },
+    { id: 4, name: 'Arka ALL', type: 'cash', currency: 'ALL', balance: 125000, baseBalance: 1250, todayIn: 18500, todayOut: 5200, todayInBase: 185, todayOutBase: 52, active: true },
+    { id: 5, name: 'Banka e vjetër', type: 'bank', currency: 'EUR', balance: 0, baseBalance: 0, todayIn: 0, todayOut: 0, todayInBase: 0, todayOutBase: 0, active: false, iban: 'AL19 •••• •••• 1102' },
 ];
 
 const ledger = {
@@ -88,7 +88,7 @@ const activeAccounts = computed(() => accounts.filter((account) => account.activ
 const totalBalance = computed(() => activeAccounts.value.reduce((sum, account) => sum + account.baseBalance, 0));
 const cashBalance = computed(() => activeAccounts.value.filter((account) => account.type === 'cash').reduce((sum, account) => sum + account.baseBalance, 0));
 const bankBalance = computed(() => activeAccounts.value.filter((account) => account.type === 'bank').reduce((sum, account) => sum + account.baseBalance, 0));
-const todayNet = computed(() => activeAccounts.value.reduce((sum, account) => sum + account.todayIn - account.todayOut, 0));
+const todayNet = computed(() => activeAccounts.value.reduce((sum, account) => sum + account.todayInBase - account.todayOutBase, 0));
 
 function money(value, currency = 'EUR') {
     return new Intl.NumberFormat(locale.value === 'en' ? 'en-GB' : 'sq-AL', {
