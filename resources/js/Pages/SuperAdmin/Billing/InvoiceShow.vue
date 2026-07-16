@@ -165,14 +165,8 @@ function voidInvoice() {
                     </dl>
                 </section>
 
-                <footer class="grid border-t border-neutral-200 md:grid-cols-2">
-                    <div class="border-b border-neutral-200 p-4 md:border-b-0 md:border-r">
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-2.5"><span class="sa-icon-box bg-emerald-50 text-emerald-700"><FileText /></span><div><strong class="block text-xs text-neutral-900">Bill i ciklit</strong><span class="text-[10px] text-neutral-500">Origjina e kësaj fature</span></div></div>
-                            <Link :href="`/super-admin/billing/bills/${invoice.id}`" class="sa-button">Hap Bill</Link>
-                        </div>
-                    </div>
-                    <div class="p-4">
+                <footer class="border-t border-neutral-200 p-4">
+                    <div>
                         <div class="flex items-center justify-between gap-3">
                             <div class="flex items-center gap-2.5"><span class="sa-icon-box bg-blue-50 text-blue-700"><CreditCard /></span><div><strong class="block text-xs text-neutral-900">Pagesat</strong><span class="text-[10px] text-neutral-500">{{ invoice.payments.length }} të lidhura</span></div></div>
                             <Link v-if="!invoice.payments.length" :href="`/super-admin/billing/payments?invoice_id=${invoice.id}`" class="sa-button">Regjistro</Link>
