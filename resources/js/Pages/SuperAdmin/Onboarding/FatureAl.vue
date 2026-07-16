@@ -98,7 +98,7 @@ function selectStep(key) {
                     <div class="border-b border-neutral-200 px-5 py-4"><p class="text-[9px] font-bold uppercase tracking-[.12em] text-emerald-700">Hapi aktiv</p><h2 class="mt-1 text-lg font-semibold">{{ activeDefinition.title }}</h2><p class="mt-1 text-[11px] text-neutral-500">{{ activeDefinition.subtitle }}</p></div>
 
                     <form v-if="activeStep === 'company'" class="grid gap-4 p-5 sm:grid-cols-2" @submit.prevent="submit(registerForm, 'register')">
-                        <label>Mjedisi<select v-model="registerForm.environment" class="mt-1 w-full"><option value="sandbox">Sandbox · demo.fature.al</option><option value="production">Production · fature.al</option></select></label>
+                        <label>Mjedisi<select v-model="registerForm.environment" class="mt-1 w-full"><option value="sandbox">Sandbox · demo.fature.al</option></select><small class="mt-1 block text-[9px] text-neutral-500">Production aktivizohet vetëm pasi rrjedha live të aprovohet.</small></label>
                         <label>NIPT<input v-model.trim="registerForm.nuis" required class="mt-1 w-full uppercase" placeholder="L12345678A" /><small v-if="registerForm.environment === 'sandbox'" class="mt-1 block text-[9px] text-blue-600">Për flow test mund të përdorësh L62221018T.</small></label>
                         <label>Emri i kompanisë<input v-model="registerForm.name" required class="mt-1 w-full" /></label>
                         <label>Administratori<input v-model="registerForm.administrator" required class="mt-1 w-full" /></label>

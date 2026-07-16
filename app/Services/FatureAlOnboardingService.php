@@ -71,12 +71,16 @@ class FatureAlOnboardingService
     /** @param array<string, mixed> $data */
     public function registerCompany(Tenant $tenant, array $data): void
     {
+        if (($data['environment'] ?? null) !== 'sandbox') {
+            throw new RuntimeException('Onboarding-u Fature.al lejohet vetëm në sandbox në këtë fazë.');
+        }
+
         $partnerToken = trim((string) config('services.fature_al.onboarding_token'));
         if ($partnerToken === '') {
             throw new RuntimeException('FATURE_AL_ONBOARDING_TOKEN mungon në konfigurimin e serverit.');
         }
 
-        $environment = $data['environment'] === 'production' ? 'production' : 'sandbox';
+        $environment = 'sandbox';
         $response = $this->request($partnerToken)->post($this->baseUrl($environment).'/register', [
             'nuis' => $data['nuis'],
             'name' => $data['name'],

@@ -207,6 +207,29 @@ class FatureAlIntegrationTest extends TestCase
             && $request->hasHeader('Authorization', 'Bearer tenant-fiscal-token'));
     }
 
+    public function test_onboarding_wizard_rejects_production_until_live_fiscalization_is_supported(): void
+    {
+        config(['services.fature_al.onboarding_token' => 'partner-onboarding-token']);
+        $tenant = Tenant::factory()->create();
+
+        Http::preventStrayRequests();
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('super-admin.onboarding.fiscalization.register', $tenant), [
+                'environment' => 'production', 'nuis' => 'L12345678A', 'name' => 'Hotel Live',
+                'address' => 'Tirane', 'administrator' => 'Admin', 'phone' => '0690000000',
+                'email' => 'live@example.test', 'issuer_in_vat' => true,
+                'last_non_cash_einvoice_number' => null, 'uses_cash' => true,
+            ])
+            ->assertSessionHasErrors('environment');
+
+        Http::assertNothingSent();
+        $this->assertDatabaseMissing('tenant_integrations', [
+            'tenant_id' => $tenant->id,
+            'provider' => 'fature_al',
+        ]);
+    }
+
     public function test_connection_check_is_read_only_and_records_success(): void
     {
         $tenant = Tenant::factory()->create();
