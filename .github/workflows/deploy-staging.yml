@@ -32,7 +32,7 @@ jobs:
                 app_dir="$(dirname "$env_file")"
                 break
               fi
-            done < <(find /var/www -maxdepth 4 -type f -name .env -readable)
+            done < <(find / -xdev -type f -name .env -readable 2>/dev/null)
 
             if [ -z "$app_dir" ] || [ ! -d "$app_dir/.git" ]; then
               echo "The staging application directory could not be identified." >&2
