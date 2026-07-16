@@ -646,6 +646,7 @@ class FinanceController extends Controller
         $filter = $request->input('filter');
         $category = $request->input('category');
         $search = trim((string) $request->input('search', ''));
+        $generatedBillId = $this->generatedBillIdFromSearch($search);
         $billId = $request->integer('bill_id') ?: null;
         $today = CarbonImmutable::today();
 
@@ -720,9 +721,10 @@ class FinanceController extends Controller
                 ->when(in_array($filter, ['due', 'overdue'], true), fn ($qq) => $qq->where('status', '!=', 'paid')->whereDate('due_date', '<', $today->toDateString()))
                 ->when($filter === 'paid', fn ($qq) => $qq->where('status', 'paid'))
                 ->when($category, fn ($qq) => $qq->where('category', $category))
-                ->when($search !== '', fn ($qq) => $qq->where(function ($searchQuery) use ($search) {
+                ->when($search !== '', fn ($qq) => $qq->where(function ($searchQuery) use ($search, $generatedBillId) {
                     $searchQuery->where('number', 'like', "%{$search}%")
-                        ->orWhereHas('supplier', fn ($supplierQuery) => $supplierQuery->where('name', 'like', "%{$search}%"));
+                        ->orWhereHas('supplier', fn ($supplierQuery) => $supplierQuery->where('name', 'like', "%{$search}%"))
+                        ->when($generatedBillId, fn ($generatedQuery) => $generatedQuery->orWhere('id', $generatedBillId));
                 }))
                 ->paginate(25)->withQueryString()->through(fn (Bill $b) => $this->billRow($b)),
         ]));
@@ -752,25 +754,22 @@ class FinanceController extends Controller
         return Inertia::render('Finance/BillCreate', array_merge(
             $this->shared($request),
             $this->billFormOptions($request, $bill),
-            ['bill' => [
-                'id' => $bill->id,
-                'supplier_id' => $bill->supplier_id,
-                'number' => $bill->number,
-                'category' => $bill->category,
-                'issue_date' => $bill->issue_date->toDateString(),
-                'due_date' => $bill->due_date?->toDateString(),
-                'currency' => $bill->currency,
-                'fx_rate' => $bill->fx_rate ? (float) $bill->fx_rate : null,
-                'total' => (float) $bill->total,
-                'notes' => $bill->notes,
-                'stock_locked' => $stockLocked,
-                'items' => $bill->items->map(fn (BillItem $item) => [
-                    'inventory_item_id' => $item->inventory_item_id,
-                    'warehouse_id' => $item->warehouse_id,
-                    'quantity' => (float) $item->quantity,
-                    'unit_cost' => (float) $item->unit_cost,
-                ])->values(),
-            ]],
+            ['bill' => $this->billFormPayload($bill, $stockLocked)],
+        ));
+    }
+
+    public function showBill(Request $request, Bill $bill): Response
+    {
+        Warehouse::ensureDefault();
+        $bill->load('items');
+
+        return Inertia::render('Finance/BillCreate', array_merge(
+            $this->shared($request),
+            $this->billFormOptions($request, $bill, includeFullInventoryCatalog: false),
+            [
+                'bill' => $this->billFormPayload($bill, $bill->items()->whereHas('movements')->exists()),
+                'readOnly' => true,
+            ],
         ));
     }
 
@@ -866,6 +865,9 @@ class FinanceController extends Controller
 
         DB::transaction(function () use ($data, $lines, $request) {
             $bill = Bill::create(collect($data)->except(['items', 'receive_stock'])->all() + ['status' => 'open']);
+            if (! $bill->number) {
+                $bill->update(['number' => $this->automaticBillNumber($bill)]);
+            }
 
             foreach ($lines as $index => $lineData) {
                 $item = ! empty($lineData['inventory_item_id'])
@@ -941,8 +943,9 @@ class FinanceController extends Controller
         }
 
         $data = $request->validate($rules);
-        $data['number'] = trim((string) ($data['number'] ?? '')) ?: null;
-        if ($data['number'] && Bill::where('supplier_id', $data['supplier_id'])
+        $data['number'] = trim((string) ($data['number'] ?? ''))
+            ?: $this->automaticBillNumber($bill, $data['issue_date'], (int) $data['supplier_id']);
+        if (Bill::where('supplier_id', $data['supplier_id'])
             ->where('id', '!=', $bill->id)
             ->whereRaw('LOWER(number) = ?', [mb_strtolower($data['number'])])
             ->exists()) {
@@ -1052,7 +1055,7 @@ class FinanceController extends Controller
         return redirect()->route('finance.bills')->with('success', 'Fatura u përditësua.');
     }
 
-    private function billFormOptions(Request $request, ?Bill $bill = null): array
+    private function billFormOptions(Request $request, ?Bill $bill = null, bool $includeFullInventoryCatalog = true): array
     {
         $itemIds = $bill?->items->pluck('inventory_item_id')->filter()->values()->all() ?? [];
         $warehouseIds = $bill?->items->pluck('warehouse_id')->filter()->values()->all() ?? [];
@@ -1065,10 +1068,16 @@ class FinanceController extends Controller
                 ->get(['id', 'name', 'nipt', 'category', 'payment_terms_days']),
             'categories' => Bill::categories(),
             'inventoryItems' => InventoryItem::query()
-                ->where(fn (Builder $query) => $query->where('is_active', true)
-                    ->when($itemIds !== [], fn (Builder $q) => $q->orWhereIn('id', $itemIds)))
+                ->when(
+                    $includeFullInventoryCatalog,
+                    fn (Builder $query) => $query->where(fn (Builder $q) => $q->where('is_active', true)
+                        ->when($itemIds !== [], fn (Builder $itemQuery) => $itemQuery->orWhereIn('id', $itemIds))),
+                    fn (Builder $query) => $query->whereIn('id', $itemIds),
+                )
                 ->orderBy('name')
-                ->get(['id', 'name', 'sku', 'type', 'unit', 'average_cost']),
+                ->get($includeFullInventoryCatalog
+                    ? ['id', 'name', 'sku', 'type', 'unit', 'average_cost']
+                    : ['id', 'name', 'sku', 'type', 'unit']),
             'warehouses' => Warehouse::query()
                 ->where(fn (Builder $query) => $query->where('is_active', true)
                     ->when($warehouseIds !== [], fn (Builder $q) => $q->orWhereIn('id', $warehouseIds)))
@@ -1077,6 +1086,66 @@ class FinanceController extends Controller
             'aiConfigured' => app(GeminiClient::class)->configured(),
             'openAiImport' => ! $bill && $request->input('import') === 'ai',
         ];
+    }
+
+    private function billFormPayload(Bill $bill, bool $stockLocked): array
+    {
+        return [
+            'id' => $bill->id,
+            'supplier_id' => $bill->supplier_id,
+            'number' => $bill->number ?: $this->automaticBillNumber($bill),
+            'category' => $bill->category,
+            'issue_date' => $bill->issue_date->toDateString(),
+            'due_date' => $bill->due_date?->toDateString(),
+            'currency' => $bill->currency,
+            'fx_rate' => $bill->fx_rate ? (float) $bill->fx_rate : null,
+            'total' => (float) $bill->total,
+            'notes' => $bill->notes,
+            'stock_locked' => $stockLocked,
+            'items' => $bill->items->map(fn (BillItem $item) => [
+                'inventory_item_id' => $item->inventory_item_id,
+                'warehouse_id' => $item->warehouse_id,
+                'quantity' => (float) $item->quantity,
+                'unit_cost' => (float) $item->unit_cost,
+            ])->values(),
+        ];
+    }
+
+    private function automaticBillNumber(Bill $bill, mixed $issueDate = null, ?int $supplierId = null): string
+    {
+        $year = $issueDate
+            ? CarbonImmutable::parse($issueDate)->year
+            : ($bill->issue_date?->year ?? CarbonImmutable::today()->year);
+        $base = sprintf('BL-%d-%06d', $year, $bill->id);
+        $number = $base;
+        $suffix = 2;
+
+        while (Bill::query()
+            ->where('supplier_id', $supplierId ?? $bill->supplier_id)
+            ->where('id', '!=', $bill->id)
+            ->whereRaw('LOWER(number) = ?', [mb_strtolower($number)])
+            ->exists()) {
+            $number = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $number;
+    }
+
+    private function generatedBillIdFromSearch(string $search): ?int
+    {
+        if (! preg_match('/^BL-\d{4}-(\d+)(?:-\d+)?$/i', $search, $matches)) {
+            return null;
+        }
+
+        $bill = Bill::query()
+            ->whereKey((int) $matches[1])
+            ->whereNull('number')
+            ->first();
+
+        return $bill && mb_strtolower($this->automaticBillNumber($bill)) === mb_strtolower($search)
+            ? $bill->id
+            : null;
     }
 
     /** Resolve once more at confirmation time so two imports cannot create the same product. */
@@ -1367,6 +1436,7 @@ class FinanceController extends Controller
         return [
             'id' => $b->id,
             'number' => $b->number,
+            'display_number' => $b->number ?: $this->automaticBillNumber($b),
             'supplier' => $b->supplier?->name,
             'supplier_id' => $b->supplier_id,
             'category' => $b->category,
