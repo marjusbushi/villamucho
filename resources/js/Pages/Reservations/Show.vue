@@ -214,12 +214,19 @@ function positionMoreMenu() {
         };
 }
 
-function closeMoreMenu() {
+function closeMoreMenu(restoreFocus = true) {
     if (!moreMenuOpen.value) return;
     moreMenuOpen.value = false;
-    window.removeEventListener('scroll', closeMoreMenu, true);
+    window.removeEventListener('scroll', closeMoreMenuOnPageScroll, true);
     window.removeEventListener('resize', closeMoreMenu);
     document.removeEventListener('keydown', closeMoreMenuOnEscape);
+
+    if (restoreFocus) nextTick(() => moreMenuTrigger.value?.focus());
+}
+
+function closeMoreMenuOnPageScroll(event) {
+    if (moreMenuPanel.value?.contains(event.target)) return;
+    closeMoreMenu(false);
 }
 
 function closeMoreMenuOnEscape(event) {
@@ -245,18 +252,21 @@ function toggleMoreMenu() {
         };
     }
     moreMenuOpen.value = true;
-    window.addEventListener('scroll', closeMoreMenu, true);
+    window.addEventListener('scroll', closeMoreMenuOnPageScroll, true);
     window.addEventListener('resize', closeMoreMenu);
     document.addEventListener('keydown', closeMoreMenuOnEscape);
-    nextTick(positionMoreMenu);
+    nextTick(() => {
+        positionMoreMenu();
+        moreMenuPanel.value?.querySelector('[role="menuitem"]:not(:disabled)')?.focus();
+    });
 }
 
 function runMoreMenuAction(action) {
-    closeMoreMenu();
+    closeMoreMenu(false);
     action();
 }
 
-onBeforeUnmount(closeMoreMenu);
+onBeforeUnmount(() => closeMoreMenu(false));
 
 const lineForm = useForm({ type: 'extra', description: '', amount: '', charge_date: '' });
 const newInventoryReference = () => globalThis.crypto?.randomUUID?.()
@@ -494,7 +504,7 @@ function settleAndCheckout(method) {
                 </button>
                 <Teleport to="body">
                     <template v-if="moreMenuOpen">
-                        <button type="button" class="fixed inset-0 z-[70] cursor-default" :aria-label="$t('reservationShow.closeMenu')" @click="closeMoreMenu" />
+                        <button type="button" tabindex="-1" class="fixed inset-0 z-[70] cursor-default" :aria-label="$t('reservationShow.closeMenu')" @click="closeMoreMenu" />
                         <div
                             ref="moreMenuPanel"
                             class="fixed z-[80] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl"
