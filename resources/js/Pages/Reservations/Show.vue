@@ -932,6 +932,7 @@ function settleAndCheckout(method) {
                         <p v-else-if="!fiscalization.vat_configured" class="mt-3 text-sm text-warning-800">{{ $t('reservationShow.vatNotConfigured') }}</p>
                         <p v-else-if="!fiscalization.vat_matches_provider" class="mt-3 text-sm text-error-700">{{ $t('reservationShow.vatProviderMismatch') }}</p>
                         <p v-else-if="reservation.status !== 'checked_out'" class="mt-3 text-sm text-neutral-700">{{ $t('reservationShow.fiscalAfterCheckout') }}</p>
+                        <p v-else-if="fiscalization.checkout_in_future" class="mt-3 text-sm text-warning-800">{{ $t('reservationShow.fiscalFutureCheckout') }}</p>
                         <p v-else-if="!['cash', 'card'].includes(fiscalization.payment_method)" class="mt-3 text-sm text-warning-800">{{ $t('reservationShow.fiscalSinglePayment') }}</p>
                         <template v-else>
                             <p v-if="fiscalDocument?.last_error" class="mt-3 text-sm text-error-700">{{ fiscalDocument.last_error }}</p>

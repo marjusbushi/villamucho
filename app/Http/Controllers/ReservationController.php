@@ -28,6 +28,7 @@ use App\Services\TenantBillingService;
 use App\Services\VatConfiguration;
 use App\Tenancy\TenantContext;
 use App\Tenancy\TenantRule;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -319,6 +320,9 @@ class ReservationController extends Controller
             ->get();
 
         $tenant = app(TenantContext::class)->tenant();
+        $hotelToday = CarbonImmutable::today($tenant?->timezone ?: config('app.timezone'))->toDateString();
+        $checkoutInFuture = $reservation->check_out_date !== null
+            && $reservation->check_out_date->toDateString() > $hotelToday;
         $fiscalAccount = (array) $fatureAlConfiguration->get('account', []);
         $providerVatStatus = data_get($fiscalAccount, 'issuer_in_vat');
         $providerVatMatches = ! is_bool($providerVatStatus)
@@ -448,12 +452,14 @@ class ReservationController extends Controller
                 'vat_configured' => $vatConfiguration->configured(),
                 'vat_matches_provider' => $providerVatMatches,
                 'payment_method' => $fiscalPaymentMethod,
+                'checkout_in_future' => $checkoutInFuture,
                 'can_issue' => $fatureAlConfiguration->configured()
                     && $fatureAlConfiguration->verified()
                     && $fiscalEnvironment === 'sandbox'
                     && $vatConfiguration->configured()
                     && $providerVatMatches
                     && $reservation->status === 'checked_out'
+                    && ! $checkoutInFuture
                     && in_array($fiscalPaymentMethod, ['cash', 'card'], true)
                     && $fiscalDocument?->status !== FiscalDocument::STATUS_FISCALIZED,
                 'document' => $fiscalDocument ? [

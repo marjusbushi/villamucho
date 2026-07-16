@@ -510,6 +510,12 @@ class ReservationFiscalizationTest extends TestCase
         ])->save();
         $this->assertTrue($reservation->fresh()->check_out_date->isAfter(today()));
 
+        $this->actingAs($this->admin)
+            ->get(route('reservations.show', $reservation))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('fiscalization.checkout_in_future', true)
+                ->where('fiscalization.can_issue', false));
+
         Http::preventStrayRequests();
 
         $this->actingAs($this->admin)
