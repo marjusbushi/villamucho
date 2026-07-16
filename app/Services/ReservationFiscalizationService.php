@@ -173,6 +173,12 @@ class ReservationFiscalizationService
             ]);
         }
 
+        if ($reservation->check_out_date?->isAfter(today())) {
+            throw ValidationException::withMessages([
+                'fiscalization' => 'Data e check-out është në të ardhmen. Fatura fiskale mund të lëshohet pasi të përfundojë qëndrimi.',
+            ]);
+        }
+
         $reservation->loadMissing(['room.roomType', 'guest', 'folioItems', 'payments']);
 
         $this->vatConfiguration->ensureConfigured();

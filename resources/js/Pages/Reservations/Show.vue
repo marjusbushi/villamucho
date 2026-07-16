@@ -104,6 +104,12 @@ const hasOpenOrders = computed(() => (props.openPosOrders?.length || 0) > 0);
 const unsettled = computed(() => Number(props.folio.outstanding) > 0.005);
 const canAddCharge = computed(() => canUpdate && ['pending', 'confirmed', 'checked_in'].includes(props.reservation.status));
 const isCheckedIn = computed(() => props.reservation.status === 'checked_in');
+const hasMoreMenuActions = computed(() => (
+    (canUpdate && isCheckedIn.value && props.inventoryEnabled && props.inventoryItems.length > 0)
+    || canAddCharge.value
+    || (canUpdate && props.reservation.status !== 'cancelled' && unsettled.value)
+    || (canUpdate && isCheckedIn.value)
+));
 const guestInitials = computed(() => (props.reservation.guest?.name || '?')
     .split(/\s+/)
     .slice(0, 2)
@@ -493,6 +499,7 @@ function settleAndCheckout(method) {
             <div class="flex flex-wrap items-center gap-2">
                 <Button variant="outline" @click="openInvoice"><FileText class="h-4 w-4" /> {{ invoiceActionLabel }}</Button>
                 <button
+                    v-if="hasMoreMenuActions"
                     ref="moreMenuTrigger"
                     type="button"
                     class="flex items-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
@@ -503,7 +510,7 @@ function settleAndCheckout(method) {
                     {{ $t('reservationShow.more') }} <ChevronDown class="h-4 w-4 transition" :class="moreMenuOpen && 'rotate-180'" />
                 </button>
                 <Teleport to="body">
-                    <template v-if="moreMenuOpen">
+                    <template v-if="moreMenuOpen && hasMoreMenuActions">
                         <button type="button" tabindex="-1" class="fixed inset-0 z-[70] cursor-default" :aria-label="$t('reservationShow.closeMenu')" @click="closeMoreMenu" />
                         <div
                             ref="moreMenuPanel"
