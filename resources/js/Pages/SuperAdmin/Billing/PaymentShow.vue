@@ -1,7 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
-import { ArrowLeft, Building2, CreditCard, FileText, RefreshCw, Webhook } from 'lucide-vue-next';
+import { ArrowLeft, CreditCard, FileText, RefreshCw, Webhook } from 'lucide-vue-next';
 
 const props = defineProps({ payment: Object });
 
@@ -116,13 +116,9 @@ function statusLabel(status) {
                     </div>
                 </section>
 
-                <footer v-if="payment.invoice" class="grid border-t border-neutral-200 sm:grid-cols-2">
-                    <Link :href="`/super-admin/billing/invoices/${payment.invoice.id}`" class="flex items-center justify-between gap-3 border-b border-neutral-200 p-4 no-underline hover:bg-emerald-50/50 sm:border-b-0 sm:border-r">
+                <footer v-if="payment.invoice" class="border-t border-neutral-200">
+                    <Link :href="`/super-admin/billing/invoices/${payment.invoice.id}`" class="flex items-center justify-between gap-3 p-4 no-underline hover:bg-emerald-50/50">
                         <div class="flex items-center gap-2.5"><span class="sa-icon-box bg-emerald-50 text-emerald-700"><FileText class="sa-icon" /></span><div><span class="block text-[10px] text-neutral-400">Fatura e lidhur</span><strong class="text-xs text-neutral-900">{{ payment.invoice.number }}</strong></div></div>
-                        <span class="text-[11px] font-semibold text-emerald-700">Hap →</span>
-                    </Link>
-                    <Link :href="`/super-admin/billing/bills/${payment.invoice.id}`" class="flex items-center justify-between gap-3 p-4 no-underline hover:bg-emerald-50/50">
-                        <div class="flex items-center gap-2.5"><span class="sa-icon-box bg-amber-50 text-amber-700"><Building2 class="sa-icon" /></span><div><span class="block text-[10px] text-neutral-400">Bill i ciklit</span><strong class="text-xs text-neutral-900">Origjina e faturimit</strong></div></div>
                         <span class="text-[11px] font-semibold text-emerald-700">Hap →</span>
                     </Link>
                 </footer>
