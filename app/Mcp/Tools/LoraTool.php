@@ -16,7 +16,7 @@ abstract class LoraTool extends Tool
     {
         $user = $request->user('api');
 
-        if (! $user instanceof User || ($permission && ! $user->can($permission))) {
+        if (! $user instanceof User || ($permission && ! $user->is_super_admin && ! $user->can($permission))) {
             throw new AuthorizationException('You are not allowed to use this hotel tool.');
         }
 

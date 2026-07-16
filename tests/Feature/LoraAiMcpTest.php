@@ -72,6 +72,26 @@ class LoraAiMcpTest extends TestCase
                 ->etc());
     }
 
+    public function test_super_admin_can_use_a_bound_hotels_read_tools_without_a_tenant_role(): void
+    {
+        $tenant = Tenant::query()->sole();
+        app(TenantContext::class)->set($tenant);
+        $superAdmin = User::factory()->create([
+            'current_tenant_id' => $tenant->id,
+            'is_super_admin' => true,
+        ]);
+
+        $this->assertTrue($superAdmin->is_super_admin);
+        $this->assertTrue($superAdmin->getRoleNames()->isEmpty());
+
+        LoraHotelServer::actingAs($superAdmin, 'api')
+            ->tool(SearchReservationsTool::class)
+            ->assertOk()
+            ->assertStructuredContent(fn ($json) => $json
+                ->has('count')
+                ->has('reservations'));
+    }
+
     public function test_unbound_mcp_request_is_rejected_before_a_tool_can_run(): void
     {
         $this->postJson('/mcp/lora-hotel', [
