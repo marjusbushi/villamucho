@@ -208,6 +208,13 @@ class FinanceBillsTest extends TestCase
                 ->where('summary.due_soon_count', 0)
                 ->has('priorities', 1)
                 ->has('categories'));
+
+        $this->actingAs($manager)->get(route('finance.bills', [
+            'search' => sprintf('BL-2026-%06d', $bill->id),
+        ]))->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('bills.total', 1)
+                ->where('bills.data.0.id', $bill->id));
     }
 
     public function test_bill_create_is_a_dedicated_page_with_document_options(): void
@@ -288,8 +295,22 @@ class FinanceBillsTest extends TestCase
     {
         $this->withoutVite();
         $admin = $this->role('admin');
+        $receptionist = $this->role('receptionist');
         $supplier = $this->supplier();
         $bill = $this->lekBill($supplier);
+        $referencedItem = InventoryItem::create([
+            'name' => 'Transport fature', 'sku' => 'SERVICE-VIEW', 'type' => 'service',
+            'unit' => 'piece', 'average_cost' => 20, 'is_active' => true,
+        ]);
+        InventoryItem::create([
+            'name' => 'Kosto private katalogu', 'sku' => 'PRIVATE-CATALOG', 'type' => 'product',
+            'unit' => 'piece', 'average_cost' => 999, 'is_active' => true,
+        ]);
+        BillItem::create([
+            'bill_id' => $bill->id, 'inventory_item_id' => $referencedItem->id,
+            'description' => $referencedItem->name, 'quantity' => 1, 'unit' => 'piece',
+            'unit_cost' => 20, 'line_total' => 20, 'received_at' => now(),
+        ]);
         FinanceAccount::ensureDefaults();
         FinancePayment::create([
             'direction' => 'out',
@@ -309,13 +330,16 @@ class FinanceBillsTest extends TestCase
             ->assertRedirect(route('finance.bills'))
             ->assertSessionHas('error');
 
-        $this->actingAs($admin)->get(route('finance.bills.show', $bill))
+        $this->actingAs($receptionist)->get(route('finance.bills.show', $bill))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Finance/BillCreate')
                 ->where('readOnly', true)
                 ->where('bill.id', $bill->id)
-                ->where('bill.number', sprintf('BL-2026-%06d', $bill->id)));
+                ->where('bill.number', sprintf('BL-2026-%06d', $bill->id))
+                ->has('inventoryItems', 1)
+                ->where('inventoryItems.0.id', $referencedItem->id)
+                ->missing('inventoryItems.0.average_cost'));
 
         $this->actingAs($admin)->put(route('finance.bills.update', $bill), [
             'supplier_id' => $supplier->id,
