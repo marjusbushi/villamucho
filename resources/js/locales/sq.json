@@ -3735,6 +3735,7 @@
     "vatProviderMismatch": "Statusi i TVSH-së nuk përputhet me llogarinë fature.al.",
     "fiscalProductionBlocked": "Production është i bllokuar derisa rrjedha sandbox të aprovohet.",
     "fiscalAfterCheckout": "Fiskalizimi aktivizohet pasi rezervimi përfundon check-out.",
+    "fiscalFutureCheckout": "Data e check-out është në të ardhmen. Fatura fiskale mund të lëshohet pasi të përfundojë qëndrimi.",
     "fiscalSinglePayment": "Kërkohet vetëm një mënyrë pagese: cash ose card.",
     "fiscalPayment": "Pagesa",
     "fiscalCash": "Cash",

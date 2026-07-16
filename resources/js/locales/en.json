@@ -3735,6 +3735,7 @@
     "vatProviderMismatch": "The VAT status does not match the fature.al account.",
     "fiscalProductionBlocked": "Production is blocked until the sandbox flow is approved.",
     "fiscalAfterCheckout": "Fiscalization becomes available after the reservation is checked out.",
+    "fiscalFutureCheckout": "The check-out date is in the future. The fiscal invoice can be issued after the stay ends.",
     "fiscalSinglePayment": "Exactly one payment method is required: cash or card.",
     "fiscalPayment": "Payment",
     "fiscalCash": "Cash",

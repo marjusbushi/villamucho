@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\FiscalDocument;
 use App\Models\Reservation;
 use App\Tenancy\TenantContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -170,6 +171,14 @@ class ReservationFiscalizationService
         if ($reservation->status !== 'checked_out') {
             throw ValidationException::withMessages([
                 'fiscalization' => 'Rezervimi duhet të ketë përfunduar check-out përpara fiskalizimit.',
+            ]);
+        }
+
+        $hotelTimezone = $this->tenantContext->tenant()?->timezone ?: config('app.timezone');
+        $hotelToday = CarbonImmutable::today($hotelTimezone)->toDateString();
+        if ($reservation->check_out_date?->toDateString() > $hotelToday) {
+            throw ValidationException::withMessages([
+                'fiscalization' => 'Data e check-out është në të ardhmen. Fatura fiskale mund të lëshohet pasi të përfundojë qëndrimi.',
             ]);
         }
 

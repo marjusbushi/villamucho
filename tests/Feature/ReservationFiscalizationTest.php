@@ -501,6 +501,33 @@ class ReservationFiscalizationTest extends TestCase
         $this->assertSame(0, FiscalDocument::query()->count());
     }
 
+    public function test_future_checked_out_stay_is_rejected_before_contacting_provider(): void
+    {
+        $reservation = $this->checkedOutStay('cash');
+        $reservation->forceFill([
+            'check_in_date' => now()->addDay()->toDateString(),
+            'check_out_date' => now()->addDays(3)->toDateString(),
+        ])->save();
+        $this->assertTrue($reservation->fresh()->check_out_date->isAfter(today()));
+
+        $this->actingAs($this->admin)
+            ->get(route('reservations.show', $reservation))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('fiscalization.checkout_in_future', true)
+                ->where('fiscalization.can_issue', false));
+
+        Http::preventStrayRequests();
+
+        $this->actingAs($this->admin)
+            ->post(route('reservations.fiscalize', $reservation))
+            ->assertSessionHasErrors([
+                'fiscalization' => 'Data e check-out është në të ardhmen. Fatura fiskale mund të lëshohet pasi të përfundojë qëndrimi.',
+            ]);
+
+        Http::assertNothingSent();
+        $this->assertSame(0, FiscalDocument::query()->count());
+    }
+
     private function checkedOutStay(string $method, float $paid = 100): Reservation
     {
         $roomType = RoomType::create([
