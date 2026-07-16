@@ -76,6 +76,27 @@ class LoraAiMcpTest extends TestCase
         $this->assertSame(0, AiAccessToken::count());
     }
 
+    public function test_mcp_client_can_register_through_oauth_discovery(): void
+    {
+        $response = $this->postJson('/oauth/register', [
+            'client_name' => 'Lora test client',
+            'redirect_uris' => ['http://127.0.0.1:53682/callback'],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('grant_types.0', 'authorization_code')
+            ->assertJsonPath('response_types.0', 'code')
+            ->assertJsonPath('scope', 'mcp:use')
+            ->assertJsonPath('token_endpoint_auth_method', 'none')
+            ->assertJsonStructure(['client_id', 'redirect_uris']);
+
+        $this->assertDatabaseHas('oauth_clients', [
+            'id' => $response->json('client_id'),
+            'name' => 'Lora test client',
+            'revoked' => false,
+        ]);
+    }
+
     public function test_hotel_admin_can_open_the_lora_ai_page_and_save_tenant_scoped_permissions(): void
     {
         $tenant = Tenant::query()->sole();
