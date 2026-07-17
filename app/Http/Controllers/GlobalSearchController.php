@@ -55,7 +55,7 @@ class GlobalSearchController extends Controller
         }
 
         if ($this->allowed($user, 'view_housekeeping') && $billing->enabled(TenantBillingService::HOUSEKEEPING, $tenant)) {
-            $groups->push($this->group('housekeeping', $this->housekeeping($term, $like)));
+            $groups->push($this->group('housekeeping', $this->housekeeping($user, $term, $like)));
         }
 
         if ($this->allowed($user, 'view_maintenance')) {
@@ -211,16 +211,22 @@ class GlobalSearchController extends Controller
         return $invoices->concat($bills)->concat($payments)->take(7);
     }
 
-    private function housekeeping(string $term, string $like): Collection
+    private function housekeeping(User $user, string $term, string $like): Collection
     {
-        return CleaningTask::query()->with('room:id,room_number')->where(function ($query) use ($term, $like) {
+        $tasks = CleaningTask::query()->with('room:id,room_number')->where(function ($query) use ($term, $like) {
             if (ctype_digit($term)) {
                 $query->orWhereKey((int) $term);
             }
             $query->orWhere('type', 'like', $like)->orWhere('status', 'like', $like)
                 ->orWhere('notes', 'like', $like)
                 ->orWhereHas('room', fn ($room) => $room->where('room_number', 'like', $like));
-        })->latest('id')->limit(5)->get()->map(fn (CleaningTask $task) => $this->result(
+        });
+
+        if (! $user->can('delete_housekeeping')) {
+            $tasks->where(fn ($query) => $query->whereNull('assigned_to')->orWhere('assigned_to', $user->id));
+        }
+
+        return $tasks->latest('id')->limit(5)->get()->map(fn (CleaningTask $task) => $this->result(
             'housekeeping',
             __('global_search.cleaning', ['id' => $task->id]).' · '.__('global_search.room', ['number' => $task->room?->room_number ?: '—']),
             implode(' · ', array_filter([$task->type, $task->status, $task->priority])),

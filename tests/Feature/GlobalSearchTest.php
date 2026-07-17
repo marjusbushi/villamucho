@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CleaningTask;
 use App\Models\FinanceAccount;
 use App\Models\FinancePayment;
 use App\Models\Guest;
@@ -180,6 +181,44 @@ class GlobalSearchTest extends TestCase
             ->assertOk()
             ->assertJsonMissing(['key' => 'finance'])
             ->assertJsonMissing(['subtitle' => '30.00 EUR · cash · SUSPENDED-SECRET']);
+    }
+
+    public function test_housekeeper_only_sees_tasks_they_may_open(): void
+    {
+        [$tenant] = $this->adminForDefaultHotel();
+
+        [$housekeeper, $otherTaskId, $ownTaskId] = app(TenantContext::class)->run($tenant, function () {
+            $type = RoomType::create(['name' => 'Housekeeping Search', 'base_price' => 50, 'max_occupancy' => 2]);
+            $room = Room::create(['room_type_id' => $type->id, 'room_number' => 'HK-101', 'floor' => 1, 'status' => 'available']);
+            $housekeeper = User::factory()->create(['current_tenant_id' => app(TenantContext::class)->id()]);
+            $other = User::factory()->create(['current_tenant_id' => app(TenantContext::class)->id()]);
+            $housekeeper->givePermissionTo('view_housekeeping');
+
+            $otherTask = CleaningTask::create([
+                'room_id' => $room->id,
+                'assigned_to' => $other->id,
+                'type' => 'deep_clean',
+                'status' => 'pending',
+                'priority' => 'normal',
+                'notes' => 'SEARCH-HOUSEKEEPING',
+            ]);
+            $ownTask = CleaningTask::create([
+                'room_id' => $room->id,
+                'assigned_to' => $housekeeper->id,
+                'type' => 'stayover_clean',
+                'status' => 'pending',
+                'priority' => 'normal',
+                'notes' => 'SEARCH-HOUSEKEEPING',
+            ]);
+
+            return [$housekeeper, $otherTask->id, $ownTask->id];
+        });
+
+        $this->actingAs($housekeeper)
+            ->getJson('http://localhost/pms/global-search?q=SEARCH-HOUSEKEEPING')
+            ->assertOk()
+            ->assertJsonFragment(['href' => "/pms/housekeeping/{$ownTaskId}/clean"])
+            ->assertJsonMissing(['href' => "/pms/housekeeping/{$otherTaskId}/clean"]);
     }
 
     private function adminForDefaultHotel(): array
