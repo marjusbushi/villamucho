@@ -94,14 +94,40 @@ class AiActionExecutor
             $type = RoomType::query()->whereKey($payload['room_type_id'])->lockForUpdate()->firstOrFail();
             $from = Carbon::parse($payload['date_from'])->startOfDay();
             $to = Carbon::parse($payload['date_to'])->startOfDay();
-            $fresh = collect(PricingEngine::forRange($type, $from, $to))
-                ->filter(fn ($day) => $day['actionable'] && ! $day['is_past'])
-                ->map(fn ($day) => ['date' => $day['date'], 'price' => round((float) $day['suggested_price'], 2)])
-                ->values()->all();
+            $engineDays = collect(PricingEngine::forRange($type, $from, $to))
+                ->filter(fn ($day) => ! $day['is_past'])->values();
+            $source = $payload['proposal_source'] ?? 'lora_engine';
 
-            if ($fresh !== ($payload['days'] ?? [])) {
-                throw new RuntimeException('Pricing inputs changed. Create a fresh proposal before applying.');
+            if ($source === 'chatgpt') {
+                $market = MarketRates::summaryForRange($from, $to);
+                $fingerprint = AiPriceGuardrails::fingerprint(
+                    $engineDays->all(),
+                    $market,
+                    PricingRulesVersion::current(),
+                );
+                if (! hash_equals((string) ($payload['engine_fingerprint'] ?? ''), $fingerprint)) {
+                    throw new RuntimeException('Pricing or market inputs changed. Create a fresh proposal before applying.');
+                }
+
+                $byDate = $engineDays->keyBy('date');
+                $fresh = collect($payload['days'] ?? [])->map(function (array $proposed) use ($byDate, $type) {
+                    $context = $byDate->get($proposed['date'] ?? '');
+                    if (! $context || ! AiPriceGuardrails::accepts($type, $context, (float) ($proposed['price'] ?? 0))) {
+                        throw new RuntimeException("ChatGPT price for {$proposed['date']} is outside the current hotel guardrails.");
+                    }
+
+                    return $proposed;
+                })->values()->all();
+            } else {
+                $fresh = $engineDays
+                    ->filter(fn ($day) => $day['actionable'])
+                    ->map(fn ($day) => ['date' => $day['date'], 'price' => round((float) $day['suggested_price'], 2)])
+                    ->values()->all();
+                if ($fresh !== ($payload['days'] ?? [])) {
+                    throw new RuntimeException('Pricing inputs changed. Create a fresh proposal before applying.');
+                }
             }
+
             foreach ($fresh as $day) {
                 if ($this->priceOutOfBand($day['price'], $type)) {
                     throw new RuntimeException("Suggested price for {$day['date']} is outside the hotel safety limits.");
@@ -116,6 +142,7 @@ class AiActionExecutor
                 'proposal_id' => $proposal->id,
                 'dates' => array_column($fresh, 'date'),
                 'count' => count($fresh),
+                'source' => $source,
             ], 'ai');
 
             return ['state' => 'applied', 'count' => count($fresh), 'room_type_id' => $type->id];

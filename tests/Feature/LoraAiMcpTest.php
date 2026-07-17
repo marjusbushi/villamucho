@@ -7,26 +7,35 @@ use App\Mcp\Servers\LoraHotelServer;
 use App\Mcp\Tools\CheckAvailabilityTool;
 use App\Mcp\Tools\CreatePriceProposalTool;
 use App\Mcp\Tools\ExecuteApprovedActionTool;
+use App\Mcp\Tools\GetDailyOperationsBriefTool;
 use App\Mcp\Tools\GetGuestConversationTool;
 use App\Mcp\Tools\GetHotelContextTool;
 use App\Mcp\Tools\GetPricingCalendarTool;
 use App\Mcp\Tools\GetReservationContextTool;
 use App\Mcp\Tools\PrepareGuestReplyTool;
+use App\Mcp\Tools\SearchHotelTool;
 use App\Mcp\Tools\SearchReservationsTool;
 use App\Models\AiAccessToken;
+use App\Models\AiActionProposal;
 use App\Models\AiOAuthGrant;
+use App\Models\CompRate;
+use App\Models\Guest;
+use App\Models\RateOverride;
+use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\TenantDomain;
 use App\Models\User;
+use App\Services\PricingEngine;
 use App\Services\TenantBillingService;
 use App\Services\TenantRoleService;
 use App\Tenancy\TenantContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Passport\AccessToken as PassportAccessToken;
 use Laravel\Passport\Events\AccessTokenCreated;
@@ -163,6 +172,176 @@ class LoraAiMcpTest extends TestCase
             ->assertStructuredContent(fn ($json) => $json
                 ->has('count')
                 ->has('reservations'));
+    }
+
+    public function test_universal_search_returns_tenant_scoped_operational_links_only(): void
+    {
+        $tenant = Tenant::query()->sole();
+        app(TenantContext::class)->set($tenant);
+        $superAdmin = User::factory()->create([
+            'current_tenant_id' => $tenant->id,
+            'is_super_admin' => true,
+        ]);
+        $type = RoomType::query()->create(['name' => 'Deluxe', 'base_price' => 90, 'max_occupancy' => 2]);
+        $room = Room::query()->create([
+            'room_type_id' => $type->id,
+            'room_number' => '707',
+            'floor' => 7,
+            'status' => 'available',
+        ]);
+        $guest = Guest::query()->create([
+            'first_name' => 'Elira',
+            'last_name' => 'Test',
+            'email' => 'elira@example.test',
+            'document_number' => 'SECRET-DOCUMENT',
+        ]);
+        $reservation = Reservation::query()->create([
+            'room_id' => $room->id,
+            'guest_id' => $guest->id,
+            'created_by' => $superAdmin->id,
+            'check_in_date' => now()->addDay()->toDateString(),
+            'check_out_date' => now()->addDays(2)->toDateString(),
+            'status' => 'confirmed',
+            'total_amount' => 120,
+            'adults' => 1,
+        ]);
+        $otherTenant = Tenant::factory()->create();
+        $otherReservationId = app(TenantContext::class)->run($otherTenant, function () use ($superAdmin) {
+            $otherType = RoomType::query()->create(['name' => 'Other Deluxe', 'base_price' => 95, 'max_occupancy' => 2]);
+            $otherRoom = Room::query()->create([
+                'room_type_id' => $otherType->id,
+                'room_number' => '999',
+                'floor' => 9,
+                'status' => 'available',
+            ]);
+            $otherGuest = Guest::query()->create(['first_name' => 'Elira', 'last_name' => 'Other Hotel']);
+
+            return Reservation::query()->create([
+                'room_id' => $otherRoom->id,
+                'guest_id' => $otherGuest->id,
+                'created_by' => $superAdmin->id,
+                'check_in_date' => now()->addDay()->toDateString(),
+                'check_out_date' => now()->addDays(2)->toDateString(),
+                'status' => 'confirmed',
+                'total_amount' => 999,
+                'adults' => 1,
+            ])->id;
+        });
+        $this->assertNotSame($reservation->id, $otherReservationId);
+
+        LoraHotelServer::actingAs($superAdmin, 'api')
+            ->tool(SearchHotelTool::class, ['query' => 'Elira', 'module' => 'all'])
+            ->assertOk()
+            ->assertStructuredContent(fn ($json) => $json
+                ->where('count', 1)
+                ->where('searched_modules.0', 'reservations')
+                ->where('results.0.id', $reservation->id)
+                ->where('results.0.module', 'reservations')
+                ->where('results.0.href', url('/pms/reservations/'.$reservation->id))
+                ->missing('results.0.document_number')
+                ->etc());
+
+        LoraHotelServer::actingAs($superAdmin, 'api')
+            ->tool(GetDailyOperationsBriefTool::class, [
+                'date' => now()->addDay()->toDateString(),
+            ])->assertOk()
+            ->assertStructuredContent(fn ($json) => $json
+                ->where('reservations.arrivals_count', 1)
+                ->where('reservations.arrivals.0.id', $reservation->id)
+                ->where('reservations.arrivals.0.href', url('/pms/reservations/'.$reservation->id))
+                ->etc());
+    }
+
+    public function test_pricing_calendar_exposes_market_and_chatgpt_guardrails_and_applies_only_an_approved_proposal(): void
+    {
+        Queue::fake();
+        $tenant = Tenant::query()->sole();
+        app(TenantContext::class)->set($tenant);
+        $tenant->forceFill(['metadata' => [
+            'billing_access' => [
+                'status' => 'active',
+                'modules' => [TenantBillingService::SMART_PRICING => true],
+            ],
+        ]])->saveQuietly();
+        $superAdmin = User::factory()->create([
+            'current_tenant_id' => $tenant->id,
+            'is_super_admin' => true,
+        ]);
+        $type = RoomType::query()->create([
+            'name' => 'Suite AI',
+            'base_price' => 100,
+            'min_price' => 70,
+            'max_price' => 160,
+            'max_occupancy' => 2,
+        ]);
+        Room::query()->create([
+            'room_type_id' => $type->id,
+            'room_number' => '801',
+            'floor' => 8,
+            'status' => 'available',
+        ]);
+        $date = now()->addDay()->toDateString();
+        CompRate::query()->create([
+            'competitor' => 'Hotel Market',
+            'date' => $date,
+            'price' => 115,
+            'currency' => 'EUR',
+            'source' => 'test',
+            'snapshot_date' => now()->toDateString(),
+        ]);
+        Setting::set('ai_mcp.pricing_enabled', true, 'boolean');
+        Setting::set('ai_mcp.ai_price_recommendations_enabled', true, 'boolean');
+        Setting::set('ai_mcp.price_apply_enabled', true, 'boolean');
+
+        $engineDay = PricingEngine::forRange($type, now()->addDay()->startOfDay(), now()->addDay()->startOfDay())[$date];
+        $chatGptPrice = round((float) $engineDay['suggested_price'] * 1.05, 2);
+
+        LoraHotelServer::actingAs($superAdmin, 'api')
+            ->tool(GetPricingCalendarTool::class, [
+                'room_type_id' => $type->id,
+                'date_from' => $date,
+                'date_to' => $date,
+            ])->assertOk()
+            ->assertStructuredContent(fn ($json) => $json
+                ->where('days.0.market.median', 115.0)
+                ->where('days.0.chatgpt_recommendation.allowed', true)
+                ->where('days.0.chatgpt_recommendation.guardrails.max_deviation_pct', 15.0)
+                ->etc());
+
+        LoraHotelServer::actingAs($superAdmin, 'api')
+            ->tool(CreatePriceProposalTool::class, [
+                'room_type_id' => $type->id,
+                'date_from' => $date,
+                'date_to' => $date,
+                'proposal_source' => 'chatgpt',
+                'recommendations' => [[
+                    'date' => $date,
+                    'price' => $chatGptPrice,
+                    'reason' => 'Kërkesa dhe tregu mbështesin një alternativë të kontrolluar.',
+                    'confidence' => 82,
+                ]],
+                'idempotency_key' => 'hybrid-price-test-001',
+            ])->assertOk()
+            ->assertStructuredContent(fn ($json) => $json
+                ->where('preview.proposal_source', 'chatgpt')
+                ->where('preview.days.0.price', $chatGptPrice)
+                ->where('requires_explicit_confirmation', true)
+                ->etc());
+
+        $proposal = AiActionProposal::query()->latest('created_at')->firstOrFail();
+        $this->assertSame(0, RateOverride::query()->count());
+
+        LoraHotelServer::actingAs($superAdmin, 'api')
+            ->tool(ExecuteApprovedActionTool::class, [
+                'proposal_id' => $proposal->id,
+                'confirm' => true,
+            ])->assertOk()
+            ->assertStructuredContent(fn ($json) => $json
+                ->where('state', 'applied')
+                ->where('count', 1)
+                ->etc());
+
+        $this->assertSame($chatGptPrice, (float) RateOverride::query()->whereDate('date', $date)->sole()->price);
     }
 
     public function test_super_admin_can_check_room_availability_for_the_bound_hotel(): void
@@ -311,6 +490,8 @@ class LoraAiMcpTest extends TestCase
     {
         $tools = [
             GetHotelContextTool::class,
+            GetDailyOperationsBriefTool::class,
+            SearchHotelTool::class,
             SearchReservationsTool::class,
             GetReservationContextTool::class,
             CheckAvailabilityTool::class,
@@ -348,6 +529,7 @@ class LoraAiMcpTest extends TestCase
                 ->where('modules.finance', $billing->enabled(TenantBillingService::FINANCE, $tenant))
                 ->where('aiModules.channel_manager', $billing->enabled(TenantBillingService::CHANNEL_MANAGER, $tenant))
                 ->where('aiModules.smart_pricing', $billing->enabled(TenantBillingService::SMART_PRICING, $tenant))
+                ->where('pricingPolicy.maxDeviationPct', 15)
                 ->has('aiSettings'));
 
         $this->actingAs($admin)->put(route('lora-ai.update'), [
@@ -355,6 +537,13 @@ class LoraAiMcpTest extends TestCase
             'messages_enabled' => true,
             'guest_reply_enabled' => false,
             'pricing_enabled' => true,
+            'universal_search_enabled' => true,
+            'ai_price_recommendations_enabled' => true,
+            'finance_enabled' => false,
+            'housekeeping_enabled' => false,
+            'maintenance_enabled' => false,
+            'pos_enabled' => false,
+            'inventory_enabled' => false,
             'price_apply_enabled' => false,
         ])->assertRedirect();
 
