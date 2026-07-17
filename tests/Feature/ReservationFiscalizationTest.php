@@ -138,6 +138,7 @@ class ReservationFiscalizationTest extends TestCase
         $reservation->guest()->update([
             'document_type' => 'passport',
             'document_number' => 'BA1234567',
+            'nationality' => 'ALB',
         ]);
 
         Http::preventStrayRequests();
@@ -155,7 +156,30 @@ class ReservationFiscalizationTest extends TestCase
                 'type' => 'PASS',
                 'id' => 'BA1234567',
             ],
+            'country' => 'ALB',
         ]);
+    }
+
+    public function test_passport_without_iso3_nationality_is_omitted_from_cash_invoice(): void
+    {
+        $reservation = $this->checkedOutStay('card');
+        $reservation->guest()->update([
+            'document_type' => 'passport',
+            'document_number' => 'w2534542',
+            'nationality' => null,
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://demo.fature.al/api/v1/invoice/cash' => Http::response($this->successResponse()),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('reservations.fiscalize', $reservation))
+            ->assertSessionHasNoErrors();
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://demo.fature.al/api/v1/invoice/cash'
+            && ! array_key_exists('client', $request->data()));
     }
 
     public function test_non_vat_hotel_sends_zero_vat_for_accommodation_and_products(): void

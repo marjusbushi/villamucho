@@ -253,6 +253,7 @@ class ReservationFiscalizationService
     {
         $guest = $reservation->guest;
         $documentNumber = trim((string) $guest?->document_number);
+        $nationality = strtoupper(trim((string) $guest?->nationality));
         $documentType = match ($guest?->document_type) {
             'passport' => 'PASS',
             'id_card' => 'ID',
@@ -263,13 +264,26 @@ class ReservationFiscalizationService
             return null;
         }
 
-        return [
+        // Fature.al accepts a retail cash invoice without client identity.
+        // A passport without an ISO-3 country is incomplete fiscal identity
+        // and has caused the sandbox endpoint to fail with a provider 500.
+        if ($documentType === 'PASS' && ! preg_match('/^[A-Z]{3}$/', $nationality)) {
+            return null;
+        }
+
+        $client = [
             'name' => trim((string) $guest->full_name) ?: 'Klient hotelerie',
             'id' => [
                 'type' => $documentType,
                 'id' => $documentNumber,
             ],
         ];
+
+        if (preg_match('/^[A-Z]{3}$/', $nationality)) {
+            $client['country'] = $nationality;
+        }
+
+        return $client;
     }
 
     /** @param array<string, mixed> $payload */
