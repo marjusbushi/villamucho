@@ -53,14 +53,14 @@ class LoraAiController extends Controller
                 'chatgptUrl' => config('services.openai.chatgpt_connect_url', 'https://chatgpt.com/'),
                 'hotel' => $tenant->name,
             ],
-            'settings' => [
+            'aiSettings' => [
                 'reservations_enabled' => $this->boolSetting('reservations_enabled', true),
                 'messages_enabled' => $this->boolSetting('messages_enabled', true),
                 'guest_reply_enabled' => $this->boolSetting('guest_reply_enabled', true),
                 'pricing_enabled' => $this->boolSetting('pricing_enabled', true),
                 'price_apply_enabled' => $this->boolSetting('price_apply_enabled', false),
             ],
-            'modules' => [
+            'aiModules' => [
                 'channel_manager' => $billing->enabled(TenantBillingService::CHANNEL_MANAGER, $tenant),
                 'smart_pricing' => $billing->enabled(TenantBillingService::SMART_PRICING, $tenant),
             ],
