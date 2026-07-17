@@ -34,8 +34,10 @@ use App\Http\Controllers\SuperAdmin\ProfileController as SuperAdminProfileContro
 use App\Http\Controllers\SuperAdmin\ProviderEventController as SuperAdminProviderEventController;
 use App\Http\Controllers\SuperAdmin\TenantController as SuperAdminTenantController;
 use App\Http\Controllers\TenantHandoffController;
+use App\Http\Controllers\TenantUserInvitationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WebsiteController;
+use App\Http\Middleware\AuthenticateSignedTenantInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
@@ -84,6 +86,21 @@ Route::post('/channex/webhook', [ChannexWebhookController::class, 'handle'])->mi
 Route::get('/tenant-handoff', TenantHandoffController::class)
     ->middleware(['hotel_host', 'throttle:10,1'])
     ->name('tenant-handoff.consume');
+
+// Existing global accounts must explicitly accept before tenant membership or
+// roles are granted. Both the review page and the state-changing POST are
+// short-lived signed URLs on the invited hotel's own domain.
+Route::middleware([
+    AuthenticateSignedTenantInvitation::class,
+    'hotel_host',
+    'throttle:10,1',
+])
+    ->prefix('tenant-invitations')
+    ->name('tenant-invitations.')
+    ->group(function () {
+        Route::get('/{invitation}', [TenantUserInvitationController::class, 'show'])->name('show');
+        Route::post('/{invitation}/accept', [TenantUserInvitationController::class, 'accept'])->name('accept');
+    });
 
 // PWA manifest — dynamic so the installed app carries the hotel's own name
 // (same cached branding the <title> uses). display:standalone is what removes
