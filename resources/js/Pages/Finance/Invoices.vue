@@ -39,7 +39,9 @@ const localFilters = reactive({
     date_to: props.filters.date_to || '',
     per_page: Number(props.filters.per_page || 20),
 });
-const selectedInvoice = ref(null);
+const selectedInvoice = ref(props.filters.record_id
+    ? props.invoices.data.find((row) => row.key === `${props.filters.source}:${props.filters.record_id}`) || null
+    : null);
 const fiscalizing = ref(null);
 let searchTimer;
 

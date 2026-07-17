@@ -25,8 +25,8 @@ use App\Services\CurrencyRates;
 use App\Services\GeminiClient;
 use App\Services\InventoryLedger;
 use App\Services\VatConfiguration;
-use App\Tenancy\TenantRule;
 use App\Tenancy\TenantContext;
+use App\Tenancy\TenantRule;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -268,6 +268,9 @@ class FinanceController extends Controller
             ->select('*')
             ->selectRaw('COALESCE(fiscalized_at, operational_at) as issued_at');
         $filtered = DB::query()->fromSub($datedFeed, 'sales_invoice_feed');
+        if ($filters['record_id']) {
+            $filtered->where('record_id', $filters['record_id']);
+        }
         if ($filters['date_from']) {
             $filtered->whereDate('issued_at', '>=', $filters['date_from']);
         }
@@ -1731,7 +1734,7 @@ class FinanceController extends Controller
         return round((($current - $previous) / abs($previous)) * 100, 1);
     }
 
-    /** @return array{source:?string,status:?string,query:string,date_from:?string,date_to:?string,per_page:int} */
+    /** @return array{source:?string,status:?string,record_id:?int,query:string,date_from:?string,date_to:?string,per_page:int} */
     protected function salesInvoiceFilters(Request $request): array
     {
         $parseDate = static function ($value): ?string {
@@ -1751,6 +1754,7 @@ class FinanceController extends Controller
         return [
             'source' => in_array($request->input('source'), ['hotel', 'pos'], true) ? $request->input('source') : null,
             'status' => in_array($request->input('status'), ['fiscalized', 'not_fiscalized', 'failed'], true) ? $request->input('status') : null,
+            'record_id' => $request->integer('record_id') ?: null,
             'query' => mb_substr(trim((string) $request->input('query', '')), 0, 100),
             'date_from' => $parseDate($request->input('date_from')),
             'date_to' => $parseDate($request->input('date_to')),

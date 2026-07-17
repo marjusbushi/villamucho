@@ -24,20 +24,21 @@ class GlobalSearchTest extends TestCase
     {
         [$tenant, $admin] = $this->adminForDefaultHotel();
 
-        app(TenantContext::class)->run($tenant, function () use ($admin) {
+        $reservationId = app(TenantContext::class)->run($tenant, function () use ($admin) {
             $type = RoomType::create(['name' => 'Deluxe Aurora', 'base_price' => 100, 'max_occupancy' => 2]);
             $room = Room::create(['room_type_id' => $type->id, 'room_number' => 'A-404', 'floor' => 4, 'status' => 'available']);
             $guest = Guest::create(['first_name' => 'Aurora', 'last_name' => 'Test', 'email' => 'aurora@example.test']);
-            Reservation::create([
+
+            return Reservation::create([
                 'room_id' => $room->id,
                 'guest_id' => $guest->id,
                 'created_by' => $admin->id,
                 'check_in_date' => today()->addDay(),
                 'check_out_date' => today()->addDays(3),
-                'status' => 'confirmed',
+                'status' => 'checked_out',
                 'total_amount' => 200,
                 'adults' => 2,
-            ]);
+            ])->id;
         });
 
         $this->actingAs($admin)
@@ -48,6 +49,7 @@ class GlobalSearchTest extends TestCase
             ->assertJsonFragment(['key' => 'guests'])
             ->assertJsonFragment(['key' => 'rooms'])
             ->assertJsonFragment(['title' => 'Room A-404'])
+            ->assertJsonFragment(['href' => "/pms/finance/invoices?source=hotel&record_id={$reservationId}"])
             ->assertJsonFragment(['title' => 'Aurora Test']);
 
         $this->actingAs($admin)

@@ -169,7 +169,7 @@ class GlobalSearchController extends Controller
                 'invoice',
                 __('global_search.hotel_invoice', ['id' => $invoice->id]),
                 implode(' · ', array_filter([$invoice->guest?->full_name, number_format((float) $invoice->total_amount, 2), $invoice->fiscalDocuments->first()?->fiscal_number])),
-                route('finance.invoices', ['source' => 'hotel', 'query' => $invoice->id], false),
+                route('finance.invoices', ['source' => 'hotel', 'record_id' => $invoice->id], false),
             ));
 
         $bills = Bill::query()->with('supplier:id,name')->where(function ($query) use ($term, $like) {
