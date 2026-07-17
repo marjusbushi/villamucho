@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Bill;
 use App\Models\CleaningTask;
+use App\Models\FinanceAccount;
 use App\Models\FinancePayment;
 use App\Models\Guest;
 use App\Models\InventoryItem;
-use App\Models\Invoice;
 use App\Models\MaintenanceIssue;
 use App\Models\PosOrder;
 use App\Models\Reservation;
@@ -32,7 +32,7 @@ class GlobalSearchController extends Controller
         $user = $request->user();
         $term = trim($data['q']);
         $like = '%'.addcslashes($term, '%_\\').'%';
-        $modules = $billing->accessSnapshot(app(TenantContext::class)->tenant())['modules'] ?? [];
+        $tenant = app(TenantContext::class)->tenant();
         $groups = collect();
 
         if ($this->allowed($user, 'view_reservations')) {
@@ -47,11 +47,11 @@ class GlobalSearchController extends Controller
             $groups->push($this->group('rooms', $this->rooms($term, $like)));
         }
 
-        if ($this->allowed($user, 'view_finance') && ($modules[TenantBillingService::FINANCE] ?? false)) {
-            $groups->push($this->group('finance', $this->finance($term, $like)));
+        if ($this->allowed($user, 'view_finance') && $billing->enabled(TenantBillingService::FINANCE, $tenant)) {
+            $groups->push($this->group('finance', $this->finance($user, $term, $like)));
         }
 
-        if ($this->allowed($user, 'view_housekeeping') && ($modules[TenantBillingService::HOUSEKEEPING] ?? false)) {
+        if ($this->allowed($user, 'view_housekeeping') && $billing->enabled(TenantBillingService::HOUSEKEEPING, $tenant)) {
             $groups->push($this->group('housekeeping', $this->housekeeping($term, $like)));
         }
 
@@ -59,11 +59,11 @@ class GlobalSearchController extends Controller
             $groups->push($this->group('maintenance', $this->maintenance($term, $like)));
         }
 
-        if ($this->allowed($user, 'view_pos_orders') && ($modules[TenantBillingService::POS] ?? false)) {
+        if ($this->allowed($user, 'view_pos_orders') && $billing->enabled(TenantBillingService::POS, $tenant)) {
             $groups->push($this->group('pos', $this->pos($term, $like)));
         }
 
-        if ($this->allowed($user, 'view_inventory') && ($modules[TenantBillingService::FINANCE] ?? false)) {
+        if ($this->allowed($user, 'view_inventory') && $billing->enabled(TenantBillingService::FINANCE, $tenant)) {
             $groups->push($this->group('inventory', $this->inventory($term, $like)));
         }
 
@@ -152,22 +152,24 @@ class GlobalSearchController extends Controller
         ));
     }
 
-    private function finance(string $term, string $like): Collection
+    private function finance(User $user, string $term, string $like): Collection
     {
-        $invoices = Invoice::query()->with('guest:id,first_name,last_name')->where(function ($query) use ($term, $like) {
-            if (ctype_digit($term)) {
-                $query->orWhereKey((int) $term)->orWhere('reservation_id', (int) $term);
-            }
-            $query->orWhere('number', 'like', $like)
-                ->orWhere('company_name', 'like', $like)
-                ->orWhere('company_nipt', 'like', $like)
-                ->orWhereHas('guest', fn ($guest) => $guest->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like));
-        })->latest('issue_date')->limit(4)->get()->map(fn (Invoice $invoice) => $this->result(
-            'invoice',
-            'Faturë '.$invoice->number,
-            implode(' · ', array_filter([$invoice->company_name ?: $invoice->guest?->full_name, number_format((float) $invoice->total, 2).' '.$invoice->currency, $invoice->status])),
-            route('finance.invoices', ['invoice_id' => $invoice->id], false),
-        ));
+        // Search the same hotel-stay source displayed by Finance → Sales invoices.
+        // The legacy Invoice model is intentionally excluded because that register
+        // does not render it and a result could not be opened from the destination.
+        $invoices = Reservation::query()->with(['guest:id,first_name,last_name', 'fiscalDocuments:id,reservation_id,fiscal_number'])
+            ->where('status', 'checked_out')->where(function ($query) use ($term, $like) {
+                if (ctype_digit($term)) {
+                    $query->orWhereKey((int) $term);
+                }
+                $query->orWhereHas('guest', fn ($guest) => $guest->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like))
+                    ->orWhereHas('fiscalDocuments', fn ($document) => $document->where('fiscal_number', 'like', $like));
+            })->latest('updated_at')->limit(4)->get()->map(fn (Reservation $invoice) => $this->result(
+                'invoice',
+                'Faturë hoteli #'.$invoice->id,
+                implode(' · ', array_filter([$invoice->guest?->full_name, number_format((float) $invoice->total_amount, 2), $invoice->fiscalDocuments->first()?->fiscal_number])),
+                route('finance.invoices', ['source' => 'hotel', 'query' => $invoice->id], false),
+            ));
 
         $bills = Bill::query()->with('supplier:id,name')->where(function ($query) use ($term, $like) {
             if (ctype_digit($term)) {
@@ -190,7 +192,15 @@ class GlobalSearchController extends Controller
             $query->orWhere('description', 'like', $like)
                 ->orWhereHas('invoice', fn ($invoice) => $invoice->where('number', 'like', $like))
                 ->orWhereHas('bill', fn ($bill) => $bill->where('number', 'like', $like));
-        })->latest('paid_at')->limit(3)->get()->map(fn (FinancePayment $payment) => $this->result(
+        });
+
+        if (! $user->is_super_admin && ! $user->can('view_bank_accounts')) {
+            $bankIds = FinanceAccount::where('type', 'bank')->pluck('id');
+            $payments->whereNotIn('account_id', $bankIds)
+                ->where(fn ($query) => $query->whereNull('counter_account_id')->orWhereNotIn('counter_account_id', $bankIds));
+        }
+
+        $payments = $payments->latest('paid_at')->limit(3)->get()->map(fn (FinancePayment $payment) => $this->result(
             'payment',
             'Pagesa #'.$payment->id,
             implode(' · ', array_filter([number_format((float) $payment->amount, 2).' '.$payment->currency, $payment->method, $payment->description])),
@@ -213,7 +223,7 @@ class GlobalSearchController extends Controller
             'housekeeping',
             'Pastrimi #'.$task->id.' · Dhoma '.($task->room?->room_number ?: '—'),
             implode(' · ', array_filter([$task->type, $task->status, $task->priority])),
-            route('housekeeping.index', ['task_id' => $task->id], false),
+            route('housekeeping.clean', $task, false),
         ));
     }
 
@@ -262,7 +272,7 @@ class GlobalSearchController extends Controller
             'inventory',
             $item->name,
             implode(' · ', array_filter([$item->sku ? 'SKU '.$item->sku : null, $item->category, 'Stok '.number_format($item->stock(), 2).' '.$item->unit])),
-            route('inventory.items', ['item_id' => $item->id], false),
+            route('inventory.items', ['item_id' => $item->id, 'status' => $item->is_active ? 'active' : 'inactive'], false),
         ));
     }
 

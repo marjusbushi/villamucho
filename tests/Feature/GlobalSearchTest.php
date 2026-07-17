@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\FinanceAccount;
+use App\Models\FinancePayment;
 use App\Models\Guest;
 use App\Models\Reservation;
 use App\Models\Room;
@@ -93,6 +95,58 @@ class GlobalSearchTest extends TestCase
             ->getJson('http://localhost/pms/global-search?q=%20%20')
             ->assertUnprocessable()
             ->assertJsonValidationErrors('q');
+    }
+
+    public function test_finance_search_hides_bank_payments_without_bank_account_permission(): void
+    {
+        [$tenant] = $this->adminForDefaultHotel();
+
+        $staff = app(TenantContext::class)->run($tenant, function () {
+            $staff = User::factory()->create(['current_tenant_id' => app(TenantContext::class)->id()]);
+            $staff->givePermissionTo('view_finance');
+            $cash = FinanceAccount::create(['name' => 'Arka test', 'type' => 'cash', 'currency' => 'EUR', 'is_active' => true]);
+            $bank = FinanceAccount::create(['name' => 'Banka test', 'type' => 'bank', 'currency' => 'EUR', 'is_active' => true]);
+
+            FinancePayment::create([
+                'direction' => 'in', 'account_id' => $cash->id, 'amount' => 10, 'currency' => 'EUR',
+                'method' => 'cash', 'source' => 'manual', 'description' => 'SEARCH-CASH', 'paid_at' => now(),
+            ]);
+            FinancePayment::create([
+                'direction' => 'in', 'account_id' => $bank->id, 'amount' => 20, 'currency' => 'EUR',
+                'method' => 'bank', 'source' => 'manual', 'description' => 'SEARCH-BANK', 'paid_at' => now(),
+            ]);
+
+            return $staff;
+        });
+
+        $this->actingAs($staff)
+            ->getJson('http://localhost/pms/global-search?q=SEARCH')
+            ->assertOk()
+            ->assertJsonFragment(['subtitle' => '10.00 EUR · cash · SEARCH-CASH'])
+            ->assertJsonMissing(['subtitle' => '20.00 EUR · bank · SEARCH-BANK']);
+    }
+
+    public function test_paid_module_results_are_hidden_when_subscription_is_inactive(): void
+    {
+        [$tenant, $admin] = $this->adminForDefaultHotel();
+
+        app(TenantContext::class)->run($tenant, function () {
+            $account = FinanceAccount::create(['name' => 'Suspended cash', 'type' => 'cash', 'currency' => 'EUR', 'is_active' => true]);
+            FinancePayment::create([
+                'direction' => 'in', 'account_id' => $account->id, 'amount' => 30, 'currency' => 'EUR',
+                'method' => 'cash', 'source' => 'manual', 'description' => 'SUSPENDED-SECRET', 'paid_at' => now(),
+            ]);
+        });
+
+        $metadata = $tenant->metadata;
+        $metadata['billing_access']['status'] = 'suspended';
+        $tenant->update(['metadata' => $metadata]);
+
+        $this->actingAs($admin)
+            ->getJson('http://localhost/pms/global-search?q=SUSPENDED-SECRET')
+            ->assertOk()
+            ->assertJsonMissing(['key' => 'finance'])
+            ->assertJsonMissing(['subtitle' => '30.00 EUR · cash · SUSPENDED-SECRET']);
     }
 
     private function adminForDefaultHotel(): array

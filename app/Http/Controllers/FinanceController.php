@@ -1513,6 +1513,7 @@ class FinanceController extends Controller
             : null;
         $accountId = $request->integer('account_id') ?: null;
         $reservationId = $request->integer('reservation_id') ?: null;
+        $paymentId = $request->integer('payment_id') ?: null;
         if ($accountId && ! in_array($accountId, $visibleAccountIds, true)) {
             abort(403);
         }
@@ -1530,7 +1531,7 @@ class FinanceController extends Controller
             }
         };
 
-        $hasExplicitDates = $request->hasAny(['date_from', 'date_to', 'all_dates']);
+        $hasExplicitDates = $paymentId || $request->hasAny(['date_from', 'date_to', 'all_dates']);
         $dateFrom = $hasExplicitDates ? $parseDate($request->input('date_from')) : now()->subDays(29)->toDateString();
         $dateTo = $hasExplicitDates ? $parseDate($request->input('date_to')) : now()->toDateString();
         $perPage = in_array($request->integer('per_page'), [10, 20, 30, 50], true)
@@ -1543,6 +1544,7 @@ class FinanceController extends Controller
             'method' => $method,
             'account_id' => $accountId,
             'reservation_id' => $reservationId,
+            'payment_id' => $paymentId,
             'query' => mb_substr(trim((string) $request->input('query', '')), 0, 100),
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
@@ -1554,6 +1556,10 @@ class FinanceController extends Controller
     protected function filteredPaymentsQuery(Request $request, array $filters, bool $withDirection = true): Builder
     {
         $query = FinancePayment::query();
+
+        if ($filters['payment_id']) {
+            $query->whereKey($filters['payment_id']);
+        }
 
         if ($withDirection && $filters['direction']) {
             $query->where('direction', $filters['direction']);
