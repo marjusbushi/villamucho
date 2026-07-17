@@ -21,7 +21,7 @@ const props = defineProps({
     quickLinks: { type: Array, default: () => [] },
 });
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const open = ref(false);
 const query = ref('');
 const groups = ref([]);
@@ -103,7 +103,8 @@ async function searchRecords(term) {
     failed.value = false;
 
     try {
-        const response = await fetch(`${route('global-search')}?q=${encodeURIComponent(term)}`, {
+        const params = new URLSearchParams({ q: term, locale: locale.value });
+        const response = await fetch(`${route('global-search')}?${params.toString()}`, {
             headers: { Accept: 'application/json' },
             credentials: 'same-origin',
             signal: controller.signal,

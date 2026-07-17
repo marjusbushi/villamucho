@@ -41,7 +41,7 @@ class GlobalSearchTest extends TestCase
         });
 
         $this->actingAs($admin)
-            ->getJson('http://localhost/pms/global-search?q=Aurora')
+            ->getJson('http://localhost/pms/global-search?q=Aurora&locale=en')
             ->assertOk()
             ->assertJsonPath('query', 'Aurora')
             ->assertJsonFragment(['key' => 'reservations'])
@@ -49,6 +49,17 @@ class GlobalSearchTest extends TestCase
             ->assertJsonFragment(['key' => 'rooms'])
             ->assertJsonFragment(['title' => 'Room A-404'])
             ->assertJsonFragment(['title' => 'Aurora Test']);
+
+        $this->actingAs($admin)
+            ->getJson('http://localhost/pms/global-search?q=Aurora%20Test&locale=en')
+            ->assertOk()
+            ->assertJsonFragment(['key' => 'reservations'])
+            ->assertJsonFragment(['key' => 'guests']);
+
+        $this->actingAs($admin)
+            ->getJson('http://localhost/pms/global-search?q=A-404&locale=sq')
+            ->assertOk()
+            ->assertJsonFragment(['title' => 'Dhoma A-404']);
     }
 
     public function test_search_never_returns_records_from_another_hotel(): void

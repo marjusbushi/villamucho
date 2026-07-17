@@ -26,7 +26,10 @@ class GlobalSearchController extends Controller
         $request->merge(['q' => trim((string) $request->query('q'))]);
         $data = $request->validate([
             'q' => ['required', 'string', 'min:2', 'max:120'],
+            'locale' => ['sometimes', 'string', 'in:sq,en'],
         ]);
+
+        app()->setLocale($data['locale'] ?? app()->getLocale());
 
         /** @var User $user */
         $user = $request->user();
@@ -89,18 +92,16 @@ class GlobalSearchController extends Controller
 
     private function reservations(string $term, string $like): Collection
     {
+        $nameTokens = $this->nameTokens($term);
+
         return Reservation::query()
             ->with(['guest:id,first_name,last_name', 'room:id,room_number'])
-            ->where(function ($query) use ($term, $like) {
+            ->where(function ($query) use ($term, $like, $nameTokens) {
                 if (ctype_digit($term)) {
                     $query->orWhereKey((int) $term);
                 }
                 $query->orWhere('channel_ref', 'like', $like)
-                    ->orWhereHas('guest', fn ($guest) => $guest
-                        ->where('first_name', 'like', $like)
-                        ->orWhere('last_name', 'like', $like)
-                        ->orWhere('email', 'like', $like)
-                        ->orWhere('phone', 'like', $like))
+                    ->orWhereHas('guest', fn ($guest) => $this->guestMatches($guest, $like, $nameTokens))
                     ->orWhereHas('room', fn ($room) => $room->where('room_number', 'like', $like));
             })
             ->latest('check_in_date')->limit(5)->get()
@@ -118,15 +119,13 @@ class GlobalSearchController extends Controller
 
     private function guests(string $term, string $like): Collection
     {
-        return Guest::query()->where(function ($query) use ($term, $like) {
+        $nameTokens = $this->nameTokens($term);
+
+        return Guest::query()->where(function ($query) use ($term, $like, $nameTokens) {
             if (ctype_digit($term)) {
                 $query->orWhereKey((int) $term);
             }
-            $query->orWhere('first_name', 'like', $like)
-                ->orWhere('last_name', 'like', $like)
-                ->orWhere('email', 'like', $like)
-                ->orWhere('phone', 'like', $like)
-                ->orWhere('document_number', 'like', $like);
+            $query->orWhere(fn ($guest) => $this->guestMatches($guest, $like, $nameTokens));
         })->orderBy('last_name')->limit(5)->get()->map(fn (Guest $guest) => $this->result(
             'guest',
             $guest->full_name,
@@ -154,15 +153,17 @@ class GlobalSearchController extends Controller
 
     private function finance(User $user, string $term, string $like): Collection
     {
+        $nameTokens = $this->nameTokens($term);
+
         // Search the same hotel-stay source displayed by Finance → Sales invoices.
         // The legacy Invoice model is intentionally excluded because that register
         // does not render it and a result could not be opened from the destination.
         $invoices = Reservation::query()->with(['guest:id,first_name,last_name', 'fiscalDocuments:id,reservation_id,fiscal_number'])
-            ->where('status', 'checked_out')->where(function ($query) use ($term, $like) {
+            ->where('status', 'checked_out')->where(function ($query) use ($term, $like, $nameTokens) {
                 if (ctype_digit($term)) {
                     $query->orWhereKey((int) $term);
                 }
-                $query->orWhereHas('guest', fn ($guest) => $guest->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like))
+                $query->orWhereHas('guest', fn ($guest) => $this->guestMatches($guest, $like, $nameTokens))
                     ->orWhereHas('fiscalDocuments', fn ($document) => $document->where('fiscal_number', 'like', $like));
             })->latest('updated_at')->limit(4)->get()->map(fn (Reservation $invoice) => $this->result(
                 'invoice',
@@ -279,5 +280,29 @@ class GlobalSearchController extends Controller
     private function result(string $type, string $title, string $subtitle, string $href): array
     {
         return compact('type', 'title', 'subtitle', 'href');
+    }
+
+    private function nameTokens(string $term): array
+    {
+        return collect(preg_split('/\s+/', trim($term)))
+            ->filter()
+            ->map(fn (string $token) => '%'.addcslashes($token, '%_\\').'%')
+            ->values()
+            ->all();
+    }
+
+    private function guestMatches($query, string $like, array $nameTokens): void
+    {
+        $query->where(function ($match) use ($like, $nameTokens) {
+            $match->where(function ($name) use ($nameTokens) {
+                foreach ($nameTokens as $token) {
+                    $name->where(fn ($part) => $part
+                        ->where('first_name', 'like', $token)
+                        ->orWhere('last_name', 'like', $token));
+                }
+            })->orWhere('email', 'like', $like)
+                ->orWhere('phone', 'like', $like)
+                ->orWhere('document_number', 'like', $like);
+        });
     }
 }
