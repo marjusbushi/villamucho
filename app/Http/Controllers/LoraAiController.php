@@ -6,6 +6,7 @@ use App\Models\AiAccessToken;
 use App\Models\AiOAuthGrant;
 use App\Models\Setting;
 use App\Services\AiOAuthGrantManager;
+use App\Services\AiPriceGuardrails;
 use App\Services\TenantBillingService;
 use App\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
@@ -54,15 +55,28 @@ class LoraAiController extends Controller
                 'hotel' => $tenant->name,
             ],
             'aiSettings' => [
+                'universal_search_enabled' => $this->boolSetting('universal_search_enabled', true),
                 'reservations_enabled' => $this->boolSetting('reservations_enabled', true),
                 'messages_enabled' => $this->boolSetting('messages_enabled', true),
                 'guest_reply_enabled' => $this->boolSetting('guest_reply_enabled', true),
                 'pricing_enabled' => $this->boolSetting('pricing_enabled', true),
+                'ai_price_recommendations_enabled' => $this->boolSetting('ai_price_recommendations_enabled', true),
                 'price_apply_enabled' => $this->boolSetting('price_apply_enabled', false),
+                'finance_enabled' => $this->boolSetting('finance_enabled', false),
+                'housekeeping_enabled' => $this->boolSetting('housekeeping_enabled', false),
+                'maintenance_enabled' => $this->boolSetting('maintenance_enabled', false),
+                'pos_enabled' => $this->boolSetting('pos_enabled', false),
+                'inventory_enabled' => $this->boolSetting('inventory_enabled', false),
             ],
             'aiModules' => [
                 'channel_manager' => $billing->enabled(TenantBillingService::CHANNEL_MANAGER, $tenant),
                 'smart_pricing' => $billing->enabled(TenantBillingService::SMART_PRICING, $tenant),
+                'finance' => $billing->enabled(TenantBillingService::FINANCE, $tenant),
+                'housekeeping' => $billing->enabled(TenantBillingService::HOUSEKEEPING, $tenant),
+                'pos' => $billing->enabled(TenantBillingService::POS, $tenant),
+            ],
+            'pricingPolicy' => [
+                'maxDeviationPct' => AiPriceGuardrails::maxDeviationPct(),
             ],
             'recentActions' => DB::table('audit_logs')
                 ->where('tenant_id', $tenant->id)->where('source', 'ai')
@@ -73,11 +87,18 @@ class LoraAiController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate([
+            'universal_search_enabled' => ['sometimes', 'boolean'],
             'reservations_enabled' => ['required', 'boolean'],
             'messages_enabled' => ['required', 'boolean'],
             'guest_reply_enabled' => ['required', 'boolean'],
             'pricing_enabled' => ['required', 'boolean'],
+            'ai_price_recommendations_enabled' => ['sometimes', 'boolean'],
             'price_apply_enabled' => ['required', 'boolean'],
+            'finance_enabled' => ['sometimes', 'boolean'],
+            'housekeeping_enabled' => ['sometimes', 'boolean'],
+            'maintenance_enabled' => ['sometimes', 'boolean'],
+            'pos_enabled' => ['sometimes', 'boolean'],
+            'inventory_enabled' => ['sometimes', 'boolean'],
         ]);
 
         foreach ($data as $key => $value) {
