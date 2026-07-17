@@ -79,7 +79,7 @@ class GlobalSearchController extends Controller
 
     private function allowed(User $user, string $permission): bool
     {
-        return $user->is_super_admin || $user->can($permission);
+        return $user->can($permission);
     }
 
     private function group(string $key, Collection $results): array
@@ -194,7 +194,7 @@ class GlobalSearchController extends Controller
                 ->orWhereHas('bill', fn ($bill) => $bill->where('number', 'like', $like));
         });
 
-        if (! $user->is_super_admin && ! $user->can('view_bank_accounts')) {
+        if (! $user->can('view_bank_accounts')) {
             $bankIds = FinanceAccount::where('type', 'bank')->pluck('id');
             $payments->whereNotIn('account_id', $bankIds)
                 ->where(fn ($query) => $query->whereNull('counter_account_id')->orWhereNotIn('counter_account_id', $bankIds));

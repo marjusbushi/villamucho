@@ -88,6 +88,25 @@ class GlobalSearchTest extends TestCase
             ->assertJsonMissing(['title' => 'PrivateGuest Hidden']);
     }
 
+    public function test_super_admin_without_a_hotel_role_only_sees_destinations_they_can_open(): void
+    {
+        [$tenant] = $this->adminForDefaultHotel();
+
+        $superAdmin = User::factory()->create([
+            'current_tenant_id' => $tenant->id,
+            'is_super_admin' => true,
+        ]);
+
+        app(TenantContext::class)->run($tenant, function () {
+            Guest::create(['first_name' => 'Restricted', 'last_name' => 'Guest']);
+        });
+
+        $this->actingAs($superAdmin)
+            ->getJson('http://localhost/pms/global-search?q=Restricted')
+            ->assertOk()
+            ->assertJsonPath('groups', []);
+    }
+
     public function test_search_requires_at_least_two_non_whitespace_characters(): void
     {
         [, $admin] = $this->adminForDefaultHotel();
