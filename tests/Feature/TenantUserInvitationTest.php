@@ -165,6 +165,69 @@ class TenantUserInvitationTest extends TestCase
         ));
     }
 
+    public function test_failed_reissue_preserves_the_prior_invitation_and_link(): void
+    {
+        $this->inviteExisting('receptionist');
+        $oldInvitation = $this->invitation()->fresh();
+        $oldShowUrl = $this->mailedInvitationUrl();
+        $oldAcceptUrl = $this->signedUrl('tenant-invitations.accept', $oldInvitation);
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->actingAs($this->admin)
+            ->post('https://hotel-a.test/pms/users', [
+                'name' => 'Ignored Existing Name',
+                'email' => $this->target->email,
+                'password' => 'ignored-password',
+                'role' => 'manager',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('email')
+            ->assertSessionMissing('success');
+
+        $currentInvitation = $this->invitation()->fresh();
+        $this->assertSame($oldInvitation->id, $currentInvitation->id);
+        $this->assertSame($oldInvitation->role_id, $currentInvitation->role_id);
+        $this->assertTrue($oldInvitation->expires_at->equalTo($currentInvitation->expires_at));
+        $this->assertSame(1, TenantUserInvitation::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('email', $this->target->email)
+            ->count());
+
+        $this->actingAs($this->target)->get($oldShowUrl)->assertOk();
+        $this->post($oldAcceptUrl)->assertRedirect();
+
+        $this->assertTrue(app(TenantContext::class)->run(
+            $this->tenant,
+            fn () => $this->target->unsetRelation('roles')->hasRole('receptionist'),
+        ));
+        $this->assertFalse(app(TenantContext::class)->run(
+            $this->tenant,
+            fn () => $this->target->unsetRelation('roles')->hasRole('manager'),
+        ));
+    }
+
+    public function test_failed_initial_delivery_does_not_leave_an_unusable_invitation(): void
+    {
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->actingAs($this->admin)
+            ->post('https://hotel-a.test/pms/users', [
+                'name' => 'Ignored Existing Name',
+                'email' => $this->target->email,
+                'password' => 'ignored-password',
+                'role' => 'receptionist',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('email')
+            ->assertSessionMissing('success');
+
+        $this->assertDatabaseMissing('tenant_user_invitations', [
+            'tenant_id' => $this->tenant->id,
+            'email' => $this->target->email,
+        ]);
+    }
+
     public function test_expired_and_tampered_invitation_urls_are_rejected(): void
     {
         $this->inviteExisting();

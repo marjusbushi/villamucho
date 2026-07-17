@@ -187,54 +187,68 @@ class UserController extends Controller
                 ->firstOrFail();
             $expiresAt = now()->addHours(TenantUserInvitation::LIFETIME_HOURS);
             $email = strtolower(trim((string) $existing->email));
-            $invitation = DB::transaction(function () use ($tenantId, $existing, $email, $role, $request, $expiresAt) {
-                $invitationId = (string) Str::uuid();
-                $timestamp = now();
-
-                // Updating the primary key on conflict makes every reissue a
-                // distinct grant. A URL signed for the previous role can never
-                // resolve to the newly issued invitation.
-                DB::table('tenant_user_invitations')->upsert([[
-                    'id' => $invitationId,
-                    'tenant_id' => $tenantId,
-                    'user_id' => $existing->id,
-                    'email' => $email,
-                    'role_id' => $role->id,
-                    'invited_by' => $request->user()->id,
-                    'accepted_by' => null,
-                    'expires_at' => $expiresAt,
-                    'accepted_at' => null,
-                    'created_at' => $timestamp,
-                    'updated_at' => $timestamp,
-                ]], ['tenant_id', 'email'], [
-                    'id',
-                    'user_id',
-                    'role_id',
-                    'invited_by',
-                    'accepted_by',
-                    'expires_at',
-                    'accepted_at',
-                    'created_at',
-                    'updated_at',
-                ]);
-
-                return TenantUserInvitation::query()
-                    ->whereKey($invitationId)
-                    ->with(['tenant', 'role'])
-                    ->firstOrFail();
-            });
-            $relativeUrl = URL::temporarySignedRoute(
-                'tenant-invitations.show',
-                $invitation->expires_at,
-                ['invitation' => $invitation],
-                absolute: false,
-            );
-            $invitationUrl = $request->getSchemeAndHttpHost().$relativeUrl;
-
             try {
-                Mail::to($existing->email)->send(new TenantUserInvitationMail($invitation, $invitationUrl));
+                $invitation = DB::transaction(function () use ($tenantId, $existing, $email, $role, $request, $expiresAt) {
+                    // Serialize reissues and keep the prior grant intact if
+                    // synchronous delivery of its replacement fails.
+                    TenantUserInvitation::query()
+                        ->where('tenant_id', $tenantId)
+                        ->where('email', $email)
+                        ->lockForUpdate()
+                        ->first();
+
+                    $invitationId = (string) Str::uuid();
+                    $timestamp = now();
+
+                    // Updating the primary key on conflict makes every reissue a
+                    // distinct grant. A URL signed for the previous role can never
+                    // resolve to the newly issued invitation.
+                    DB::table('tenant_user_invitations')->upsert([[
+                        'id' => $invitationId,
+                        'tenant_id' => $tenantId,
+                        'user_id' => $existing->id,
+                        'email' => $email,
+                        'role_id' => $role->id,
+                        'invited_by' => $request->user()->id,
+                        'accepted_by' => null,
+                        'expires_at' => $expiresAt,
+                        'accepted_at' => null,
+                        'created_at' => $timestamp,
+                        'updated_at' => $timestamp,
+                    ]], ['tenant_id', 'email'], [
+                        'id',
+                        'user_id',
+                        'role_id',
+                        'invited_by',
+                        'accepted_by',
+                        'expires_at',
+                        'accepted_at',
+                        'created_at',
+                        'updated_at',
+                    ]);
+
+                    $invitation = TenantUserInvitation::query()
+                        ->whereKey($invitationId)
+                        ->with(['tenant', 'role'])
+                        ->firstOrFail();
+                    $relativeUrl = URL::temporarySignedRoute(
+                        'tenant-invitations.show',
+                        $invitation->expires_at,
+                        ['invitation' => $invitation],
+                        absolute: false,
+                    );
+                    $invitationUrl = $request->getSchemeAndHttpHost().$relativeUrl;
+
+                    Mail::to($existing->email)->send(new TenantUserInvitationMail($invitation, $invitationUrl));
+
+                    return $invitation;
+                });
             } catch (\Throwable $exception) {
                 report($exception);
+
+                return back()->withErrors([
+                    'email' => 'Ftesa nuk u dërgua. Ftesa e mëparshme, nëse ekziston, mbetet aktive. Provoni përsëri.',
+                ]);
             }
 
             AuditLog::record('user.invitation.create', $invitation, ['role' => $role->name]);
