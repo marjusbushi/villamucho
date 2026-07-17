@@ -7,13 +7,13 @@ import { Bot, CalendarDays, Check, Copy, ExternalLink, MessageSquareText, Shield
 
 const props = defineProps({
     connection: { type: Object, required: true },
-    settings: { type: Object, required: true },
-    modules: { type: Object, required: true },
+    aiSettings: { type: Object, required: true },
+    aiModules: { type: Object, required: true },
     recentActions: { type: Array, default: () => [] },
 });
 
 const copied = ref(false);
-const form = useForm({ ...props.settings });
+const form = useForm({ ...props.aiSettings });
 
 function save() {
     form.put(route('lora-ai.update'), { preserveScroll: true });
@@ -48,7 +48,7 @@ const actions = {
             />
 
             <section class="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-                <div class="grid gap-6 bg-gradient-to-r from-primary-900 to-primary-700 p-6 text-white lg:grid-cols-[1fr_auto] lg:items-center">
+                <div class="grid gap-6 bg-gradient-to-r from-accent-800 via-accent-700 to-accent-600 p-6 text-white lg:grid-cols-[1fr_auto] lg:items-center">
                     <div class="flex items-start gap-4">
                         <div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/15"><Bot class="h-6 w-6" /></div>
                         <div>
@@ -89,13 +89,13 @@ const actions = {
                                 <span class="flex items-start gap-3"><span class="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-600"><CalendarDays class="h-4 w-4" /></span><span><b class="block text-sm text-neutral-900">Rezervime, dhoma dhe disponueshmëri</b><small class="mt-0.5 block text-neutral-500">Qëndrimi, dhoma, statusi, kontakti dhe bilanci operacional.</small></span></span>
                                 <input v-model="form.reservations_enabled" type="checkbox" class="h-5 w-5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500" />
                             </label>
-                            <label class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4" :class="!modules.channel_manager && 'opacity-50'">
+                            <label class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4" :class="!aiModules.channel_manager && 'opacity-50'">
                                 <span class="flex items-start gap-3"><span class="grid h-9 w-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><MessageSquareText class="h-4 w-4" /></span><span><b class="block text-sm text-neutral-900">Bisedat me mysafirët</b><small class="mt-0.5 block text-neutral-500">Mesazhet e lidhura me rezervimin dhe kontekstin e qëndrimit.</small></span></span>
-                                <input v-model="form.messages_enabled" type="checkbox" :disabled="!modules.channel_manager" class="h-5 w-5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500" />
+                                <input v-model="form.messages_enabled" type="checkbox" :disabled="!aiModules.channel_manager" class="h-5 w-5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500" />
                             </label>
-                            <label class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4" :class="!modules.smart_pricing && 'opacity-50'">
+                            <label class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4" :class="!aiModules.smart_pricing && 'opacity-50'">
                                 <span class="flex items-start gap-3"><span class="grid h-9 w-9 place-items-center rounded-lg bg-amber-50 text-amber-600"><Sparkles class="h-4 w-4" /></span><span><b class="block text-sm text-neutral-900">Kalendari dhe motori i çmimeve</b><small class="mt-0.5 block text-neutral-500">Çmimi aktual, sugjerimi, okupimi dhe faktorët për çdo datë.</small></span></span>
-                                <input v-model="form.pricing_enabled" type="checkbox" :disabled="!modules.smart_pricing" class="h-5 w-5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500" />
+                                <input v-model="form.pricing_enabled" type="checkbox" :disabled="!aiModules.smart_pricing" class="h-5 w-5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500" />
                             </label>
                         </div>
                     </section>

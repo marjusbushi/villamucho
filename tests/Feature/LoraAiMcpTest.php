@@ -21,6 +21,7 @@ use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\TenantDomain;
 use App\Models\User;
+use App\Services\TenantBillingService;
 use App\Services\TenantRoleService;
 use App\Tenancy\TenantContext;
 use Database\Seeders\RolePermissionSeeder;
@@ -335,6 +336,7 @@ class LoraAiMcpTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $admin = User::factory()->create(['current_tenant_id' => $tenant->id]);
         $admin->assignRole('admin');
+        $billing = app(TenantBillingService::class);
 
         $this->actingAs($admin)->get(route('lora-ai.index'))
             ->assertOk()
@@ -342,7 +344,11 @@ class LoraAiMcpTest extends TestCase
                 ->component('LoraAi/Index')
                 ->where('connection.hotel', $tenant->name)
                 ->where('connection.connected', false)
-                ->has('settings'));
+                ->where('settings.hotel_name', Setting::get('hotel.name', 'Hotel'))
+                ->where('modules.finance', $billing->enabled(TenantBillingService::FINANCE, $tenant))
+                ->where('aiModules.channel_manager', $billing->enabled(TenantBillingService::CHANNEL_MANAGER, $tenant))
+                ->where('aiModules.smart_pricing', $billing->enabled(TenantBillingService::SMART_PRICING, $tenant))
+                ->has('aiSettings'));
 
         $this->actingAs($admin)->put(route('lora-ai.update'), [
             'reservations_enabled' => true,
