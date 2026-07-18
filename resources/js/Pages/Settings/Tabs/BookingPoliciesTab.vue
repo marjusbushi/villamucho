@@ -43,7 +43,7 @@ function submit() {
                 Politikat e anulimit, parapagimit dhe no-show do të shtohen këtu kur të aktivizohet motori i politikave.
             </div>
 
-            <div class="flex justify-end">
+            <div class="settings-actions">
                 <Button type="submit" :loading="form.processing">Ruaj politikat</Button>
             </div>
         </form>

@@ -138,7 +138,7 @@ function submit() {
 
             <Checkbox v-model="form.auto_create_on_checkout" :label="$t('admin.generated.k_30cff834434a')" />
 
-            <div class="flex justify-end pt-2">
+            <div class="settings-actions">
                 <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_3c285306a8be') }}</Button>
             </div>
         </form>
