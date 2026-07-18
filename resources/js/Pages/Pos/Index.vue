@@ -48,6 +48,7 @@ const orderSaving = ref(false);
 // Cart
 const cart = ref([]);
 const tableNumber = ref(props.tableContext?.number || '');
+const tableCovers = ref(2);
 const selectedReservation = ref('');
 
 const reservationOptions = props.activeReservations.map((r) => ({
@@ -268,7 +269,7 @@ function submitOrder(payNow = false) {
         orderSaving.value = true;
         router.post(route('pos.tables.rounds.store', props.tableContext.id), {
             items: cart.value.map((item) => ({ menu_item_id: item.id, quantity: item.qty })),
-            covers: null,
+            covers: tableCovers.value,
             send: true,
         }, {
             onError: (errors) => toasts.value?.error(errors.inventory || errors.items || 'Porosia nuk u ruajt.'),
@@ -805,8 +806,16 @@ onMounted(() => {
                     <!-- Table/Room selection -->
                     <div class="border-b border-neutral-100 px-4 py-3">
                         <div v-if="tableContext" class="rounded-lg border border-accent-200 bg-accent-50 px-3 py-2.5">
-                            <p class="text-small font-bold text-accent-800">{{ tableContext.name }}</p>
-                            <p class="text-tiny text-accent-700">{{ tableContext.area }} · {{ tableContext.seats }} vende</p>
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-small font-bold text-accent-800">{{ tableContext.name }}</p>
+                                    <p class="text-tiny text-accent-700">{{ tableContext.area }} · {{ tableContext.seats }} vende</p>
+                                </div>
+                                <label class="flex items-center gap-2 text-small font-semibold text-accent-800">
+                                    Persona
+                                    <input v-model.number="tableCovers" type="number" min="1" max="99" class="h-9 w-16 rounded-lg border-accent-200 bg-white px-2 text-center text-small focus:border-accent-500 focus:ring-accent-500" />
+                                </label>
+                            </div>
                         </div>
                         <TextInput v-else-if="serviceMode === 'table'" v-model="tableNumber" placeholder="Numri i tavolinës · opsional" />
                         <Select v-else v-model="selectedReservation" :options="reservationOptions" placeholder="Zgjidh dhomën / mysafirin" />
