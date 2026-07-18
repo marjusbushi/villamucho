@@ -3582,7 +3582,7 @@
         "executive": "Executive overview",
         "performance": "ADR / RevPAR / Occupancy",
         "pace": "Pace & Pickup",
-        "channels": "Channel production",
+        "channels": "Direct vs OTA",
         "cancellations": "Cancellations & No-Show",
         "bookingBehavior": "Booking behavior",
         "arrivals": "Arrivals manifest",
@@ -4654,6 +4654,20 @@
       "next7": "Next 7 days",
       "next30": "Next 30 days",
       "next90": "Next 90 days"
+    },
+    "distribution": {
+      "title": "Direct vs OTA",
+      "short": "Revenue, commissions and net result by channel.",
+      "category": "Reservations & channels",
+      "netRevenue": "Net revenue",
+      "directShare": "Direct share",
+      "commission": "Commissions",
+      "netAdr": "Net ADR",
+      "dailyNet": "Daily net revenue",
+      "grossRevenue": "Gross revenue",
+      "byChannel": "Performance by channel",
+      "share": "Share",
+      "bookings": "Bookings"
     }
   },
   "financeSuppliers": {
