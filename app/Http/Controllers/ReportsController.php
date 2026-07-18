@@ -557,17 +557,33 @@ class ReportsController extends Controller
         [$from, $to] = $this->range($request);
 
         $reservations = Reservation::whereBetween('check_in_date', [$from, $to])
-            ->where('status', '!=', 'cancelled')
+            ->whereIn('status', ['checked_in', 'checked_out'])
+            ->whereNull('no_show_at')
             ->whereHas('guest')
             ->with('guest:id,nationality')
-            ->get(['id', 'guest_id', 'check_in_date', 'check_out_date', 'total_amount']);
+            ->get(['id', 'guest_id', 'status', 'check_in_date', 'check_out_date', 'total_amount']);
 
         $rows = $reservations
             ->groupBy(fn ($r) => ($r->guest && filled($r->guest->nationality)) ? $r->guest->nationality : 'E panjohur')
             ->map(function ($group, $nationality) {
                 $stays = $group->count();
-                $nights = (int) $group->sum(fn ($r) => $r->nights);
-                $revenue = (float) $group->sum('total_amount');
+                $nights = (int) $group->sum(function (Reservation $reservation) {
+                    if ($reservation->status === 'checked_out') {
+                        return $reservation->nights;
+                    }
+
+                    return max(0, $reservation->check_in_date->diffInDays(today()->min($reservation->check_out_date), false));
+                });
+                $revenue = (float) $group->sum(function (Reservation $reservation) {
+                    if ($reservation->status === 'checked_out') {
+                        return (float) $reservation->total_amount;
+                    }
+
+                    $nights = max(1, $reservation->nights);
+                    $realized = max(0, $reservation->check_in_date->diffInDays(today()->min($reservation->check_out_date), false));
+
+                    return (float) $reservation->total_amount * min(1, $realized / $nights);
+                });
                 $guests = $group->pluck('guest_id')->unique()->count();
 
                 return [

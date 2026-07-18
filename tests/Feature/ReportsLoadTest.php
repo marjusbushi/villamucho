@@ -98,6 +98,18 @@ class ReportsLoadTest extends TestCase
             ->get(route('reports.bookingBehavior', ['to' => today()->toDateString()]))
             ->assertOk();
 
+        $this->actingAs($admin)
+            ->get(route('reports.nationality', [
+                'from' => today()->toDateString(),
+                'to' => today()->toDateString(),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Reports/Nationality')
+                ->where('totals.stays', 1)
+                ->where('totals.nights', 0)
+                ->where('totals.revenue', 0));
+
         $this->actingAs($admin)->from(route('reports.cancellations'))
             ->get(route('reports.cancellations', ['from' => '2026-07-31', 'to' => '2026-07-01']))
             ->assertRedirect(route('reports.cancellations'))
