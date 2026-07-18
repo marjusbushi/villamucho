@@ -12,6 +12,7 @@ import { AlertTriangle, Ban, CirclePercent, WalletCards } from 'lucide-vue-next'
 const props = defineProps({
     filters: Object,
     analytics: { type: Object, default: () => ({}) },
+    canViewReservations: { type: Boolean, default: false },
     currency: { type: String, default: '€' },
 });
 
@@ -193,7 +194,10 @@ const kpis = computed(() => [
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
                         <tr v-for="row in atRisk" :key="row.id" class="hover:bg-neutral-50">
-                            <td class="px-5 py-3"><Link :href="route('reservations.show', row.id)" class="text-body-sm font-medium text-primary-900 hover:underline">{{ row.guest }}</Link></td>
+                            <td class="px-5 py-3">
+                                <Link v-if="canViewReservations" :href="route('reservations.show', row.id)" class="text-body-sm font-medium text-primary-900 hover:underline">{{ row.guest }}</Link>
+                                <span v-else class="text-body-sm font-medium text-primary-900">{{ row.guest }}</span>
+                            </td>
                             <td class="px-4 py-3 text-body-sm text-neutral-600">{{ row.room || '—' }}</td>
                             <td class="px-4 py-3 text-body-sm text-neutral-600">{{ row.check_in }}</td>
                             <td class="px-4 py-3 text-body-sm text-neutral-600">{{ channelMeta(row.channel).label }}</td>
@@ -221,7 +225,10 @@ const kpis = computed(() => [
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
                         <tr v-for="row in losses" :key="`${row.type}-${row.id}`" class="hover:bg-neutral-50">
-                            <td class="px-5 py-3"><Link :href="route('reservations.show', row.id)" class="text-body-sm font-medium text-primary-900 hover:underline">{{ row.guest }}</Link></td>
+                            <td class="px-5 py-3">
+                                <Link v-if="canViewReservations" :href="route('reservations.show', row.id)" class="text-body-sm font-medium text-primary-900 hover:underline">{{ row.guest }}</Link>
+                                <span v-else class="text-body-sm font-medium text-primary-900">{{ row.guest }}</span>
+                            </td>
                             <td class="px-4 py-3"><Badge :variant="row.type === 'cancelled' ? 'error' : 'warning'">{{ row.type === 'cancelled' ? $t('reports360.cancellationRisk.cancelled') : 'No-show' }}</Badge></td>
                             <td class="px-4 py-3 text-body-sm text-neutral-600">{{ row.check_in }}</td>
                             <td class="px-4 py-3 text-body-sm text-neutral-600">{{ channelMeta(row.channel).label }}</td>

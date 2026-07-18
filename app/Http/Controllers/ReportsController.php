@@ -503,7 +503,18 @@ class ReportsController extends Controller
     {
         $request->validate([
             'from' => ['nullable', 'date_format:Y-m-d'],
-            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'to' => [
+                'nullable',
+                'date_format:Y-m-d',
+                'after_or_equal:from',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                    if ($request->filled('from') && Carbon::parse($request->input('from'))->diffInDays(Carbon::parse($value)) > 366) {
+                        $fail(app()->getLocale() === 'sq'
+                            ? 'Periudha e raportit nuk mund të kalojë 367 ditë.'
+                            : 'The report period cannot exceed 367 days.');
+                    }
+                },
+            ],
         ]);
 
         [$from, $to] = $this->range($request);
@@ -528,6 +539,7 @@ class ReportsController extends Controller
             'summary' => $legacySummary,
             'cancelled' => collect($current['losses'])->where('type', 'cancelled')->values(),
             'noShows' => $current['at_risk'],
+            'canViewReservations' => (bool) $request->user()?->can('view_reservations'),
             'currency' => $this->currency(),
         ]);
     }
