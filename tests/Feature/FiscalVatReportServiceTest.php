@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\FiscalDocument;
+use App\Models\FolioItem;
 use App\Models\Guest;
 use App\Models\PosFiscalDocument;
 use App\Models\PosOrder;
@@ -30,6 +31,8 @@ class FiscalVatReportServiceTest extends TestCase
 
         $fiscalizedReservation = $this->reservation($room, $guest, $user, 120);
         $missingReservation = $this->reservation($room, $guest, $user, 50);
+        FolioItem::create(['reservation_id' => $missingReservation->id, 'description' => 'Transfer', 'amount' => 20, 'type' => 'service', 'charge_date' => '2026-07-10']);
+        FolioItem::create(['reservation_id' => $missingReservation->id, 'description' => 'Ulje', 'amount' => 10, 'type' => 'discount', 'charge_date' => '2026-07-10']);
         FiscalDocument::create([
             'reservation_id' => $fiscalizedReservation->id,
             'provider' => 'fature_al',
@@ -75,27 +78,66 @@ class FiscalVatReportServiceTest extends TestCase
             'last_error' => 'Provider unavailable',
         ]);
 
+        $priorReservation = $this->reservation($room, $guest, $user, 60, '2026-06-15');
+        FiscalDocument::create([
+            'reservation_id' => $priorReservation->id,
+            'provider' => 'fature_al',
+            'environment' => 'sandbox',
+            'document_type' => 'cash_invoice',
+            'internal_id' => 'RES-'.$priorReservation->id,
+            'payment_method' => 'CARD',
+            'currency' => 'EUR',
+            'total' => 60,
+            'vat_rate' => 6,
+            'request_hash' => str_repeat('c', 64),
+            'status' => FiscalDocument::STATUS_FISCALIZED,
+            'fiscal_number' => 'FISC-OLD-STAY',
+            'fiscalized_at' => '2026-07-12 12:00:00',
+            'attempted_at' => '2026-07-12 12:00:00',
+        ]);
+
+        $lateFiscalized = $this->reservation($room, $guest, $user, 40);
+        FiscalDocument::create([
+            'reservation_id' => $lateFiscalized->id,
+            'provider' => 'fature_al',
+            'environment' => 'sandbox',
+            'document_type' => 'cash_invoice',
+            'internal_id' => 'RES-'.$lateFiscalized->id,
+            'payment_method' => 'CARD',
+            'currency' => 'EUR',
+            'total' => 40,
+            'vat_rate' => 6,
+            'request_hash' => str_repeat('d', 64),
+            'status' => FiscalDocument::STATUS_FISCALIZED,
+            'fiscal_number' => 'FISC-NEXT-MONTH',
+            'fiscalized_at' => '2026-08-01 12:00:00',
+            'attempted_at' => '2026-08-01 12:00:00',
+        ]);
+
         $report = app(FiscalVatReportService::class)->summary(new ReportingPeriod('2026-07-01', '2026-07-31'));
 
-        $this->assertSame(3, $report['summary']['documents']);
-        $this->assertSame(1, $report['summary']['fiscalized']);
+        $this->assertSame(5, $report['summary']['documents']);
+        $this->assertSame(3, $report['summary']['fiscalized']);
+        $this->assertSame(2, $report['summary']['tax_documents']);
         $this->assertSame(1, $report['summary']['failed']);
         $this->assertSame(1, $report['summary']['missing']);
-        $this->assertSame(33.3, $report['summary']['coverage_rate']);
-        $this->assertSame(120.0, $report['summary']['gross']);
-        $this->assertSame(8.99, $report['summary']['vat']);
-        $this->assertSame(111.01, $report['summary']['net']);
-        $this->assertSame('missing', collect($report['documents'])->firstWhere('source_id', $missingReservation->id)['status']);
+        $this->assertSame(60.0, $report['summary']['coverage_rate']);
+        $this->assertSame(180.0, $report['summary']['gross']);
+        $this->assertSame(12.39, $report['summary']['vat']);
+        $this->assertSame(167.61, $report['summary']['net']);
+        $missing = collect($report['documents'])->firstWhere('source_id', $missingReservation->id);
+        $this->assertSame('missing', $missing['status']);
+        $this->assertSame(60.0, $missing['gross']);
     }
 
-    private function reservation(Room $room, Guest $guest, User $user, float $total): Reservation
+    private function reservation(Room $room, Guest $guest, User $user, float $total, string $checkOut = '2026-07-10'): Reservation
     {
         return Reservation::create([
             'room_id' => $room->id,
             'guest_id' => $guest->id,
             'created_by' => $user->id,
-            'check_in_date' => '2026-07-09',
-            'check_out_date' => '2026-07-10',
+            'check_in_date' => date('Y-m-d', strtotime($checkOut.' -1 day')),
+            'check_out_date' => $checkOut,
             'status' => 'checked_out',
             'total_amount' => $total,
             'adults' => 1,

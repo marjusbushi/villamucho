@@ -12,30 +12,66 @@ use Illuminate\Support\Collection;
 
 final class FiscalVatReportService
 {
+    private const PROVIDER = 'fature_al';
+
+    private const ENVIRONMENT = 'sandbox';
+
     public function __construct(private readonly VatConfiguration $vatConfiguration) {}
 
     /** @return array{period:array,summary:array,statuses:array,sources:array,rates:array,documents:array} */
     public function summary(ReportingPeriod $period): array
     {
+        $start = $period->from->startOfDay();
+        $end = $period->to->endOfDay();
+        $fiscalReservationIds = FiscalDocument::query()
+            ->where('provider', self::PROVIDER)
+            ->where('environment', self::ENVIRONMENT)
+            ->where(function (Builder $query) use ($start, $end) {
+                $query->whereBetween('fiscalized_at', [$start, $end])
+                    ->orWhere(fn (Builder $attempted) => $attempted
+                        ->whereNull('fiscalized_at')
+                        ->whereBetween('attempted_at', [$start, $end]));
+            })->pluck('reservation_id');
+        $fiscalPosIds = PosFiscalDocument::query()
+            ->where('provider', self::PROVIDER)
+            ->where('environment', self::ENVIRONMENT)
+            ->where(function (Builder $query) use ($start, $end) {
+                $query->whereBetween('fiscalized_at', [$start, $end])
+                    ->orWhere(fn (Builder $attempted) => $attempted
+                        ->whereNull('fiscalized_at')
+                        ->whereBetween('attempted_at', [$start, $end]));
+            })->pluck('pos_order_id');
+
         $reservations = Reservation::query()
             ->where('status', 'checked_out')
-            ->whereBetween('check_out_date', [$period->from->toDateString(), $period->to->toDateString()])
+            ->where(function (Builder $query) use ($period, $fiscalReservationIds) {
+                $query->whereBetween('check_out_date', [$period->from->toDateString(), $period->to->toDateString()])
+                    ->orWhereIn('id', $fiscalReservationIds);
+            })
             ->where('total_amount', '>', 0)
-            ->with(['guest:id,first_name,last_name', 'room:id,room_number'])
+            ->with([
+                'guest:id,first_name,last_name',
+                'room:id,room_number',
+                'folioItems:id,reservation_id,type,amount',
+            ])
             ->get(['id', 'guest_id', 'room_id', 'check_out_date', 'total_amount']);
 
-        $posOrders = $this->posOrdersFor($period)
+        $posOrders = $this->posOrdersFor($period, $fiscalPosIds->all())
             ->where('total_amount', '>', 0)
             ->get(['id', 'business_date', 'paid_at', 'created_at', 'total_amount']);
 
         $reservationDocuments = FiscalDocument::query()
             ->whereIn('reservation_id', $reservations->pluck('id'))
+            ->where('provider', self::PROVIDER)
+            ->where('environment', self::ENVIRONMENT)
             ->orderByDesc('id')
             ->get()
             ->unique('reservation_id')
             ->keyBy('reservation_id');
         $posDocuments = PosFiscalDocument::query()
             ->whereIn('pos_order_id', $posOrders->pluck('id'))
+            ->where('provider', self::PROVIDER)
+            ->where('environment', self::ENVIRONMENT)
             ->orderByDesc('id')
             ->get()
             ->unique('pos_order_id')
@@ -48,7 +84,7 @@ final class FiscalVatReportService
                 'pms',
                 $reservation->id,
                 $reservation->check_out_date?->toDateString(),
-                (float) $reservation->total_amount,
+                $this->reservationGross($reservation),
                 $this->vatConfiguration->accommodationRate(),
                 $document,
                 trim("{$reservation->guest?->first_name} {$reservation->guest?->last_name}") ?: '—',
@@ -66,7 +102,9 @@ final class FiscalVatReportService
             ));
         }
 
-        $fiscalized = $rows->where('status', FiscalDocument::STATUS_FISCALIZED);
+        $covered = $rows->where('status', FiscalDocument::STATUS_FISCALIZED);
+        $fiscalized = $covered->filter(fn (array $row) => $row['date'] >= $period->from->toDateString()
+            && $row['date'] <= $period->to->toDateString());
         $gross = round((float) $fiscalized->sum('gross'), 2);
         $vat = round((float) $fiscalized->sum('vat'), 2);
         $statuses = collect(['fiscalized', 'failed', 'processing', 'missing'])
@@ -75,16 +113,19 @@ final class FiscalVatReportService
                 'count' => $rows->where('status', $status)->count(),
                 'gross' => round((float) $rows->where('status', $status)->sum('gross'), 2),
             ])->all();
-        $sources = collect(['pms', 'pos'])->map(function (string $source) use ($rows) {
+        $sources = collect(['pms', 'pos'])->map(function (string $source) use ($rows, $period) {
             $sourceRows = $rows->where('source', $source);
-            $fiscalized = $sourceRows->where('status', FiscalDocument::STATUS_FISCALIZED);
+            $sourceCovered = $sourceRows->where('status', FiscalDocument::STATUS_FISCALIZED);
+            $sourceFiscalized = $sourceCovered->filter(fn (array $row) => $row['date'] >= $period->from->toDateString()
+                && $row['date'] <= $period->to->toDateString());
 
             return [
                 'source' => $source,
                 'documents' => $sourceRows->count(),
-                'fiscalized' => $fiscalized->count(),
-                'gross' => round((float) $fiscalized->sum('gross'), 2),
-                'vat' => round((float) $fiscalized->sum('vat'), 2),
+                'fiscalized' => $sourceCovered->count(),
+                'tax_documents' => $sourceFiscalized->count(),
+                'gross' => round((float) $sourceFiscalized->sum('gross'), 2),
+                'vat' => round((float) $sourceFiscalized->sum('vat'), 2),
             ];
         })->all();
         $rates = $fiscalized->flatMap(fn (array $row) => $row['vat_breakdown'])
@@ -102,11 +143,12 @@ final class FiscalVatReportService
             'period' => $period->toArray(),
             'summary' => [
                 'documents' => $rows->count(),
-                'fiscalized' => $fiscalized->count(),
+                'fiscalized' => $covered->count(),
+                'tax_documents' => $fiscalized->count(),
                 'failed' => $rows->where('status', 'failed')->count(),
                 'processing' => $rows->where('status', 'processing')->count(),
                 'missing' => $rows->where('status', 'missing')->count(),
-                'coverage_rate' => $rows->count() > 0 ? round($fiscalized->count() / $rows->count() * 100, 1) : 100.0,
+                'coverage_rate' => $rows->count() > 0 ? round($covered->count() / $rows->count() * 100, 1) : 100.0,
                 'gross' => $gross,
                 'vat' => $vat,
                 'net' => round($gross - $vat, 2),
@@ -119,12 +161,13 @@ final class FiscalVatReportService
         ];
     }
 
-    private function posOrdersFor(ReportingPeriod $period): Builder
+    /** @param array<int> $extraIds */
+    private function posOrdersFor(ReportingPeriod $period, array $extraIds = []): Builder
     {
         $from = $period->from->toDateString();
         $to = $period->to->toDateString();
 
-        return PosOrder::query()->where('status', 'completed')->where(function (Builder $query) use ($from, $to) {
+        return PosOrder::query()->where('status', 'completed')->where(function (Builder $query) use ($from, $to, $extraIds) {
             $query->where(function (Builder $businessDate) use ($from, $to) {
                 $businessDate->whereNotNull('business_date')
                     ->whereDate('business_date', '>=', $from)
@@ -135,6 +178,9 @@ final class FiscalVatReportService
                 $legacy->whereNull('business_date')->whereNull('paid_at')
                     ->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
             });
+            if ($extraIds !== []) {
+                $query->orWhereIn('id', $extraIds);
+            }
         });
     }
 
@@ -187,7 +233,7 @@ final class FiscalVatReportService
             return [['rate' => $fallbackRate, 'gross' => $gross, 'vat' => $vat, 'net' => round($gross - $vat, 2)]];
         }
 
-        $discountFactor = min(1, $gross / $lineGross);
+        $discountFactor = $gross / $lineGross;
 
         return $lines->groupBy(fn (array $line) => (int) ($line['vat'] ?? $fallbackRate))
             ->map(function (Collection $rateLines, string|int $rate) use ($discountFactor) {
@@ -196,5 +242,14 @@ final class FiscalVatReportService
 
                 return ['rate' => (float) $rate, 'gross' => $rateGross, 'vat' => $vat, 'net' => round($rateGross - $vat, 2)];
             })->values()->all();
+    }
+
+    private function reservationGross(Reservation $reservation): float
+    {
+        $charges = (float) $reservation->total_amount
+            + (float) $reservation->folioItems->whereNotIn('type', ['discount', 'room'])->sum('amount');
+        $discounts = (float) $reservation->folioItems->where('type', 'discount')->sum('amount');
+
+        return round(max(0, $charges - $discounts), 2);
     }
 }
