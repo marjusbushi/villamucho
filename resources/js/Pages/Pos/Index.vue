@@ -294,6 +294,10 @@ function submitOrder(payNow = false) {
 }
 
 function editOrder(order) {
+    if (order.pos_table_id) {
+        router.visit(route('pos.tables', { table: order.pos_table_id }));
+        return;
+    }
     if (props.view !== 'sale') {
         router.visit(route('pos.index', { order_id: order.id, action: 'edit' }));
         return;
@@ -321,6 +325,10 @@ function editOrder(order) {
 }
 
 function openPay(order) {
+    if (order.pos_table_id) {
+        router.visit(route('pos.tables', { table: order.pos_table_id, action: 'pay' }));
+        return;
+    }
     if (props.view !== 'sale') {
         router.visit(route('pos.index', { order_id: order.id, action: 'pay' }));
         return;
@@ -541,7 +549,7 @@ onMounted(() => {
                         <div v-if="showOrdersPanel" class="fixed inset-0 z-40 bg-neutral-950/35" @click="showOrdersPanel = false" />
                     </Transition>
                     <Transition enter-active-class="duration-200 ease-out" enter-from-class="translate-x-full" leave-active-class="duration-200 ease-in" leave-to-class="translate-x-full">
-                    <aside v-if="showOrdersPanel" class="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-white shadow-2xl">
+                    <aside v-if="showOrdersPanel" class="fixed inset-y-0 right-0 z-50 flex w-full max-w-4xl flex-col bg-white shadow-2xl">
                         <div class="flex items-center justify-between border-b border-neutral-200 px-5 py-4">
                             <div><h2 class="text-h3 text-primary-900">Porositë</h2><p class="mt-0.5 text-small text-neutral-500">Hap, arkëto ose anulo porositë pa humbur shportën aktuale.</p></div>
                             <button type="button" class="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" @click="showOrdersPanel = false"><X class="h-5 w-5" /></button>
@@ -556,7 +564,7 @@ onMounted(() => {
                                         <th class="px-4 py-2.5 text-left text-label text-neutral-600">{{ $t('admin.generated.k_2ade15d943c4') }}</th>
                                         <th class="px-4 py-2.5 text-left text-label text-neutral-600">{{ $t('admin.generated.k_d936f6a10e13') }}</th>
                                         <th class="px-4 py-2.5 text-right text-label text-neutral-600">{{ $t('admin.generated.k_85f1cb8f5091') }}</th>
-                                        <th class="px-4 py-2.5 text-right text-label text-neutral-600"></th>
+                                        <th class="min-w-[300px] px-4 py-2.5 text-right text-label text-neutral-600">Veprime</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-neutral-100">
@@ -573,12 +581,12 @@ onMounted(() => {
                                         </td>
                                         <td class="px-4 py-2.5 text-right text-body-sm font-medium">{{ money(order.total_amount) }}</td>
                                         <td class="px-4 py-2.5 text-right">
-                                            <div v-if="order.status === 'open'" class="flex justify-end gap-1">
+                                            <div v-if="order.status === 'open'" class="flex flex-nowrap justify-end gap-1 whitespace-nowrap">
                                                 <Button size="sm" variant="outline" :disabled="!hasOpenShift" @click="editOrder(order)"><Pencil class="h-3.5 w-3.5" /> Ndrysho</Button>
                                                 <Button size="sm" variant="primary" :disabled="!hasOpenShift" @click="openPay(order)">{{ $t('admin.generated.k_c0bc68ffb628') }}</Button>
                                                 <Button size="sm" variant="ghost" class="text-error-600" @click="openCancel(order)">{{ $t('admin.generated.k_28cc20e7fd5b') }}</Button>
                                             </div>
-                                            <div v-else-if="order.status === 'completed'" class="flex flex-wrap justify-end gap-1.5">
+                                            <div v-else-if="order.status === 'completed'" class="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
                                                 <Badge variant="neutral" size="sm">{{ orderPaymentLabel(order) }}</Badge>
                                                 <Button
                                                     v-if="canFiscalize(order)"

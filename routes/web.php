@@ -306,6 +306,11 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
 
     // POS Bar/Restaurant
     Route::middleware(['module:pos', 'permission:view_pos_orders'])->group(function () {
+        Route::get('/pos/tables', [\App\Http\Controllers\PosTableServiceController::class, 'index'])->name('pos.tables');
+        Route::post('/pos/tables/{posTable}/rounds', [\App\Http\Controllers\PosTableServiceController::class, 'storeRound'])->middleware('permission:create_pos_orders')->name('pos.tables.rounds.store');
+        Route::post('/pos/rounds/{posOrderRound}/send', [\App\Http\Controllers\PosTableServiceController::class, 'sendRound'])->middleware('permission:update_pos_orders')->name('pos.rounds.send');
+        Route::post('/pos/tables/{posTable}/bill', [\App\Http\Controllers\PosTableServiceController::class, 'requestBill'])->middleware('permission:update_pos_orders')->name('pos.tables.bill');
+        Route::post('/pos/tables/{posTable}/transfer', [\App\Http\Controllers\PosTableServiceController::class, 'transfer'])->middleware('permission:update_pos_orders')->name('pos.tables.transfer');
         Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
         Route::get('/pos/orders', [PosController::class, 'index'])->defaults('view', 'orders')->name('pos.orders');
         Route::get('/pos/receipts', [PosController::class, 'index'])->defaults('view', 'receipts')->name('pos.receipts');

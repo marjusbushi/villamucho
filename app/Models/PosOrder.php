@@ -7,7 +7,9 @@ class PosOrder extends TenantModel
     protected $fillable = [
         'reservation_id',
         'table_number',
+        'pos_table_id',
         'status',
+        'service_status',
         'payment_method',
         'subtotal_amount',
         'discount_amount',
@@ -47,6 +49,11 @@ class PosOrder extends TenantModel
         return $this->belongsTo(Reservation::class);
     }
 
+    public function table()
+    {
+        return $this->belongsTo(PosTable::class, 'pos_table_id');
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -55,6 +62,11 @@ class PosOrder extends TenantModel
     public function items()
     {
         return $this->hasMany(PosOrderItem::class);
+    }
+
+    public function rounds()
+    {
+        return $this->hasMany(PosOrderRound::class)->orderBy('sequence');
     }
 
     public function shift()

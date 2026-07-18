@@ -52,7 +52,7 @@ class PosController extends Controller
             default => 'sale',
         };
         $query = PosOrder::select(
-            'id', 'reservation_id', 'table_number', 'status',
+            'id', 'reservation_id', 'table_number', 'pos_table_id', 'status',
             'payment_method', 'subtotal_amount', 'discount_amount', 'discount_reason', 'is_complimentary',
             'total_amount', 'created_by', 'paid_at', 'business_date', 'cancelled_at', 'cancellation_reason',
             'refunded_at', 'refund_reason', 'created_at'
@@ -197,6 +197,7 @@ class PosController extends Controller
             'id' => $order->id,
             'reservation_id' => $order->reservation_id,
             'table_number' => $order->table_number,
+            'pos_table_id' => $order->pos_table_id,
             'status' => $order->status,
             'payment_method' => $order->payment_method,
             'subtotal_amount' => (float) $order->subtotal_amount,
@@ -314,6 +315,11 @@ class PosController extends Controller
 
     public function update(Request $request, PosOrder $posOrder): RedirectResponse
     {
+        if ($posOrder->pos_table_id) {
+            return redirect()->route('pos.tables', ['table' => $posOrder->pos_table_id])
+                ->with('error', 'Porositë e tavolinave ndryshohen duke shtuar një raund të ri.');
+        }
+
         $data = $request->validate([
             'table_number' => ['nullable', 'string', 'max:10'],
             'reservation_id' => ['nullable', TenantRule::exists('reservations')],
@@ -386,6 +392,8 @@ class PosController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'discount_reason' => ['nullable', 'string', 'max:255'],
             'complimentary' => ['nullable', 'boolean'],
+            'return_to' => ['nullable', 'in:tables'],
+            'table_id' => ['nullable', 'required_if:return_to,tables', TenantRule::exists('pos_tables')],
         ]);
 
         if ($posOrder->status !== 'open') {
@@ -404,6 +412,11 @@ class PosController extends Controller
             $order = PosOrder::query()->lockForUpdate()->findOrFail($posOrder->id);
             if ($order->status !== 'open') {
                 throw ValidationException::withMessages(['order' => 'Porosia nuk është më e hapur.']);
+            }
+            if ($order->pos_table_id && $order->rounds()->where('status', 'draft')->exists()) {
+                throw ValidationException::withMessages([
+                    'order' => 'Dërgo dhe printo të gjitha porositë e padërguara para pagesës.',
+                ]);
             }
 
             $subtotal = round((float) $order->items()->sum('total_price'), 2);
@@ -505,6 +518,11 @@ class PosController extends Controller
 
         // Payment is intentionally independent from the external fiscal provider.
         // The operator can print a non-fiscal receipt immediately and fiscalize later.
+        if (($data['return_to'] ?? null) === 'tables') {
+            return redirect()->route('pos.tables', ['table' => $data['table_id'] ?? null])
+                ->with('success', 'Pagesa u regjistrua dhe tavolina u lirua.');
+        }
+
         return redirect()->route('pos.index', ['order_id' => $posOrder->id, 'action' => 'receipt'])
             ->with('success', 'Pagesa u regjistrua. Fatura mund të printohet ose fiskalizohet veçmas.');
     }
