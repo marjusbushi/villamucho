@@ -13,7 +13,7 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ShiftBanner from '@/Components/Pos/ShiftBanner.vue';
 import PosReceipt from '@/Components/Invoices/PosReceipt.vue';
-import { ArrowLeft, Banknote, Clock3, Maximize2, Minimize2, Minus, Pencil, Plus, ReceiptText, RotateCcw, Search, ShoppingCart, Star, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, Banknote, Clock3, Maximize2, Minimize2, Minus, Pencil, Plus, Printer, ReceiptText, RotateCcw, Search, ShoppingCart, Star, Trash2, X } from 'lucide-vue-next';
 
 const props = defineProps({
     view: { type: String, default: 'sale' },
@@ -28,6 +28,7 @@ const props = defineProps({
     canCloseShift: { type: Boolean, default: false },
     defaultOpeningFloat: { type: Number, default: 0 },
     receiptSettings: { type: Object, default: () => ({}) },
+    tableContext: { type: Object, default: null },
 });
 
 const toasts = ref(null);
@@ -41,12 +42,12 @@ const activeCategory = ref(props.menu?.[0]?.id || null);
 const searchQuery = ref('');
 const serviceMode = ref('table');
 const checkoutStep = ref('cart');
-const touchMode = ref(false);
+const touchMode = ref(Boolean(props.tableContext));
 const orderSaving = ref(false);
 
 // Cart
 const cart = ref([]);
-const tableNumber = ref('');
+const tableNumber = ref(props.tableContext?.number || '');
 const selectedReservation = ref('');
 
 const reservationOptions = props.activeReservations.map((r) => ({
@@ -253,7 +254,7 @@ function updateQty(index, delta) {
 
 function clearCart() {
     cart.value = [];
-    tableNumber.value = '';
+    tableNumber.value = props.tableContext?.number || '';
     selectedReservation.value = '';
     serviceMode.value = 'table';
     editingOrderId.value = null;
@@ -262,6 +263,20 @@ function clearCart() {
 function submitOrder(payNow = false) {
     if (!cart.value.length) return;
     if (!hasOpenShift.value) { toasts.value?.error(translate('admin.generated.k_d4d2e4579cbb')); return; }
+
+    if (props.tableContext) {
+        orderSaving.value = true;
+        router.post(route('pos.tables.rounds.store', props.tableContext.id), {
+            items: cart.value.map((item) => ({ menu_item_id: item.id, quantity: item.qty })),
+            covers: null,
+            send: true,
+        }, {
+            onError: (errors) => toasts.value?.error(errors.inventory || errors.items || 'Porosia nuk u ruajt.'),
+            onFinish: () => { orderSaving.value = false; },
+        });
+        return;
+    }
+
     const form = useForm({
         table_number: serviceMode.value === 'table' ? tableNumber.value || null : null,
         reservation_id: serviceMode.value === 'room' ? selectedReservation.value || null : null,
@@ -500,11 +515,12 @@ onMounted(() => {
         <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between" :class="touchMode && view === 'sale' && '!mb-0 shrink-0'">
             <div>
                 <div class="flex items-center gap-3">
-                    <h1 class="text-h2 text-primary-900">{{ view === 'sale' ? 'Shitje POS' : view === 'orders' ? 'Porositë' : view === 'receipts' ? 'Shitjet & kuponët' : 'Turnet POS' }}</h1>
+                    <h1 class="text-h2 text-primary-900">{{ view === 'sale' ? (tableContext ? `Shitje POS · ${tableContext.name}` : 'Shitje POS') : view === 'orders' ? 'Porositë' : view === 'receipts' ? 'Shitjet & kuponët' : 'Turnet POS' }}</h1>
                 </div>
                 <p v-if="!touchMode || view !== 'sale'" class="mt-1 text-body-sm text-neutral-500">{{ view === 'sale' ? 'Porosia dhe pagesa përfundojnë në një ekran.' : view === 'orders' ? 'Ndrysho, arkëto ose anulo porositë ende të hapura.' : view === 'receipts' ? 'Historiku i shitjeve, kuponëve dhe rimbursimeve.' : 'Hapja, mbyllja dhe kontrolli i arkës sipas turnit.' }}</p>
             </div>
             <div v-if="view === 'sale'" class="flex flex-wrap items-center gap-2">
+                <Button v-if="tableContext" variant="outline" class="h-[58px]" :href="route('pos.tables', { table: tableContext.id })"><ArrowLeft class="h-4 w-4" /> Tavolinat</Button>
                 <button
                     type="button"
                     class="group h-14 min-w-32 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-left shadow-card transition hover:border-accent-300 hover:bg-accent-50 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
@@ -775,12 +791,12 @@ onMounted(() => {
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
                                 <span class="grid h-9 w-9 place-items-center rounded-lg bg-accent-50 text-accent-700"><ShoppingCart class="h-5 w-5" /></span>
-                                <div><h3 class="font-semibold text-primary-900">{{ editingOrderId ? `Ndrysho porosinë #${editingOrderId}` : 'Porosia e re' }}</h3><p class="text-tiny text-neutral-400">{{ cartCount }} artikuj</p></div>
+                                <div><h3 class="font-semibold text-primary-900">{{ tableContext ? `Porosi · ${tableContext.name}` : editingOrderId ? `Ndrysho porosinë #${editingOrderId}` : 'Porosia e re' }}</h3><p class="text-tiny text-neutral-400">{{ cartCount }} artikuj</p></div>
                             </div>
                             <button v-if="cart.length" type="button" class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-small font-semibold text-error-600 hover:bg-error-50" @click="clearCart"><Trash2 class="h-4 w-4" /> Pastro</button>
                         </div>
 
-                        <div class="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1">
+                        <div v-if="!tableContext" class="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1">
                             <button type="button" class="rounded-md px-3 py-2 text-small font-semibold transition" :class="serviceMode === 'table' ? 'bg-white text-primary-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'" @click="switchService('table')">Tavolinë / banak</button>
                             <button type="button" class="rounded-md px-3 py-2 text-small font-semibold transition" :class="serviceMode === 'room' ? 'bg-white text-primary-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'" @click="switchService('room')">Dhomë</button>
                         </div>
@@ -788,7 +804,11 @@ onMounted(() => {
 
                     <!-- Table/Room selection -->
                     <div class="border-b border-neutral-100 px-4 py-3">
-                        <TextInput v-if="serviceMode === 'table'" v-model="tableNumber" placeholder="Numri i tavolinës · opsional" />
+                        <div v-if="tableContext" class="rounded-lg border border-accent-200 bg-accent-50 px-3 py-2.5">
+                            <p class="text-small font-bold text-accent-800">{{ tableContext.name }}</p>
+                            <p class="text-tiny text-accent-700">{{ tableContext.area }} · {{ tableContext.seats }} vende</p>
+                        </div>
+                        <TextInput v-else-if="serviceMode === 'table'" v-model="tableNumber" placeholder="Numri i tavolinës · opsional" />
                         <Select v-else v-model="selectedReservation" :options="reservationOptions" placeholder="Zgjidh dhomën / mysafirin" />
                     </div>
 
@@ -823,11 +843,15 @@ onMounted(() => {
                             <span class="text-label text-neutral-500">{{ $t('admin.generated.k_85f1cb8f5091') }}</span>
                             <span class="text-h3 text-primary-900">{{ money(cartTotal) }}</span>
                         </div>
-                        <div class="grid grid-cols-[0.85fr_1.4fr] gap-2">
+                        <div v-if="tableContext">
+                            <Button variant="primary" size="lg" class="min-h-14 w-full text-lg" :loading="orderSaving" :disabled="!hasOpenShift" @click="submitOrder(false)"><Printer class="h-4 w-4" /> Dërgo & printo · {{ money(cartTotal) }}</Button>
+                        </div>
+                        <div v-else class="grid grid-cols-[0.85fr_1.4fr] gap-2">
                             <Button variant="outline" size="lg" class="min-h-14" :loading="orderSaving" :disabled="!hasOpenShift || (serviceMode === 'room' && !selectedReservation)" @click="submitOrder(false)">Ruaj hapur</Button>
                             <Button variant="primary" size="lg" class="min-h-14 text-lg" :loading="orderSaving" :disabled="!hasOpenShift || (serviceMode === 'room' && !selectedReservation)" @click="submitOrder(true)">Paguaj · {{ money(cartTotal) }}</Button>
                         </div>
-                        <p v-if="editingOrderId" class="text-center text-tiny font-semibold text-accent-700">Po ndryshon porosinë #{{ editingOrderId }}</p>
+                        <p v-if="tableContext" class="text-center text-tiny text-neutral-400">Porosia ruhet te tavolina dhe printohet për banakun/kuzhinën.</p>
+                        <p v-else-if="editingOrderId" class="text-center text-tiny font-semibold text-accent-700">Po ndryshon porosinë #{{ editingOrderId }}</p>
                         <p v-else class="text-center text-tiny text-neutral-400">
                             “Ruaj hapur” e lë porosinë për më vonë; “Paguaj” vazhdon direkt te arkëtimi.
                         </p>
