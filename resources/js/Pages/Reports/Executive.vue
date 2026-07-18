@@ -24,9 +24,9 @@ const changes = computed(() => props.analytics.changes || {});
 const daily = computed(() => Object.entries(props.analytics.current?.daily || {}).map(([date, value], index) => ({
     date,
     ...value,
-    previous: Object.values(props.analytics.previous_period?.daily || {})[index]?.room_revenue || 0,
+    previous: Object.values(props.analytics.previous_period?.daily || {})[index]?.total_revenue || 0,
 })));
-const maxDailyRevenue = computed(() => Math.max(1, ...daily.value.flatMap((day) => [day.room_revenue, day.previous])));
+const maxDailyRevenue = computed(() => Math.max(1, ...daily.value.flatMap((day) => [day.total_revenue, day.previous])));
 const forecastKpis = computed(() => props.forecast.kpis || {});
 const budgetProgress = computed(() => props.budget.revenue_target
     ? Math.min(100, Math.round(Number(current.value.total_revenue || 0) / Number(props.budget.revenue_target) * 100))
@@ -69,9 +69,9 @@ const alertMeta = (alert) => ({
                 </div>
                 <div class="h-64 px-5 pb-4 pt-5">
                     <div v-if="daily.length" class="flex h-full items-end gap-1.5 border-b border-neutral-200">
-                        <div v-for="day in daily" :key="day.date" class="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-px" :title="`${day.date}: ${money(day.room_revenue)}`">
+                        <div v-for="day in daily" :key="day.date" class="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-px" :title="`${day.date}: ${money(day.total_revenue)}`">
                             <span class="w-1/3 rounded-t bg-neutral-200" :style="{ height: `${Math.max(2, day.previous / maxDailyRevenue * 100)}%` }" />
-                            <span class="w-1/3 rounded-t bg-accent-500 transition group-hover:bg-accent-700" :style="{ height: `${Math.max(2, day.room_revenue / maxDailyRevenue * 100)}%` }" />
+                            <span class="w-1/3 rounded-t bg-accent-500 transition group-hover:bg-accent-700" :style="{ height: `${Math.max(2, day.total_revenue / maxDailyRevenue * 100)}%` }" />
                         </div>
                     </div>
                     <div v-else class="flex h-full items-center justify-center text-body-sm text-neutral-400">{{ $t('reports360.noData') }}</div>
