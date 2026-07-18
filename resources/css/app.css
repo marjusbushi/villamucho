@@ -91,7 +91,7 @@
     }
 
     .pms-settings-shell [data-ui='card'] {
-        overflow: hidden;
+        overflow: clip;
         border-color: var(--settings-line);
         border-radius: var(--settings-radius);
         box-shadow: var(--settings-shadow);
