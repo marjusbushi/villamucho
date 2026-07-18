@@ -28,6 +28,7 @@ import {
     ShoppingBasket,
     Sparkles,
     TrendingUp,
+    Truck,
     UserRoundCheck,
     Users,
     Utensils,
@@ -135,6 +136,7 @@ const groups = [
         icon: Warehouse,
         reports: [
             { name: translate('reports360.stockValuation.title'), desc: translate('reports360.stockValuation.short'), to: 'reports.stockValuation', icon: Warehouse, module: 'finance' },
+            { name: translate('reports360.supplierPerformance.title'), desc: translate('reports360.supplierPerformance.short'), to: 'reports.supplierPerformance', icon: Truck, module: 'finance' },
         ],
     },
 ];

@@ -5040,6 +5040,36 @@
         "negative": "Negative stock"
       }
     },
+    "supplierPerformance": {
+      "title": "Suppliers & Purchasing",
+      "short": "Spend, payments, receipts and risk by supplier.",
+      "category": "POS & inventory",
+      "spend": "Total purchases",
+      "avgBill": "Average bill",
+      "onTime": "Paid on time",
+      "overdue": "Overdue exposure",
+      "outstanding": "Outstanding",
+      "bySupplier": "Purchases by supplier",
+      "byCategory": "Purchases by category",
+      "supplierDetail": "Supplier performance",
+      "suppliers": "suppliers",
+      "supplier": "Supplier",
+      "bills": "bills",
+      "receiptRate": "Received into stock",
+      "statusLabel": "Status",
+      "overdueShort": "overdue",
+      "days": "days",
+      "topItems": "Top purchased items",
+      "items": "items",
+      "item": "Item",
+      "quantity": "Quantity",
+      "unitCost": "Unit cost",
+      "status": {
+        "healthy": "Healthy",
+        "watch": "Watch",
+        "risk": "At risk"
+      }
+    },
     "cancellationRisk": {
       "title": "Cancellations & No-Show",
       "short": "Losses and reservations requiring action.",
