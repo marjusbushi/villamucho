@@ -18,6 +18,7 @@ use App\Services\Reporting\ChannelPerformanceService;
 use App\Services\Reporting\DepartmentRevenueService;
 use App\Services\Reporting\DiscountRefundCashFlowService;
 use App\Services\Reporting\FiscalVatReportService;
+use App\Services\Reporting\GuestMovementService;
 use App\Services\Reporting\HotelKpiService;
 use App\Services\Reporting\HousekeepingProductivityService;
 use App\Services\Reporting\MaintenanceSlaReportService;
@@ -967,6 +968,19 @@ class ReportsController extends Controller
                 'reservations' => $request->user()?->can('view_reservations') ?? false,
                 'housekeeping' => $request->user()?->can('view_housekeeping') ?? false,
             ],
+            'currency' => $this->currency(),
+        ]);
+    }
+
+    public function guestMovements(Request $request, GuestMovementService $report): Response
+    {
+        $request->validate(['tab' => ['nullable', 'in:arrivals,departures,in_house']]);
+        [$from, $to] = $this->range($request);
+
+        return Inertia::render('Reports/GuestMovements', [
+            'filters' => ['from' => $from, 'to' => $to],
+            'activeTab' => $request->input('tab', 'arrivals'),
+            'analytics' => $report->summary(new ReportingPeriod($from, $to)),
             'currency' => $this->currency(),
         ]);
     }

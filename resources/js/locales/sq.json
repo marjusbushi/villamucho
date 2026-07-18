@@ -4776,6 +4776,20 @@
       "tabs": { "all": "Të gjitha", "arrivals": "Mbërritjet", "attention": "Vëmendje" },
       "states": { "ready": "Gati për mbërritje", "available": "E lirë", "checked_in": "Check-in kryer", "cleaning": "Në pastrim", "cleaning_for_arrival": "Pastrim për mbërritje", "turnover": "Checkout + mbërritje", "departure_pending": "Nisje në pritje", "maintenance": "Mirëmbajtje", "occupied": "E zënë / bllokuar", "unassigned": "Pa dhomë" }
     },
+    "guestMovements": {
+      "title": "Lëvizjet e mysafirëve",
+      "short": "Mbërritjet, nisjet dhe mysafirët in-house në një faqe.",
+      "category": "Operacione",
+      "tabs": { "arrivals": "Mbërritjet", "departures": "Nisjet", "in_house": "In-house live" },
+      "kpis": { "arrivals": "Mbërritje", "departures": "Nisje", "in_house": "Qëndrime in-house", "guests": "Mysafirë", "nights": "Net", "balance": "Pa arkëtuar", "openPos": "Porosi POS të hapura" },
+      "guest": "Mysafiri",
+      "room": "Dhoma",
+      "period": "Qëndrimi",
+      "status": "Statusi",
+      "pax": "Persona",
+      "balance": "Bilanci",
+      "statuses": { "pending": "Në pritje", "confirmed": "Konfirmuar", "checked_in": "Check-in", "checked_out": "Check-out" }
+    },
     "housekeepingProductivity": {
       "title": "Produktiviteti & Turnaround i Pastrimit",
       "short": "Koha, përfundimi dhe produktiviteti real i housekeeping.",

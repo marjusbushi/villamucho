@@ -20,7 +20,6 @@ import {
     CreditCard,
     FileBarChart,
     HandCoins,
-    House,
     Percent,
     ReceiptText,
     Repeat2,
@@ -80,14 +79,12 @@ const groups = [
         category: 'operations',
         icon: BedDouble,
         reports: [
-            { name: translate('admin.reports.catalog.arrivals'), desc: translate('admin.reports.catalog.arrivalsDesc'), to: 'reports.arrivalsManifest', icon: UserRoundCheck },
-            { name: translate('admin.reports.catalog.departures'), desc: translate('admin.reports.catalog.departuresDesc'), to: 'reports.departuresManifest', icon: CalendarCheck },
+            { name: translate('reports360.guestMovements.title'), desc: translate('reports360.guestMovements.short'), to: 'reports.guestMovements', icon: UserRoundCheck },
             { name: translate('admin.reports.catalog.roomStatus'), desc: translate('admin.reports.catalog.roomStatusDesc'), to: 'reports.roomStatus', icon: BedDouble },
             { name: translate('reports360.housekeepingProductivity.title'), desc: translate('reports360.housekeepingProductivity.short'), to: 'reports.housekeepingReport', icon: Sparkles, module: 'housekeeping' },
             { name: translate('reports360.maintenanceSla.title'), desc: translate('reports360.maintenanceSla.short'), to: 'reports.maintenanceSla', icon: Wrench },
             { name: translate('reports360.recurringMaintenance.title'), desc: translate('reports360.recurringMaintenance.short'), to: 'reports.recurringMaintenance', icon: Repeat2 },
             { name: translate('reports360.roomReadiness.title'), desc: translate('reports360.roomReadiness.short'), to: 'reports.roomReadiness', icon: CircleCheckBig },
-            { name: translate('admin.reports.catalog.inHouse'), desc: translate('admin.reports.catalog.inHouseDesc'), to: 'reports.inHouse', icon: House },
         ],
     },
     {
