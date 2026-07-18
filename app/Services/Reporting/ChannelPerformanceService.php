@@ -128,10 +128,12 @@ final class ChannelPerformanceService
                 (float) $previous['totals'][$key],
             );
         }
-        $changes['direct_share'] = round(
-            (float) $current['totals']['direct_share'] - (float) $previous['totals']['direct_share'],
-            1,
-        );
+        $changes['direct_share'] = $previous['totals']['gross_revenue'] > 0
+            ? round(
+                (float) $current['totals']['direct_share'] - (float) $previous['totals']['direct_share'],
+                1,
+            )
+            : null;
 
         return [
             'current' => $current,

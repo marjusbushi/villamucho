@@ -20,6 +20,9 @@ const rows = computed(() => current.value.rows || []);
 const changes = computed(() => props.analytics.changes || {});
 const daily = computed(() => Object.entries(current.value.daily || {}).map(([date, values]) => ({ date, ...values })));
 const maxDaily = computed(() => Math.max(1, ...daily.value.flatMap((day) => [day.direct_net || 0, day.ota_net || 0])));
+const otaShare = computed(() => Number(totals.value.gross_revenue || 0) > 0
+    ? Math.max(0, 100 - Number(totals.value.direct_share || 0))
+    : 0);
 
 const money = (value) => `${props.currency}${Number(value ?? 0).toLocaleString(getIntlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (value) => `${Number(value ?? 0).toLocaleString(getIntlLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
@@ -81,7 +84,7 @@ const kpis = computed(() => [
                     <div class="px-5 py-4">
                         <div class="flex items-center justify-between">
                             <span class="text-body-sm font-medium text-primary-900">OTA</span>
-                            <Badge variant="warning">{{ pct(100 - Number(totals.direct_share || 0)) }}</Badge>
+                            <Badge variant="warning">{{ pct(otaShare) }}</Badge>
                         </div>
                         <p class="mt-2 text-h3 text-warning-700">{{ money(totals.ota_revenue) }}</p>
                     </div>
@@ -127,7 +130,7 @@ const kpis = computed(() => [
                     <tfoot v-if="rows.length" class="border-t-2 border-neutral-200 bg-neutral-50">
                         <tr>
                             <td class="px-5 py-3 text-body-sm font-semibold text-primary-900">{{ $t('reports360.revenuePerformance.total') }}</td>
-                            <td class="px-4 py-3 text-right text-body-sm font-semibold">100%</td>
+                            <td class="px-4 py-3 text-right text-body-sm font-semibold">{{ Number(totals.gross_revenue || 0) > 0 ? '100%' : '0.0%' }}</td>
                             <td class="px-4 py-3 text-right text-body-sm font-semibold">{{ totals.bookings }}</td>
                             <td class="px-4 py-3 text-right text-body-sm font-semibold">{{ totals.nights }}</td>
                             <td class="px-4 py-3 text-right text-body-sm font-semibold">{{ money(totals.gross_revenue) }}</td>

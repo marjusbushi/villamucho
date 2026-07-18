@@ -66,5 +66,10 @@ class ChannelPerformanceServiceTest extends TestCase
         $this->assertSame(24.0, $ota['commission']);
         $this->assertSame(108.0, $current['daily']['2026-07-01']['ota_net']);
         $this->assertSame(-54.5, $analytics['changes']['direct_share']);
+
+        $withoutPreviousRevenue = app(ChannelPerformanceService::class)
+            ->withComparisons(new ReportingPeriod('2026-06-30', '2026-06-30'));
+
+        $this->assertNull($withoutPreviousRevenue['changes']['direct_share']);
     }
 }

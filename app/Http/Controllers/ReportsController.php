@@ -134,6 +134,11 @@ class ReportsController extends Controller
     /** Production by channel: bookings, revenue, commission, net, nights. */
     public function channels(Request $request, ChannelPerformanceService $channelPerformance): Response
     {
+        $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+
         [$from, $to] = $this->range($request);
         $period = new ReportingPeriod($from, $to);
 
