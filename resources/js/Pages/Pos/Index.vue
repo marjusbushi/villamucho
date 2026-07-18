@@ -497,18 +497,19 @@ onMounted(() => {
                 <p v-if="!touchMode || view !== 'sale'" class="mt-1 text-body-sm text-neutral-500">{{ view === 'sale' ? 'Porosia dhe pagesa përfundojnë në një ekran.' : view === 'orders' ? 'Ndrysho, arkëto ose anulo porositë ende të hapura.' : view === 'receipts' ? 'Historiku i shitjeve, kuponëve dhe rimbursimeve.' : 'Hapja, mbyllja dhe kontrolli i arkës sipas turnit.' }}</p>
             </div>
             <div v-if="view === 'sale'" class="flex flex-wrap items-center gap-2">
-                <Button
-                    variant="outline"
-                    class="w-32"
+                <button
+                    type="button"
+                    class="group min-w-32 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-left shadow-card transition hover:border-accent-300 hover:bg-accent-50 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
                     :aria-label="touchMode ? 'Kalo në modalitetin standard' : 'Kalo në modalitetin touch'"
                     @click="toggleTouchMode"
                 >
-                    <template #icon-left>
+                    <p class="text-tiny font-semibold uppercase tracking-wide text-neutral-400">Modaliteti</p>
+                    <p class="mt-0.5 flex items-center gap-2 text-h4 text-primary-900">
                         <Minimize2 v-if="touchMode" class="h-4 w-4" />
                         <Maximize2 v-else class="h-4 w-4" />
-                    </template>
-                    {{ touchMode ? 'Standard' : 'Touch' }}
-                </Button>
+                        {{ touchMode ? 'Standard' : 'Touch' }}
+                    </p>
+                </button>
                 <div class="rounded-xl border border-neutral-200 bg-white px-4 py-2 shadow-card">
                     <p class="text-tiny font-semibold uppercase tracking-wide text-neutral-400">Hapur</p>
                     <p class="text-h4 text-warning-700">{{ stats.open }}</p>
@@ -653,18 +654,18 @@ onMounted(() => {
 
                     <!-- Item grid -->
                     <div
-                        class="grid grid-cols-2 gap-3 overflow-y-auto p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-3 2xl:grid-cols-4"
+                        class="grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4"
                         :class="[touchMode && 'min-h-0 flex-1 content-start', { 'opacity-50 pointer-events-none': !hasOpenShift }]"
                     >
                         <button
                             v-for="item in activeMenuItems"
                             :key="item.id"
-                            class="group relative min-h-36 overflow-hidden rounded-xl border border-neutral-200 bg-white text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-lg touch-manipulation"
+                            class="group relative overflow-hidden rounded-xl border border-neutral-200 bg-white text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-lg touch-manipulation"
                             :class="(!item.is_available || (item.inventory_tracked && item.available_portions !== null && item.available_portions <= 0)) && 'pointer-events-none opacity-60'"
                             @click="addToCart(item)"
                         >
                             <!-- Image/Emoji area -->
-                            <div class="flex h-24 items-center justify-center overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100">
+                            <div class="flex h-16 items-center justify-center overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100">
                                 <img
                                     v-if="getItemImage(item)"
                                     :src="getItemImage(item)"
@@ -674,12 +675,12 @@ onMounted(() => {
                                 <span v-else class="text-4xl">{{ getItemEmoji(item) }}</span>
                             </div>
                             <!-- Info -->
-                            <div class="p-3">
-                                <p class="min-h-8 text-body-sm font-semibold leading-tight text-primary-900">{{ item.name }}</p>
+                            <div class="p-2.5">
+                                <p class="truncate text-body-sm font-semibold leading-tight text-primary-900">{{ item.name }}</p>
                                 <div class="mt-1 flex items-center justify-between gap-2">
                                     <p class="text-label text-accent-700">{{ money(item.price) }}</p>
-                                    <span v-if="item.inventory_tracked" class="text-tiny font-semibold" :class="item.available_portions === null ? 'text-warning-600' : item.available_portions > 0 ? 'text-neutral-400' : 'text-error-600'">{{ item.available_portions === null ? $t('inventory.pos.stockUnknown') : item.available_portions > 0 ? item.available_portions + ' ' + $t('inventory.pos.available') : $t('inventory.pos.outOfStock') }}</span>
-                                    <span v-else-if="item.sales_count" class="text-tiny text-neutral-400">{{ $t('admin.pos.salesCount', { count: item.sales_count }) }}</span>
+                                    <span v-if="item.inventory_tracked" class="max-w-[65%] truncate text-right text-tiny font-semibold" :class="item.available_portions === null ? 'text-warning-600' : item.available_portions > 0 ? 'text-neutral-400' : 'text-error-600'">{{ item.available_portions === null ? $t('inventory.pos.stockUnknown') : item.available_portions > 0 ? item.available_portions + ' ' + $t('inventory.pos.available') : $t('inventory.pos.outOfStock') }}</span>
+                                    <span v-else-if="item.sales_count" class="max-w-[65%] truncate text-right text-tiny text-neutral-400">{{ $t('admin.pos.salesCount', { count: item.sales_count }) }}</span>
                                 </div>
                             </div>
                             <!-- Hover add indicator -->
