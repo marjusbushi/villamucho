@@ -42,6 +42,21 @@ final class PosPerformanceService
             ->whereBetween('paid_at', [$period->from->startOfDay(), $period->to->endOfDay()])
             ->with(['order.items.menuItem.category'])
             ->get();
+        $legacyRefunds = PosOrder::query()
+            ->whereNotNull('refunded_at')
+            ->whereBetween('refunded_at', [$period->from->startOfDay(), $period->to->endOfDay()])
+            ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'out'))
+            ->with(['items.menuItem.category'])
+            ->get();
+        $refundEvents = $refunds->map(fn (PosOrderPayment $refund) => [
+            'order' => $refund->order,
+            'amount' => (float) $refund->amount,
+            'paid_at' => $refund->paid_at,
+        ])->concat($legacyRefunds->map(fn (PosOrder $order) => [
+            'order' => $order,
+            'amount' => (float) $order->total_amount,
+            'paid_at' => $order->refunded_at,
+        ]));
 
         $categories = collect();
         $items = collect();
@@ -74,14 +89,14 @@ final class PosPerformanceService
             }
         }
 
-        foreach ($refunds as $refund) {
-            $order = $refund->order;
+        foreach ($refundEvents as $refund) {
+            $order = $refund['order'];
             if (! $order || (float) $order->total_amount <= 0) {
                 continue;
             }
 
-            $revenue = -(float) $refund->amount;
-            $when = CarbonImmutable::parse($refund->paid_at);
+            $revenue = -$refund['amount'];
+            $when = CarbonImmutable::parse($refund['paid_at']);
             $hour = $hours->get($when->hour);
             $hour['revenue'] += $revenue;
             $hours->put($when->hour, $hour);
@@ -89,7 +104,7 @@ final class PosPerformanceService
             $weekday['revenue'] += $revenue;
             $weekdays->put($when->dayOfWeekIso, $weekday);
 
-            $refundRatio = min(1, (float) $refund->amount / (float) $order->total_amount);
+            $refundRatio = min(1, $refund['amount'] / (float) $order->total_amount);
             $saleFactor = (float) $order->subtotal_amount > 0 ? (float) $order->total_amount / (float) $order->subtotal_amount : 1.0;
             foreach ($order->items as $line) {
                 $itemRevenue = -(float) $line->total_price * $saleFactor * $refundRatio;
@@ -102,7 +117,7 @@ final class PosPerformanceService
             }
         }
 
-        $totalRevenue = round((float) $orders->sum('total_amount') - (float) $refunds->sum('amount'), 2);
+        $totalRevenue = round((float) $orders->sum('total_amount') - (float) $refundEvents->sum('amount'), 2);
         $orderCount = $orders->count();
         $grossProfit = round($totalRevenue - $totalCost, 2);
 

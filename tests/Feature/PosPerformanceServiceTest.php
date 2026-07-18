@@ -44,25 +44,28 @@ class PosPerformanceServiceTest extends TestCase
             'pos_order_id' => $prior->id, 'direction' => 'out', 'method' => 'cash',
             'amount' => 5, 'paid_at' => '2026-07-10 14:00:00', 'created_by' => $user->id,
         ]);
+        $legacyRefund = $this->order($user, $sameName, '2026-07-08', '2026-07-08 11:00:00', 20, 0, 20, 1);
+        $legacyRefund->update(['refunded_at' => '2026-07-10 15:00:00']);
 
         $report = app(PosPerformanceService::class)
             ->withComparison(new ReportingPeriod('2026-07-10', '2026-07-10'));
         $current = $report['current'];
 
-        $this->assertSame(125.0, $current['summary']['total_revenue']);
+        $this->assertSame(105.0, $current['summary']['total_revenue']);
         $this->assertSame(2, $current['summary']['order_count']);
-        $this->assertSame(62.5, $current['summary']['avg_ticket']);
-        $this->assertSame(45.0, $current['summary']['estimated_cost']);
-        $this->assertSame(80.0, $current['summary']['gross_profit']);
-        $this->assertSame(64.0, $current['summary']['gross_margin']);
+        $this->assertSame(52.5, $current['summary']['avg_ticket']);
+        $this->assertSame(35.0, $current['summary']['estimated_cost']);
+        $this->assertSame(70.0, $current['summary']['gross_profit']);
+        $this->assertSame(66.7, $current['summary']['gross_margin']);
         $this->assertSame(130.0, collect($current['hours'])->firstWhere('hour', 13)['revenue']);
         $this->assertSame(100.0, $current['categories'][0]['revenue']);
         $this->assertSame('Pasta', $current['top_items'][0]['name']);
         $this->assertCount(2, $current['top_items']);
         $this->assertSame(['Ushqim', 'Bar'], collect($current['top_items'])->pluck('category')->all());
         $this->assertSame(-5.0, collect($current['hours'])->firstWhere('hour', 14)['revenue']);
-        $this->assertSame(1150.0, $report['changes']['revenue']);
-        $this->assertSame(64.0, $report['changes']['gross_margin']);
+        $this->assertSame(-20.0, collect($current['hours'])->firstWhere('hour', 15)['revenue']);
+        $this->assertSame(950.0, $report['changes']['revenue']);
+        $this->assertSame(66.7, $report['changes']['gross_margin']);
     }
 
     private function order(User $user, MenuItem $item, string $businessDate, string $paidAt, float $subtotal, float $discount, float $total, int $quantity): PosOrder
