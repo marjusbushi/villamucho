@@ -5,6 +5,8 @@ namespace App\Services\Reporting;
 use App\Models\FolioItem;
 use App\Models\Payment;
 use App\Models\Reservation;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 final class OutstandingBalanceService
@@ -12,12 +14,25 @@ final class OutstandingBalanceService
     /** @return array{count:int,total:float} */
     public function summary(): array
     {
+        $summary = $this->analytics()['summary'];
+
+        return ['count' => $summary['count'], 'total' => $summary['total']];
+    }
+
+    /** @return array{as_of:string,summary:array,buckets:array,statuses:array,rows:array} */
+    public function analytics(?CarbonImmutable $asOf = null): array
+    {
+        $asOf ??= CarbonImmutable::today();
         $stays = Reservation::query()
             ->whereIn('status', ['confirmed', 'checked_in', 'checked_out'])
-            ->get(['id', 'total_amount']);
+            ->with(['room:id,room_number', 'guest:id,first_name,last_name,phone'])
+            ->get([
+                'id', 'room_id', 'guest_id', 'status', 'channel', 'check_in_date',
+                'check_out_date', 'total_amount',
+            ]);
 
         if ($stays->isEmpty()) {
-            return ['count' => 0, 'total' => 0.0];
+            return $this->emptyAnalytics($asOf);
         }
 
         $ids = $stays->pluck('id')->all();
@@ -39,19 +54,119 @@ final class OutstandingBalanceService
             ->get()
             ->keyBy('reservation_id');
 
-        $balances = $stays->map(function (Reservation $reservation) use ($folio, $payments) {
+        $rows = $stays->map(function (Reservation $reservation) use ($folio, $payments, $asOf) {
             $items = $folio->get($reservation->id);
-            $paid = $payments->get($reservation->id);
-
-            return round(
+            $gross = round(
                 (float) $reservation->total_amount
                 + (float) ($items?->charges ?? 0)
-                - (float) ($items?->discounts ?? 0)
-                - (float) ($paid?->paid ?? 0),
+                - (float) ($items?->discounts ?? 0),
                 2,
             );
-        })->filter(fn (float $balance) => $balance > 0.009);
+            $paid = round((float) ($payments->get($reservation->id)?->paid ?? 0), 2);
+            $balance = round($gross - $paid, 2);
+            $dueDate = CarbonImmutable::parse($reservation->check_out_date);
+            $daysOverdue = $dueDate->lessThan($asOf) ? (int) $dueDate->diffInDays($asOf) : 0;
+            $bucket = $this->bucketFor($daysOverdue);
 
-        return ['count' => $balances->count(), 'total' => round((float) $balances->sum(), 2)];
+            return [
+                'id' => $reservation->id,
+                'guest' => trim("{$reservation->guest?->first_name} {$reservation->guest?->last_name}") ?: 'Mysafir',
+                'phone' => $reservation->guest?->phone,
+                'room' => $reservation->room?->room_number,
+                'status' => $reservation->status,
+                'channel' => Reservation::normalizeChannel($reservation->channel),
+                'check_in' => $reservation->check_in_date?->toDateString(),
+                'check_out' => $reservation->check_out_date?->toDateString(),
+                'due_date' => $dueDate->toDateString(),
+                'days_overdue' => $daysOverdue,
+                'bucket' => $bucket,
+                'gross' => $gross,
+                'paid' => $paid,
+                'balance' => $balance,
+            ];
+        })->filter(fn (array $row) => $row['balance'] > 0.009)
+            ->sortBy([
+                fn (array $a, array $b) => $b['days_overdue'] <=> $a['days_overdue'],
+                fn (array $a, array $b) => $b['balance'] <=> $a['balance'],
+            ])->values();
+
+        $total = round((float) $rows->sum('balance'), 2);
+        $overdue = $rows->where('days_overdue', '>', 0);
+        $critical = $rows->where('days_overdue', '>', 30);
+        $gross = round((float) $rows->sum('gross'), 2);
+        $paid = round((float) $rows->sum('paid'), 2);
+
+        return [
+            'as_of' => $asOf->toDateString(),
+            'summary' => [
+                'count' => $rows->count(),
+                'total' => $total,
+                'gross' => $gross,
+                'paid' => $paid,
+                'collection_rate' => $gross > 0 ? round($paid / $gross * 100, 1) : 0.0,
+                'overdue_count' => $overdue->count(),
+                'overdue_total' => round((float) $overdue->sum('balance'), 2),
+                'critical_count' => $critical->count(),
+                'critical_total' => round((float) $critical->sum('balance'), 2),
+                'average_balance' => $rows->isNotEmpty() ? round($total / $rows->count(), 2) : 0.0,
+            ],
+            'buckets' => $this->bucketSummary($rows, $total),
+            'statuses' => $rows->groupBy('status')->map(fn (Collection $statusRows, string $status) => [
+                'status' => $status,
+                'count' => $statusRows->count(),
+                'amount' => round((float) $statusRows->sum('balance'), 2),
+            ])->sortByDesc('amount')->values()->all(),
+            'rows' => $rows->all(),
+        ];
+    }
+
+    private function bucketFor(int $daysOverdue): string
+    {
+        return match (true) {
+            $daysOverdue === 0 => 'not_due',
+            $daysOverdue <= 7 => '1_7',
+            $daysOverdue <= 30 => '8_30',
+            $daysOverdue <= 60 => '31_60',
+            default => '61_plus',
+        };
+    }
+
+    /** @return array<int,array{key:string,count:int,amount:float,share:float}> */
+    private function bucketSummary(Collection $rows, float $total): array
+    {
+        return collect(['not_due', '1_7', '8_30', '31_60', '61_plus'])
+            ->map(function (string $key) use ($rows, $total) {
+                $bucketRows = $rows->where('bucket', $key);
+                $amount = round((float) $bucketRows->sum('balance'), 2);
+
+                return [
+                    'key' => $key,
+                    'count' => $bucketRows->count(),
+                    'amount' => $amount,
+                    'share' => $total > 0 ? round($amount / $total * 100, 1) : 0.0,
+                ];
+            })->all();
+    }
+
+    private function emptyAnalytics(CarbonImmutable $asOf): array
+    {
+        return [
+            'as_of' => $asOf->toDateString(),
+            'summary' => [
+                'count' => 0,
+                'total' => 0.0,
+                'gross' => 0.0,
+                'paid' => 0.0,
+                'collection_rate' => 0.0,
+                'overdue_count' => 0,
+                'overdue_total' => 0.0,
+                'critical_count' => 0,
+                'critical_total' => 0.0,
+                'average_balance' => 0.0,
+            ],
+            'buckets' => $this->bucketSummary(collect(), 0.0),
+            'statuses' => [],
+            'rows' => [],
+        ];
     }
 }

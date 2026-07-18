@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Reporting\BudgetTargetService;
 use App\Services\Reporting\OutstandingBalanceService;
 use App\Services\Reporting\ReportingPeriod;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -68,5 +69,64 @@ class ExecutiveDashboardServicesTest extends TestCase
 
         $this->assertSame(1, $summary['count']);
         $this->assertSame(70.0, $summary['total']);
+    }
+
+    public function test_outstanding_analytics_groups_balances_into_actionable_aging_buckets(): void
+    {
+        $user = User::factory()->create();
+        $type = RoomType::create(['name' => 'Standard', 'base_price' => 100, 'max_occupancy' => 2, 'amenities' => []]);
+        $guest = Guest::create(['first_name' => 'Aging', 'last_name' => 'Guest']);
+        $stays = [
+            ['room' => '201', 'checkout' => '2026-07-25', 'paid' => 0, 'status' => 'confirmed'],
+            ['room' => '202', 'checkout' => '2026-07-17', 'paid' => 20, 'status' => 'checked_out'],
+            ['room' => '203', 'checkout' => '2026-07-10', 'paid' => 30, 'status' => 'checked_out'],
+            ['room' => '204', 'checkout' => '2026-06-10', 'paid' => 50, 'status' => 'checked_out'],
+            ['room' => '205', 'checkout' => '2026-05-01', 'paid' => 60, 'status' => 'checked_out'],
+        ];
+
+        foreach ($stays as $index => $stay) {
+            $room = Room::create([
+                'room_type_id' => $type->id,
+                'room_number' => $stay['room'],
+                'floor' => 2,
+                'status' => 'available',
+            ]);
+            $reservation = Reservation::create([
+                'room_id' => $room->id,
+                'guest_id' => $guest->id,
+                'created_by' => $user->id,
+                'check_in_date' => CarbonImmutable::parse($stay['checkout'])->subDay()->toDateString(),
+                'check_out_date' => $stay['checkout'],
+                'status' => $stay['status'],
+                'total_amount' => 100,
+                'adults' => 1,
+                'children' => 0,
+                'channel' => $index % 2 === 0 ? 'direct' : 'booking.com',
+            ]);
+
+            if ($stay['paid'] > 0) {
+                Payment::create([
+                    'reservation_id' => $reservation->id,
+                    'amount' => $stay['paid'],
+                    'method' => 'cash',
+                    'created_by' => $user->id,
+                ]);
+            }
+        }
+
+        $analytics = app(OutstandingBalanceService::class)->analytics(CarbonImmutable::parse('2026-07-18'));
+        $buckets = collect($analytics['buckets'])->keyBy('key');
+
+        $this->assertSame(5, $analytics['summary']['count']);
+        $this->assertSame(340.0, $analytics['summary']['total']);
+        $this->assertSame(240.0, $analytics['summary']['overdue_total']);
+        $this->assertSame(90.0, $analytics['summary']['critical_total']);
+        $this->assertSame(32.0, $analytics['summary']['collection_rate']);
+        $this->assertSame(100.0, $buckets['not_due']['amount']);
+        $this->assertSame(80.0, $buckets['1_7']['amount']);
+        $this->assertSame(70.0, $buckets['8_30']['amount']);
+        $this->assertSame(50.0, $buckets['31_60']['amount']);
+        $this->assertSame(40.0, $buckets['61_plus']['amount']);
+        $this->assertSame('61_plus', $analytics['rows'][0]['bucket']);
     }
 }
