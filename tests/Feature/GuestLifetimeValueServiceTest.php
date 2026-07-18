@@ -35,6 +35,7 @@ class GuestLifetimeValueServiceTest extends TestCase
         $this->reservation($oneTime, $room, $user, '2026-09-01', '2026-09-02', 'cancelled', 900);
         FolioItem::create(['reservation_id' => $first->id, 'description' => 'Spa', 'type' => 'service', 'amount' => 50, 'charge_date' => '2026-01-02']);
         FolioItem::create(['reservation_id' => $first->id, 'description' => 'Offer', 'type' => 'discount', 'amount' => 10, 'charge_date' => '2026-01-02']);
+        FolioItem::create(['reservation_id' => $first->id, 'description' => 'Refund', 'type' => 'discount', 'amount' => -5, 'charge_date' => '2026-01-02']);
         $pos = PosOrder::create(['reservation_id' => $second->id, 'status' => 'completed', 'total_amount' => 20, 'created_by' => $user->id]);
         PosOrderPayment::create(['pos_order_id' => $pos->id, 'direction' => 'in', 'method' => 'card', 'amount' => 20, 'paid_at' => now(), 'created_by' => $user->id]);
 
@@ -44,11 +45,11 @@ class GuestLifetimeValueServiceTest extends TestCase
         $this->assertSame(2, $report['summary']['total_guests']);
         $this->assertSame(1, $report['summary']['repeat_guests']);
         $this->assertSame(50.0, $report['summary']['repeat_rate']);
-        $this->assertSame(610.0, $report['summary']['net_lifetime_value']);
+        $this->assertSame(605.0, $report['summary']['net_lifetime_value']);
         $this->assertSame(250.0, $report['summary']['upcoming_value']);
-        $this->assertSame(510.0, $ana['net_value']);
-        $this->assertSame(60.0, $ana['ancillary_value']);
-        $this->assertSame(255.0, $ana['average_stay_value']);
+        $this->assertSame(505.0, $ana['net_value']);
+        $this->assertSame(55.0, $ana['ancillary_value']);
+        $this->assertSame(252.5, $ana['average_stay_value']);
         $this->assertSame(1, $ana['upcoming_stays']);
         $this->assertSame('returning', $ana['segment']);
         $this->assertSame(1, collect($report['segments'])->firstWhere('key', 'one_time')['guests']);

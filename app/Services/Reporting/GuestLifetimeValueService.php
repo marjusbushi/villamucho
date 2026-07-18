@@ -51,7 +51,7 @@ final class GuestLifetimeValueService
             $folioValue = $reservationIds->sum(function (int $reservationId) use ($folioByReservation) {
                 return $folioByReservation->get($reservationId, collect())->sum(fn (FolioItem $item) => match ($item->type) {
                     'room' => 0.0,
-                    'discount' => -1 * (float) $item->amount,
+                    'discount' => -abs((float) $item->amount),
                     default => (float) $item->amount,
                 });
             });
