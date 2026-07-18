@@ -480,7 +480,7 @@ onMounted(() => {
     <AppLayout :immersive="touchMode && view === 'sale'">
         <div :class="touchMode && view === 'sale' ? 'flex h-full min-h-0 flex-col gap-3 bg-neutral-100 p-3' : ''">
         <ShiftBanner
-            v-if="view === 'sale' || view === 'shifts'"
+            v-if="view === 'shifts'"
             :shift="currentShift"
             :can-open="canOpenShift"
             :can-close="canCloseShift"
@@ -654,7 +654,7 @@ onMounted(() => {
 
                     <!-- Item grid -->
                     <div
-                        class="grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4"
+                        class="grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
                         :class="[touchMode && 'min-h-0 flex-1 content-start', { 'opacity-50 pointer-events-none': !hasOpenShift }]"
                     >
                         <button
@@ -665,7 +665,7 @@ onMounted(() => {
                             @click="addToCart(item)"
                         >
                             <!-- Image/Emoji area -->
-                            <div class="flex h-16 items-center justify-center overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100">
+                            <div class="flex h-20 items-center justify-center overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100">
                                 <img
                                     v-if="getItemImage(item)"
                                     :src="getItemImage(item)"
@@ -677,10 +677,10 @@ onMounted(() => {
                             <!-- Info -->
                             <div class="p-2.5">
                                 <p class="truncate text-body-sm font-semibold leading-tight text-primary-900">{{ item.name }}</p>
-                                <div class="mt-1 flex items-center justify-between gap-2">
-                                    <p class="text-label text-accent-700">{{ money(item.price) }}</p>
-                                    <span v-if="item.inventory_tracked" class="max-w-[65%] truncate text-right text-tiny font-semibold" :class="item.available_portions === null ? 'text-warning-600' : item.available_portions > 0 ? 'text-neutral-400' : 'text-error-600'">{{ item.available_portions === null ? $t('inventory.pos.stockUnknown') : item.available_portions > 0 ? item.available_portions + ' ' + $t('inventory.pos.available') : $t('inventory.pos.outOfStock') }}</span>
-                                    <span v-else-if="item.sales_count" class="max-w-[65%] truncate text-right text-tiny text-neutral-400">{{ $t('admin.pos.salesCount', { count: item.sales_count }) }}</span>
+                                <div class="mt-1.5 flex items-center justify-between gap-1.5">
+                                    <p class="shrink-0 text-label text-accent-700">{{ money(item.price) }}</p>
+                                    <span v-if="item.inventory_tracked" class="min-w-0 truncate text-right text-tiny font-semibold" :class="item.available_portions === null ? 'text-warning-600' : item.available_portions > 0 ? 'text-neutral-400' : 'text-error-600'">{{ item.available_portions === null ? $t('inventory.pos.stockUnknown') : item.available_portions > 0 ? item.available_portions + ' ' + $t('inventory.pos.available') : $t('inventory.pos.outOfStock') }}</span>
+                                    <span v-else-if="item.sales_count" class="min-w-0 truncate text-right text-tiny text-neutral-400">{{ $t('admin.pos.salesCount', { count: item.sales_count }) }}</span>
                                 </div>
                             </div>
                             <!-- Hover add indicator -->
