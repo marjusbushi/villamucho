@@ -4750,6 +4750,43 @@
       "paid": "Paguar",
       "balance": "Bilanci",
       "days": "ditë"
+    },
+    "paymentReconciliation": {
+      "title": "Pagesat & Reconciliation",
+      "short": "Arkëtimet reale dhe mospërputhjet që kërkojnë kontroll.",
+      "category": "Financë & arka",
+      "collected": "Arkëtuar neto",
+      "cash": "Cash",
+      "card": "Kartë",
+      "reconciliationRate": "Përputhja",
+      "transactions": "transaksione",
+      "issues": "probleme",
+      "byMethod": "Sipas mënyrës",
+      "realCollections": "Vetëm arkëtime reale",
+      "bySource": "Sipas burimit",
+      "source": "Burimi",
+      "total": "Totali",
+      "roomCharge": "Faturim në dhomë",
+      "refunds": "Rimbursime",
+      "voided": "Anuluar",
+      "daily": "Arkëtimet ditore",
+      "control": "Kontrolli i përputhjes",
+      "matched": "burime të përputhura",
+      "issue": "Problemi",
+      "reference": "Referenca",
+      "date": "Data",
+      "expected": "Pritet",
+      "actual": "Aktuale",
+      "difference": "Diferenca",
+      "clean": "Të gjitha burimet janë përputhur.",
+      "issueTypes": {
+        "missing_ledger": "Mungon në ledger",
+        "ledger_mismatch": "Vlerë e ndryshme",
+        "cash_variance": "Diferencë arke",
+        "missing_method": "Mungon mënyra",
+        "legacy_settlement_date": "Datë jo e plotë",
+        "unallocated_room_charge": "Dhomë e pacaktuar"
+      }
     }
   },
   "financeSuppliers": {

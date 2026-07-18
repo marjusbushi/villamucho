@@ -18,6 +18,7 @@ use App\Services\Reporting\CancellationRiskService;
 use App\Services\Reporting\ChannelPerformanceService;
 use App\Services\Reporting\HotelKpiService;
 use App\Services\Reporting\OutstandingBalanceService;
+use App\Services\Reporting\PaymentReconciliationService;
 use App\Services\Reporting\PickupPaceService;
 use App\Services\Reporting\ReportingPeriod;
 use App\Services\Reporting\RoomTypePerformanceService;
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -520,124 +522,56 @@ class ReportsController extends Controller
     }
 
     /** Arkëtime & Cash: money actually COLLECTED in range (payments + completed POS), by method + per day. */
-    public function payments(Request $request): Response
+    public function payments(Request $request, PaymentReconciliationService $paymentReconciliation): Response
     {
+        $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => [
+                'nullable',
+                'date_format:Y-m-d',
+                'after_or_equal:from',
+            ],
+        ]);
+
         [$from, $to] = $this->range($request);
-        $start = "{$from} 00:00:00";
-        $end = "{$to} 23:59:59";
-
-        // Source 1: reservation payments, grouped by day + method (cross-DB: DATE()).
-        $payRows = Payment::whereBetween('created_at', [$start, $end])
-            ->notVoided()
-            ->select(
-                DB::raw('DATE(created_at) as d'),
-                'method',
-                DB::raw('SUM(amount) as total')
-            )
-            ->groupBy(DB::raw('DATE(created_at)'), 'method')
-            ->get();
-
-        // Source 2: actual POS tenders, including split payments and refunds.
-        $posRows = PosOrderPayment::whereBetween('paid_at', [$start, $end])
-            ->select(
-                DB::raw('DATE(paid_at) as d'),
-                'method',
-                DB::raw("SUM(CASE WHEN direction = 'in' THEN amount ELSE -amount END) as total")
-            )
-            ->groupBy(DB::raw('DATE(paid_at)'), 'method')
-            ->get();
-
-        // Pre-migration orders have no incoming tender row. Keep them visible without
-        // double-counting new orders (or legacy refunds, which only add an OUT row).
-        $legacyPosOrders = $this->posBusinessRange(
-            PosOrder::where('status', 'completed')
-                ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'in')),
-            $from,
-            $to,
-        )->get(['id', 'payment_method', 'total_amount', 'business_date', 'paid_at', 'created_at']);
-
-        // Build a per-day map: payments_cash, payments_card, pos_cash, pos_card, pos_room_charge.
-        $byDay = [];
-        $blank = fn () => [
-            'payments_cash' => 0.0,
-            'payments_card' => 0.0,
-            'pos_cash' => 0.0,
-            'pos_card' => 0.0,
-            'pos_room_charge' => 0.0,
-        ];
-
-        foreach ($payRows as $r) {
-            $day = (string) $r->d;
-            $byDay[$day] ??= $blank();
-            if ($r->method === 'cash') {
-                $byDay[$day]['payments_cash'] += (float) $r->total;
-            } elseif ($r->method === 'card') {
-                $byDay[$day]['payments_card'] += (float) $r->total;
-            }
+        if (Carbon::parse($from)->diffInDays(Carbon::parse($to)) > 366) {
+            throw ValidationException::withMessages([
+                'to' => app()->getLocale() === 'sq'
+                    ? 'Periudha e raportit nuk mund të kalojë 367 ditë.'
+                    : 'The report period cannot exceed 367 days.',
+            ]);
         }
-
-        foreach ($posRows as $r) {
-            $day = (string) $r->d;
-            $byDay[$day] ??= $blank();
-            if ($r->method === 'cash') {
-                $byDay[$day]['pos_cash'] += (float) $r->total;
-            } elseif ($r->method === 'card') {
-                $byDay[$day]['pos_card'] += (float) $r->total;
-            } elseif ($r->method === 'room_charge') {
-                $byDay[$day]['pos_room_charge'] += (float) $r->total;
-            }
-        }
-
-        foreach ($legacyPosOrders as $order) {
-            $day = ($order->business_date ?? $order->paid_at ?? $order->created_at)->toDateString();
-            $byDay[$day] ??= $blank();
-            $key = 'pos_'.($order->payment_method ?: 'unknown');
-            if (array_key_exists($key, $byDay[$day])) {
-                $byDay[$day][$key] += (float) $order->total_amount;
-            }
-        }
-
-        ksort($byDay);
-
-        // Per-day rows: date, payments_cash, payments_card, pos_total, total.
-        $rows = collect($byDay)->map(function ($d, $day) {
-            $posTotal = $d['pos_cash'] + $d['pos_card'] + $d['pos_room_charge'];
-            $dayTotal = $d['payments_cash'] + $d['payments_card'] + $posTotal;
-
-            return [
-                'date' => $day,
-                'payments_cash' => round($d['payments_cash'], 2),
-                'payments_card' => round($d['payments_card'], 2),
-                'pos_total' => round($posTotal, 2),
-                'total' => round($dayTotal, 2),
-            ];
-        })->values();
-
-        // Collected-by-method summary (combine payments + POS per method).
-        $cash = (float) collect($byDay)->sum(fn ($d) => $d['payments_cash'] + $d['pos_cash']);
-        $card = (float) collect($byDay)->sum(fn ($d) => $d['payments_card'] + $d['pos_card']);
-        $roomCharge = (float) collect($byDay)->sum(fn ($d) => $d['pos_room_charge']);
-        $grand = $cash + $card + $roomCharge;
-
+        $analytics = $paymentReconciliation->summary(new ReportingPeriod($from, $to));
+        $summary = $analytics['summary'];
+        $rows = collect($analytics['daily'])->map(fn (array $day) => [
+            'date' => $day['date'],
+            'payments_cash' => $day['pms_cash'],
+            'payments_card' => $day['pms_card'],
+            'pos_total' => round($day['pos_cash'] + $day['pos_card'] + $day['room_charge'], 2),
+            'total' => round($day['total'] + $day['room_charge'], 2),
+        ]);
         $byMethod = [
-            ['method' => 'cash', 'label' => 'Kesh', 'amount' => round($cash, 2)],
-            ['method' => 'card', 'label' => 'Kartë', 'amount' => round($card, 2)],
-            ['method' => 'room_charge', 'label' => 'Faturë dhome', 'amount' => round($roomCharge, 2)],
+            ['method' => 'cash', 'label' => 'Kesh', 'amount' => $summary['cash']],
+            ['method' => 'card', 'label' => 'Kartë', 'amount' => $summary['card']],
+            ['method' => 'room_charge', 'label' => 'Faturë dhome', 'amount' => $summary['room_charge']],
         ];
 
         return Inertia::render('Reports/Payments', [
             'filters' => ['from' => $from, 'to' => $to],
+            'analytics' => $analytics,
             'rows' => $rows,
             'byMethod' => $byMethod,
             'totals' => [
                 'payments_cash' => round((float) $rows->sum('payments_cash'), 2),
                 'payments_card' => round((float) $rows->sum('payments_card'), 2),
                 'pos_total' => round((float) $rows->sum('pos_total'), 2),
-                'cash' => round($cash, 2),
-                'card' => round($card, 2),
-                'room_charge' => round($roomCharge, 2),
-                'total' => round($grand, 2),
+                'cash' => $summary['cash'],
+                'card' => $summary['card'],
+                'room_charge' => $summary['room_charge'],
+                'total' => round($summary['collected'] + $summary['room_charge'], 2),
             ],
+            'canViewReservations' => (bool) $request->user()?->can('view_reservations'),
+            'canViewPos' => (bool) $request->user()?->can('view_pos_orders'),
             'currency' => $this->currency(),
         ]);
     }
