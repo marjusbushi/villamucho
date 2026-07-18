@@ -68,7 +68,7 @@ class Bill extends TenantModel
 
     public function paidBase(): float
     {
-        return round((float) $this->payments()->sum('amount_base'), 2);
+        return round((float) $this->payments()->where('direction', 'out')->sum('amount_base'), 2);
     }
 
     public function remainingBase(): float

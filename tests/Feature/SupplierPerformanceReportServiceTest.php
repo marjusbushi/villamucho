@@ -22,6 +22,7 @@ class SupplierPerformanceReportServiceTest extends TestCase
     {
         $user = User::factory()->create();
         $account = FinanceAccount::create(['name' => 'Banka', 'type' => 'bank', 'currency' => 'EUR', 'is_active' => true]);
+        $cash = FinanceAccount::create(['name' => 'Arka', 'type' => 'cash', 'currency' => 'EUR', 'is_active' => true]);
         $supplierA = Supplier::create(['name' => 'Furnitori A', 'category' => 'Ushqim', 'payment_terms_days' => 10, 'is_active' => true]);
         $supplierB = Supplier::create(['name' => 'Furnitori B', 'category' => 'Pije', 'payment_terms_days' => 20, 'is_active' => true]);
         $item = InventoryItem::create([
@@ -39,6 +40,11 @@ class SupplierPerformanceReportServiceTest extends TestCase
 
         $this->payment($paidOnTime, $account, $user, 100, '2026-07-08 10:00:00');
         $this->payment($partialLate, $account, $user, 20, '2026-07-04 10:00:00');
+        FinancePayment::create([
+            'direction' => 'transfer', 'account_id' => $account->id, 'counter_account_id' => $cash->id,
+            'amount' => 500, 'currency' => 'EUR', 'method' => 'bank', 'source' => 'manual',
+            'bill_id' => $partialLate->id, 'paid_at' => '2026-07-04 11:00:00', 'created_by' => $user->id,
+        ]);
 
         BillItem::create([
             'bill_id' => $paidOnTime->id, 'inventory_item_id' => $item->id, 'description' => 'Kafe',
