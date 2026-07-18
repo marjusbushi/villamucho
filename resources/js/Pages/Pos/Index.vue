@@ -654,8 +654,11 @@ onMounted(() => {
 
                     <!-- Item grid -->
                     <div
-                        class="grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
-                        :class="[touchMode && 'min-h-0 flex-1 content-start', { 'opacity-50 pointer-events-none': !hasOpenShift }]"
+                        class="grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3 lg:grid-cols-4"
+                        :class="[
+                            touchMode ? 'min-h-0 flex-1 content-start xl:grid-cols-6' : '2xl:grid-cols-6',
+                            { 'opacity-50 pointer-events-none': !hasOpenShift },
+                        ]"
                     >
                         <button
                             v-for="item in activeMenuItems"
