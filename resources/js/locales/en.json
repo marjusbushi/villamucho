@@ -4750,6 +4750,43 @@
       "paid": "Paid",
       "balance": "Balance",
       "days": "days"
+    },
+    "paymentReconciliation": {
+      "title": "Payments & Reconciliation",
+      "short": "Real collections and mismatches requiring review.",
+      "category": "Finance & cash",
+      "collected": "Net collected",
+      "cash": "Cash",
+      "card": "Card",
+      "reconciliationRate": "Reconciliation",
+      "transactions": "transactions",
+      "issues": "issues",
+      "byMethod": "By method",
+      "realCollections": "Real collections only",
+      "bySource": "By source",
+      "source": "Source",
+      "total": "Total",
+      "roomCharge": "Room charge",
+      "refunds": "Refunds",
+      "voided": "Voided",
+      "daily": "Daily collections",
+      "control": "Reconciliation control",
+      "matched": "matched sources",
+      "issue": "Issue",
+      "reference": "Reference",
+      "date": "Date",
+      "expected": "Expected",
+      "actual": "Actual",
+      "difference": "Difference",
+      "clean": "All sources are reconciled.",
+      "issueTypes": {
+        "missing_ledger": "Missing from ledger",
+        "ledger_mismatch": "Amount mismatch",
+        "cash_variance": "Cash variance",
+        "missing_method": "Missing method",
+        "legacy_settlement_date": "Incomplete date",
+        "unallocated_room_charge": "Unallocated room"
+      }
     }
   },
   "financeSuppliers": {
