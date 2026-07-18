@@ -203,7 +203,7 @@ const kpis = computed(() => [
                             <th class="px-4 py-3">{{ $t('reports360.channel') }}</th>
                             <th class="px-4 py-3">{{ $t('reports360.cancellationRisk.riskScore') }}</th>
                             <th class="px-4 py-3">{{ $t('reports360.cancellationRisk.action') }}</th>
-                            <th class="px-5 py-3 text-right">{{ $t('reports360.cancellationRisk.value') }}</th>
+                            <th class="px-5 py-3 text-right">{{ $t('reports360.cancellationRisk.exposure') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-100">
@@ -221,8 +221,8 @@ const kpis = computed(() => [
                             </td>
                             <td class="px-4 py-3 text-body-sm font-medium text-primary-900">{{ $t(`reports360.cancellationRisk.actions.${row.recommended_action}`) }}</td>
                             <td class="px-5 py-3 text-right">
-                                <b class="block text-body-sm text-error-700">{{ money(row.value) }}</b>
-                                <span v-if="row.balance > 0" class="text-tiny text-neutral-500">{{ $t('reports360.cancellationRisk.balance') }} {{ money(row.balance) }}</span>
+                                <b class="block text-body-sm text-error-700">{{ money(row.balance) }}</b>
+                                <span class="text-tiny text-neutral-500">{{ $t('reports360.cancellationRisk.bookingValue') }} {{ money(row.value) }}</span>
                             </td>
                         </tr>
                     </tbody>

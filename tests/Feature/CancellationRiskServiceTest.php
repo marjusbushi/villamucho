@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\FolioItem;
 use App\Models\Guest;
 use App\Models\Payment;
 use App\Models\Reservation;
@@ -78,6 +79,52 @@ class CancellationRiskServiceTest extends TestCase
         $this->assertSame('secure_payment', $risk['recommended_action']);
         $this->assertSame(480.0, $risk['balance']);
         $this->assertSame(1, $futureAnalytics['risk_levels']['high']);
+    }
+
+    public function test_it_uses_net_room_value_for_losses_and_live_folio_balance_for_risk(): void
+    {
+        $this->travelTo('2026-07-18 12:00:00');
+        $user = User::factory()->create();
+        $guest = Guest::create(['first_name' => 'Test', 'last_name' => 'Guest']);
+        $type = RoomType::create(['name' => 'Standard', 'base_price' => 100, 'max_occupancy' => 2, 'amenities' => []]);
+
+        $cancelled = $this->reservation($user, $guest, $type, '201', 'direct', 'cancelled', '2026-08-01', 200);
+        FolioItem::create([
+            'reservation_id' => $cancelled->id,
+            'description' => 'Ulje',
+            'amount' => 20,
+            'type' => 'discount',
+            'charge_date' => '2026-07-18',
+        ]);
+
+        $pending = $this->reservation($user, $guest, $type, '202', 'direct', 'pending', '2026-08-02', 100);
+        FolioItem::create([
+            'reservation_id' => $pending->id,
+            'description' => 'Transfer',
+            'amount' => 40,
+            'type' => 'service',
+            'charge_date' => '2026-07-18',
+        ]);
+        FolioItem::create([
+            'reservation_id' => $pending->id,
+            'description' => 'Ulje',
+            'amount' => 20,
+            'type' => 'discount',
+            'charge_date' => '2026-07-18',
+        ]);
+
+        $analytics = app(CancellationRiskService::class)
+            ->summary(new ReportingPeriod('2026-08-01', '2026-08-02'));
+        $loss = collect($analytics['losses'])->firstWhere('id', $cancelled->id);
+        $risk = collect($analytics['at_risk'])->firstWhere('id', $pending->id);
+
+        $this->assertSame(180.0, $analytics['summary']['lost_value']);
+        $this->assertSame(180.0, $loss['value']);
+        $this->assertSame(180.0, $loss['bill_total']);
+        $this->assertSame(120.0, $analytics['summary']['at_risk_value']);
+        $this->assertSame(85.71, $risk['value']);
+        $this->assertSame(120.0, $risk['bill_total']);
+        $this->assertSame(120.0, $risk['balance']);
     }
 
     private function reservation(

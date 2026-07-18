@@ -5096,6 +5096,8 @@
       "riskScore": "Risku",
       "action": "Veprimi",
       "balance": "Bilanci",
+      "exposure": "Për t’u arkëtuar",
+      "bookingValue": "Vlera e rezervimit",
       "levels": {
         "critical": "Kritik",
         "high": "I lartë",

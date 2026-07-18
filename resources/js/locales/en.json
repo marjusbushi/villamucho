@@ -5096,6 +5096,8 @@
       "riskScore": "Risk",
       "action": "Next action",
       "balance": "Balance",
+      "exposure": "Outstanding",
+      "bookingValue": "Booking value",
       "levels": {
         "critical": "Critical",
         "high": "High",
