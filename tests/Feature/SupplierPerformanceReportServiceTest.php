@@ -28,6 +28,10 @@ class SupplierPerformanceReportServiceTest extends TestCase
             'name' => 'Kafe', 'sku' => 'KAFE-SUP', 'type' => 'ingredient', 'unit' => 'kg',
             'average_cost' => 3, 'minimum_stock' => 2, 'is_active' => true,
         ]);
+        $service = InventoryItem::create([
+            'name' => 'Transport', 'sku' => 'TRANSPORT-SUP', 'type' => 'service', 'unit' => 'service',
+            'average_cost' => 0, 'minimum_stock' => 0, 'is_active' => true,
+        ]);
 
         $paidOnTime = $this->bill($supplierA, 'A-1', '2026-07-01', '2026-07-10', 100, 'Ushqim');
         $partialLate = $this->bill($supplierA, 'A-2', '2026-07-02', '2026-07-05', 50, 'Ushqim');
@@ -39,6 +43,10 @@ class SupplierPerformanceReportServiceTest extends TestCase
         BillItem::create([
             'bill_id' => $paidOnTime->id, 'inventory_item_id' => $item->id, 'description' => 'Kafe',
             'quantity' => 10, 'unit' => 'kg', 'unit_cost' => 3, 'line_total' => 30, 'received_at' => '2026-07-03 10:00:00',
+        ]);
+        BillItem::create([
+            'bill_id' => $paidOnTime->id, 'inventory_item_id' => $service->id, 'description' => 'Transport',
+            'quantity' => 1, 'unit' => 'service', 'unit_cost' => 10, 'line_total' => 10, 'received_at' => '2026-07-03 10:00:00',
         ]);
         BillItem::create([
             'bill_id' => $partialLate->id, 'inventory_item_id' => $item->id, 'description' => 'Kafe',
@@ -70,6 +78,7 @@ class SupplierPerformanceReportServiceTest extends TestCase
         $this->assertSame(15.0, $result['top_items'][0]['quantity']);
         $this->assertSame(50.0, $result['top_items'][0]['spend']);
         $this->assertSame(3.3333, $result['top_items'][0]['average_unit_cost']);
+        $this->assertCount(1, $result['top_items']);
 
         // A payment made after the report end must not rewrite the historical overdue balance.
         $this->payment($partialLate, $account, $user, 30, '2026-07-18 10:00:00');

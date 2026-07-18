@@ -39,7 +39,7 @@ final class SupplierPerformanceReportService
                 'supplier:id,name,category,payment_terms_days,is_active',
                 'payments:id,bill_id,amount_base,paid_at',
                 'items:id,bill_id,inventory_item_id,description,quantity,unit,unit_cost,line_total,received_at',
-                'items.item:id,name,sku,unit',
+                'items.item:id,name,sku,unit,type',
             ])
             ->get(['id', 'supplier_id', 'number', 'category', 'issue_date', 'due_date', 'currency', 'total', 'total_base']);
 
@@ -103,7 +103,8 @@ final class SupplierPerformanceReportService
 
             return $lastPayment ? max(0, $bill->issue_date->diffInDays(Carbon::parse($lastPayment))) : 0;
         });
-        $stockItems = $current->flatMap->items->whereNotNull('inventory_item_id');
+        $stockItems = $current->flatMap->items
+            ->filter(fn ($item) => $item->inventory_item_id && $item->item?->type !== 'service');
         $received = $stockItems->filter(fn ($item) => $item->received_at && $item->received_at->lte($end))->count();
 
         return [
@@ -155,15 +156,17 @@ final class SupplierPerformanceReportService
         return $bills->flatMap(function (Bill $bill) {
             $baseRatio = (float) $bill->total > 0 ? (float) $bill->total_base / (float) $bill->total : 1.0;
 
-            return $bill->items->whereNotNull('inventory_item_id')->map(fn ($item) => [
-                'id' => $item->inventory_item_id,
-                'name' => $item->item?->name ?? $item->description,
-                'sku' => $item->item?->sku,
-                'unit' => $item->unit ?: $item->item?->unit,
-                'supplier_id' => $bill->supplier_id,
-                'quantity' => (float) $item->quantity,
-                'spend' => (float) $item->line_total * $baseRatio,
-            ]);
+            return $bill->items
+                ->filter(fn ($item) => $item->inventory_item_id && $item->item?->type !== 'service')
+                ->map(fn ($item) => [
+                    'id' => $item->inventory_item_id,
+                    'name' => $item->item?->name ?? $item->description,
+                    'sku' => $item->item?->sku,
+                    'unit' => $item->unit ?: $item->item?->unit,
+                    'supplier_id' => $bill->supplier_id,
+                    'quantity' => (float) $item->quantity,
+                    'spend' => (float) $item->line_total * $baseRatio,
+                ]);
         })->groupBy('id')->map(function (Collection $rows) {
             $quantity = (float) $rows->sum('quantity');
             $spend = (float) $rows->sum('spend');
