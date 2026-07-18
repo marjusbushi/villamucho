@@ -4,7 +4,7 @@ namespace App\Models;
 
 class PosOrderItem extends TenantModel
 {
-    protected $fillable = ['pos_order_id', 'menu_item_id', 'quantity', 'unit_price', 'total_price'];
+    protected $fillable = ['pos_order_id', 'pos_order_round_id', 'menu_item_id', 'quantity', 'unit_price', 'total_price'];
 
     protected function casts(): array
     {
@@ -22,5 +22,10 @@ class PosOrderItem extends TenantModel
     public function menuItem()
     {
         return $this->belongsTo(MenuItem::class);
+    }
+
+    public function round()
+    {
+        return $this->belongsTo(PosOrderRound::class, 'pos_order_round_id');
     }
 }
