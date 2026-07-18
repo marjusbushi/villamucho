@@ -5071,6 +5071,9 @@
         "risk": "At risk"
       }
     },
+    "zReport": {
+      "mismatch": "Mismatch"
+    },
     "cancellationRisk": {
       "title": "Cancellations & No-Show",
       "short": "Losses and reservations requiring action.",

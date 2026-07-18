@@ -61,7 +61,10 @@ const kpis = [
                             <td class="px-4 py-3 text-right text-body-sm text-neutral-600">{{ money(s.room_charge_sales) }}</td>
                             <td class="px-4 py-3 text-right text-body-sm text-neutral-700">{{ money(s.expected_cash) }}</td>
                             <td class="px-4 py-3 text-right text-body-sm text-primary-900 font-medium">{{ money(s.counted_cash) }}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap"><Badge :variant="overShortVariant(s.over_short)" size="sm">{{ overShortLabel(s.over_short) }}</Badge></td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <Badge v-if="!s.is_consistent" variant="error" size="sm" class="mr-1">{{ $t('reports360.zReport.mismatch') }}</Badge>
+                                <Badge :variant="overShortVariant(s.over_short)" size="sm">{{ overShortLabel(s.over_short) }}</Badge>
+                            </td>
                         </tr>
                     </tbody>
                     <tfoot v-if="shifts.length" class="bg-neutral-50 border-t-2 border-neutral-200">

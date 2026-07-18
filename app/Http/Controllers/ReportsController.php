@@ -6,7 +6,6 @@ use App\Models\FolioItem;
 use App\Models\Guest;
 use App\Models\Payment;
 use App\Models\PosOrder;
-use App\Models\PosShift;
 use App\Models\Reservation;
 use App\Models\Room;
 use App\Services\BaseCurrency;
@@ -33,6 +32,7 @@ use App\Services\Reporting\RecurringMaintenanceIssueService;
 use App\Services\Reporting\ReportingPeriod;
 use App\Services\Reporting\RoomReadinessService;
 use App\Services\Reporting\RoomTypePerformanceService;
+use App\Services\Reporting\ShiftReportService;
 use App\Services\Reporting\StayRevenueAllocator;
 use App\Services\Reporting\StockValuationReportService;
 use App\Services\Reporting\SupplierPerformanceReportService;
@@ -180,38 +180,14 @@ class ReportsController extends Controller
     }
 
     /** Z-Report: closed cash-drawer shifts per staff/day with over/short. */
-    public function shifts(Request $request): Response
+    public function shifts(Request $request, ShiftReportService $shiftReport): Response
     {
         [$from, $to] = $this->range($request);
-
-        $shifts = PosShift::with('user:id,name')
-            ->where('status', 'closed')
-            ->whereBetween('closed_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->orderByDesc('closed_at')->get();
+        $analytics = $shiftReport->summary(new ReportingPeriod($from, $to));
 
         return Inertia::render('Reports/Shifts', [
             'filters' => ['from' => $from, 'to' => $to],
-            'shifts' => $shifts->map(fn ($s) => [
-                'id' => $s->id,
-                'user' => $s->user?->name,
-                'opened_at' => $s->opened_at?->format('d/m H:i'),
-                'closed_at' => $s->closed_at?->format('d/m H:i'),
-                'opening_float' => (float) $s->opening_float,
-                'cash_sales' => (float) $s->cash_sales,
-                'card_sales' => (float) $s->card_sales,
-                'room_charge_sales' => (float) $s->room_charge_sales,
-                'total_sales' => (float) $s->total_sales,
-                'expected_cash' => (float) $s->expected_cash,
-                'counted_cash' => (float) $s->counted_cash,
-                'over_short' => (float) $s->over_short,
-            ]),
-            'totals' => [
-                'cash' => round((float) $shifts->sum('cash_sales'), 2),
-                'card' => round((float) $shifts->sum('card_sales'), 2),
-                'room_charge' => round((float) $shifts->sum('room_charge_sales'), 2),
-                'total' => round((float) $shifts->sum('total_sales'), 2),
-                'over_short' => round((float) $shifts->sum('over_short'), 2),
-            ],
+            ...$analytics,
             'currency' => $this->currency(),
         ]);
     }

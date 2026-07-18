@@ -5071,6 +5071,9 @@
         "risk": "Në risk"
       }
     },
+    "zReport": {
+      "mismatch": "Mospërputhje"
+    },
     "cancellationRisk": {
       "title": "Anulime & No-Show",
       "short": "Humbjet dhe rezervimet që kërkojnë veprim.",
