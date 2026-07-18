@@ -25,6 +25,7 @@ use App\Services\Reporting\StayRevenueAllocator;
 use App\Services\VatConfiguration;
 use App\Tenancy\TenantContext;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -261,6 +262,7 @@ class ReportsController extends Controller
 
         // (A) Sales by category: order_items -> menu_items -> menu_categories.
         $byCategory = DB::table('pos_order_items as oi')
+            ->join('pos_orders as po', 'po.id', '=', 'oi.pos_order_id')
             ->join('menu_items as mi', 'mi.id', '=', 'oi.menu_item_id')
             ->leftJoin('menu_categories as mc', 'mc.id', '=', 'mi.menu_category_id')
             ->whereIn('oi.pos_order_id', $orderIds)
@@ -269,7 +271,7 @@ class ReportsController extends Controller
             ->select(
                 DB::raw("COALESCE(mc.name, 'Pa kategori') as category"),
                 DB::raw('SUM(oi.quantity) as qty'),
-                DB::raw('SUM(oi.total_price) as revenue')
+                DB::raw('SUM(oi.total_price * CASE WHEN po.subtotal_amount > 0 THEN 1.0 * po.total_amount / po.subtotal_amount ELSE 1 END) as revenue')
             )
             ->orderByDesc('revenue')
             ->get()
@@ -281,6 +283,7 @@ class ReportsController extends Controller
 
         // (B) Top 15 items by revenue.
         $topItems = DB::table('pos_order_items as oi')
+            ->join('pos_orders as po', 'po.id', '=', 'oi.pos_order_id')
             ->join('menu_items as mi', 'mi.id', '=', 'oi.menu_item_id')
             ->leftJoin('menu_categories as mc', 'mc.id', '=', 'mi.menu_category_id')
             ->whereIn('oi.pos_order_id', $orderIds)
@@ -290,7 +293,7 @@ class ReportsController extends Controller
                 'mi.name as item',
                 DB::raw("COALESCE(mc.name, 'Pa kategori') as category"),
                 DB::raw('SUM(oi.quantity) as qty'),
-                DB::raw('SUM(oi.total_price) as revenue')
+                DB::raw('SUM(oi.total_price * CASE WHEN po.subtotal_amount > 0 THEN 1.0 * po.total_amount / po.subtotal_amount ELSE 1 END) as revenue')
             )
             ->orderByDesc('revenue')
             ->limit(15)
@@ -544,6 +547,15 @@ class ReportsController extends Controller
             ->groupBy(DB::raw('DATE(paid_at)'), 'method')
             ->get();
 
+        // Pre-migration orders have no incoming tender row. Keep them visible without
+        // double-counting new orders (or legacy refunds, which only add an OUT row).
+        $legacyPosOrders = $this->posBusinessRange(
+            PosOrder::where('status', 'completed')
+                ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'in')),
+            $from,
+            $to,
+        )->get(['id', 'payment_method', 'total_amount', 'business_date', 'paid_at', 'created_at']);
+
         // Build a per-day map: payments_cash, payments_card, pos_cash, pos_card, pos_room_charge.
         $byDay = [];
         $blank = fn () => [
@@ -573,6 +585,15 @@ class ReportsController extends Controller
                 $byDay[$day]['pos_card'] += (float) $r->total;
             } elseif ($r->method === 'room_charge') {
                 $byDay[$day]['pos_room_charge'] += (float) $r->total;
+            }
+        }
+
+        foreach ($legacyPosOrders as $order) {
+            $day = ($order->business_date ?? $order->paid_at ?? $order->created_at)->toDateString();
+            $byDay[$day] ??= $blank();
+            $key = 'pos_'.($order->payment_method ?: 'unknown');
+            if (array_key_exists($key, $byDay[$day])) {
+                $byDay[$day][$key] += (float) $order->total_amount;
             }
         }
 
@@ -886,7 +907,28 @@ class ReportsController extends Controller
         [$from, $to] = $this->range($request);
 
         $payments = PosOrderPayment::whereBetween('paid_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->get(['pos_order_id', 'method', 'direction', 'amount']);
+            ->get(['pos_order_id', 'method', 'direction', 'amount'])
+            ->map(fn ($payment) => [
+                'pos_order_id' => $payment->pos_order_id,
+                'method' => $payment->method,
+                'direction' => $payment->direction,
+                'amount' => (float) $payment->amount,
+            ]);
+
+        $legacyPayments = $this->posBusinessRange(
+            PosOrder::where('status', 'completed')
+                ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'in')),
+            $from,
+            $to,
+        )->get(['id', 'payment_method', 'total_amount'])
+            ->map(fn ($order) => [
+                'pos_order_id' => $order->id,
+                'method' => $order->payment_method ?: '?',
+                'direction' => 'in',
+                'amount' => (float) $order->total_amount,
+            ]);
+
+        $payments = $payments->concat($legacyPayments);
 
         $labels = [
             'cash' => 'Kesh',
@@ -899,10 +941,10 @@ class ReportsController extends Controller
             ->map(fn ($group, $method) => [
                 'method' => $method,
                 'count' => $group->where('direction', 'in')->pluck('pos_order_id')->unique()->count(),
-                'total' => round((float) $group->sum(fn ($payment) => $payment->direction === 'in' ? $payment->amount : -$payment->amount), 2),
+                'total' => round((float) $group->sum(fn ($payment) => $payment['direction'] === 'in' ? $payment['amount'] : -$payment['amount']), 2),
             ]);
 
-        $grandTotal = round((float) $payments->sum(fn ($payment) => $payment->direction === 'in' ? $payment->amount : -$payment->amount), 2);
+        $grandTotal = round((float) $payments->sum(fn ($payment) => $payment['direction'] === 'in' ? $payment['amount'] : -$payment['amount']), 2);
         $orderCount = $payments->where('direction', 'in')->pluck('pos_order_id')->unique()->count();
 
         // Stable ordering: cash, card, room_charge, then any leftover (e.g. '?')
@@ -937,9 +979,14 @@ class ReportsController extends Controller
 
         $orders = PosOrder::with('createdBy')
             ->where('status', 'cancelled')
-            ->whereDate('cancelled_at', '>=', $from)
-            ->whereDate('cancelled_at', '<=', $to)
-            ->orderByDesc('cancelled_at')
+            ->where(function (Builder $query) use ($from, $to) {
+                $query->whereBetween('cancelled_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+                    ->orWhere(function (Builder $legacy) use ($from, $to) {
+                        $legacy->whereNull('cancelled_at')
+                            ->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
+                    });
+            })
+            ->orderByRaw('COALESCE(cancelled_at, created_at) DESC')
             ->get();
 
         $rows = $orders->map(function ($o) {
@@ -947,7 +994,7 @@ class ReportsController extends Controller
                 'id' => $o->id,
                 'table_number' => $o->table_number,
                 'total_amount' => (float) ($o->total_amount ?? 0),
-                'created_at' => $o->cancelled_at ? Carbon::parse($o->cancelled_at)->format('d/m H:i') : '—',
+                'created_at' => Carbon::parse($o->cancelled_at ?? $o->created_at)->format('d/m H:i'),
                 'reason' => $o->cancellation_reason,
                 'created_by' => $o->createdBy->name ?? '—',
             ];

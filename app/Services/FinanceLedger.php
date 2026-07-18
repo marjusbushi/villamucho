@@ -110,12 +110,16 @@ class FinanceLedger
             return null;
         }
 
-        // New POS tenders reach Arka/Banka at payment time. Shift close records only
-        // the counted over/short adjustment. Legacy shifts without tender rows keep
-        // the previous counted-yield behavior for backwards compatibility.
-        $hasTenderRows = $shift->orders()->whereHas('payments')->exists();
-        $yield = $hasTenderRows
-            ? round((float) $shift->over_short, 2)
+        // New tenders reach Arka/Banka at payment time. Orders completed before the
+        // tender table existed are posted here, even when the shift spans deployment.
+        $legacyCash = (float) $shift->orders()
+            ->where('status', 'completed')
+            ->where('payment_method', 'cash')
+            ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'in'))
+            ->sum('total_amount');
+        $hasNewTenders = $shift->payments()->where('direction', 'in')->exists();
+        $yield = $hasNewTenders || $legacyCash > 0
+            ? round($legacyCash + (float) $shift->over_short, 2)
             : ($shift->counted_cash !== null
                 ? round((float) $shift->counted_cash - (float) $shift->opening_float, 2)
                 : round((float) $shift->cash_sales, 2));
@@ -135,7 +139,7 @@ class FinanceLedger
                 'fx_rate' => null,
                 'method' => 'cash',
                 'source' => 'auto',
-                'description' => ($hasTenderRows ? 'Diferencë turni POS — ' : 'Mbyllje turni POS — ')
+                'description' => ($legacyCash > 0 ? 'Mbyllje turni POS — ' : 'Diferencë turni POS — ')
                     .($shift->user?->name ?? ('turni #'.$shift->id))
                     .((float) $shift->over_short != 0.0 ? sprintf(' (%+.2f)', (float) $shift->over_short) : ''),
                 'paid_at' => $shift->closed_at,

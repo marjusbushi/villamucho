@@ -188,4 +188,87 @@ class PosProductionLiteTest extends TestCase
                 ->where('summary.order_count', 1)
                 ->where('summary.total_revenue', 25));
     }
+
+    public function test_discount_is_allocated_to_category_and_item_revenue(): void
+    {
+        $order = $this->openOrder($this->menuItem(100));
+        $this->actingAs($this->admin)->post(route('pos.complete', $order), [
+            'payment_method' => 'cash',
+            'discount_amount' => 20,
+            'discount_reason' => 'Ofertë promocionale',
+        ])->assertSessionHasNoErrors();
+
+        $date = now()->toDateString();
+        $this->actingAs($this->admin)->get(route('reports.posSales', ['from' => $date, 'to' => $date]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('summary.total_revenue', 80)
+                ->where('byCategory.0.revenue', 80)
+                ->where('topItems.0.revenue', 80));
+    }
+
+    public function test_legacy_orders_remain_in_payment_reports_without_tender_rows(): void
+    {
+        $order = $this->openOrder($this->menuItem(55));
+        $order->forceFill([
+            'status' => 'completed',
+            'payment_method' => 'cash',
+            'paid_at' => '2026-07-17 12:00:00',
+            'business_date' => '2026-07-17',
+        ])->save();
+
+        $this->actingAs($this->admin)->get(route('reports.payments', ['from' => '2026-07-17', 'to' => '2026-07-17']))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('totals.pos_total', 55)
+                ->where('totals.cash', 55));
+
+        $this->actingAs($this->admin)->get(route('reports.posPaymentMix', ['from' => '2026-07-17', 'to' => '2026-07-17']))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('summary.grand_total', 55)
+                ->where('summary.order_count', 1)
+                ->where('rows.0.method', 'cash'));
+    }
+
+    public function test_mixed_version_shift_posts_legacy_cash_and_new_tenders_once(): void
+    {
+        $legacy = $this->openOrder($this->menuItem(100));
+        $legacy->update([
+            'status' => 'completed',
+            'payment_method' => 'cash',
+            'paid_at' => now(),
+            'business_date' => today(),
+        ]);
+
+        $new = $this->openOrder($this->menuItem(50));
+        $this->actingAs($this->admin)->post(route('pos.complete', $new), [
+            'payment_method' => 'cash',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)->post(route('pos.shift.close', $this->shift), [
+            'counted_cash' => 170,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(150.0, FinanceAccount::where('type', 'cash')->firstOrFail()->balance());
+        $this->assertSame(0.0, (float) $this->shift->fresh()->over_short);
+        $this->assertDatabaseCount('finance_payments', 2);
+    }
+
+    public function test_void_report_keeps_legacy_cancellations_without_cancelled_at(): void
+    {
+        $order = $this->openOrder($this->menuItem(25));
+        $order->forceFill([
+            'status' => 'cancelled',
+            'cancelled_at' => null,
+            'created_at' => '2026-07-16 12:00:00',
+        ])->save();
+
+        $this->actingAs($this->admin)->get(route('reports.posVoids', ['from' => '2026-07-16', 'to' => '2026-07-16']))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('summary.count', 1)
+                ->where('summary.total', 25)
+                ->where('rows.0.created_at', '16/07 12:00'));
+    }
 }

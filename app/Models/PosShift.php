@@ -109,8 +109,7 @@ class PosShift extends TenantModel
 
         $legacy = $this->orders()
             ->where('status', 'completed')
-            ->whereNull('refunded_at')
-            ->whereDoesntHave('payments')
+            ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'in'))
             ->selectRaw('payment_method, SUM(total_amount) as total')
             ->groupBy('payment_method')
             ->pluck('total', 'payment_method');
