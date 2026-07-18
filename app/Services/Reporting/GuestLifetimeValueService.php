@@ -44,9 +44,9 @@ final class GuestLifetimeValueService
 
             $upcoming = $guest->reservations
                 ->whereIn('status', ['pending', 'confirmed'])
-                ->filter(fn (Reservation $reservation) => $reservation->check_in_date?->isAfter(today()));
-            $gross = (float) $realized->sum('total_amount');
-            $commission = (float) $realized->sum('commission_amount');
+                ->filter(fn (Reservation $reservation) => $reservation->check_in_date?->greaterThanOrEqualTo(today()));
+            $gross = (float) $realized->sum(fn (Reservation $reservation) => (float) $reservation->total_amount * $this->realizedFactor($reservation));
+            $commission = (float) $realized->sum(fn (Reservation $reservation) => (float) $reservation->commission_amount * $this->realizedFactor($reservation));
             $reservationIds = $realized->pluck('id');
             $folioValue = $reservationIds->sum(function (int $reservationId) use ($folioByReservation) {
                 return $folioByReservation->get($reservationId, collect())->sum(fn (FolioItem $item) => match ($item->type) {
@@ -75,7 +75,7 @@ final class GuestLifetimeValueService
                 'email' => $guest->email,
                 'phone' => $guest->phone,
                 'stays' => $stays,
-                'nights' => (int) $realized->sum(fn (Reservation $reservation) => $reservation->nights),
+                'nights' => (int) $realized->sum(fn (Reservation $reservation) => round($reservation->nights * $this->realizedFactor($reservation))),
                 'gross_value' => round($gross + $ancillary, 2),
                 'ancillary_value' => round($ancillary, 2),
                 'commission' => round($commission, 2),
@@ -113,6 +113,19 @@ final class GuestLifetimeValueService
     private function segment(int $stays): string
     {
         return $stays >= 3 ? 'loyal' : ($stays === 2 ? 'returning' : 'one_time');
+    }
+
+    private function realizedFactor(Reservation $reservation): float
+    {
+        if ($reservation->status === 'checked_out') {
+            return 1.0;
+        }
+
+        $nights = max(1, (int) $reservation->nights);
+        $recognizedUntil = today()->min($reservation->check_out_date->startOfDay());
+        $elapsedNights = max(0, $reservation->check_in_date->startOfDay()->diffInDays($recognizedUntil, false));
+
+        return min(1, $elapsedNights / $nights);
     }
 
     private function segments(Collection $rows): array
