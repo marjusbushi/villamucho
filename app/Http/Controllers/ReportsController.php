@@ -20,6 +20,7 @@ use App\Services\Reporting\DiscountRefundCashFlowService;
 use App\Services\Reporting\FiscalVatReportService;
 use App\Services\Reporting\GuestLifetimeValueService;
 use App\Services\Reporting\GuestMovementService;
+use App\Services\Reporting\GuestSegmentationService;
 use App\Services\Reporting\HotelKpiService;
 use App\Services\Reporting\HousekeepingProductivityService;
 use App\Services\Reporting\MaintenanceSlaReportService;
@@ -624,6 +625,15 @@ class ReportsController extends Controller
 
         return Inertia::render('Reports/RepeatGuests', [
             'analytics' => $analytics,
+            'canViewGuests' => $request->user()?->can('view_guests') ?? false,
+            'currency' => $this->currency(),
+        ]);
+    }
+
+    public function guestSegments(Request $request, GuestSegmentationService $report): Response
+    {
+        return Inertia::render('Reports/GuestSegments', [
+            'analytics' => $report->summary(),
             'canViewGuests' => $request->user()?->can('view_guests') ?? false,
             'currency' => $this->currency(),
         ]);
