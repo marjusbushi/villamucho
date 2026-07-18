@@ -4694,6 +4694,7 @@
         "sixty_one_plus": "61+ days"
       },
       "losBuckets": {
+        "zero_nights": "0 nights / day-use",
         "one_night": "1 night",
         "two_nights": "2 nights",
         "three_to_four": "3–4 nights",

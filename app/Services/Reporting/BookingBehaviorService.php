@@ -18,7 +18,8 @@ final class BookingBehaviorService
     ];
 
     private const LOS_BUCKETS = [
-        'one_night' => [0, 1],
+        'zero_nights' => [0, 0],
+        'one_night' => [1, 1],
         'two_nights' => [2, 2],
         'three_to_four' => [3, 4],
         'five_to_seven' => [5, 7],

@@ -4694,6 +4694,7 @@
         "sixty_one_plus": "61+ ditë"
       },
       "losBuckets": {
+        "zero_nights": "0 net / day-use",
         "one_night": "1 natë",
         "two_nights": "2 net",
         "three_to_four": "3–4 net",

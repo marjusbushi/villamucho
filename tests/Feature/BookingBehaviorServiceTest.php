@@ -48,6 +48,13 @@ class BookingBehaviorServiceTest extends TestCase
         $this->assertSame(23.3, $analytics['changes']['avg_lead']);
         $this->assertSame(2.0, $analytics['changes']['avg_los']);
         $this->assertSame(33.3, $analytics['changes']['same_day_share']);
+
+        $this->reservation($user, $guest, $type, '107', 'direct', '2026-07-15', '2026-07-15', '2026-07-14');
+        $dayUse = app(BookingBehaviorService::class)->summary(new ReportingPeriod('2026-07-15', '2026-07-15'));
+
+        $this->assertSame(1, collect($dayUse['los_buckets'])->firstWhere('key', 'zero_nights')['count']);
+        $this->assertSame(0, collect($dayUse['los_buckets'])->firstWhere('key', 'one_night')['count']);
+        $this->assertSame(0.0, $dayUse['summary']['avg_los']);
     }
 
     private function reservation(
