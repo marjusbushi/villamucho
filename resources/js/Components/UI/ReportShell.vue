@@ -171,7 +171,7 @@ async function openSavedReports() {
         const response = await axios.get(route('reports.saved.index'));
         savedReports.value = response.data.saved_reports || [];
     } catch {
-        saveError.value = 'Raportet e ruajtura nuk u ngarkuan.';
+        saveError.value = translate('reports360.savedReports.loadError');
     }
 }
 
@@ -189,7 +189,7 @@ async function saveReport() {
         });
         savedReports.value.unshift(response.data.saved_report);
     } catch (error) {
-        saveError.value = error.response?.data?.message || 'Raporti nuk u ruajt.';
+        saveError.value = error.response?.data?.message || translate('reports360.savedReports.saveError');
     } finally {
         saving.value = false;
     }
@@ -202,6 +202,14 @@ async function deleteSavedReport(savedReport) {
 
 function savedHref(savedReport) {
     return route(savedReport.route_name, savedReport.filters || {});
+}
+
+function frequencyLabel(frequency) {
+    return {
+        daily: translate('reports360.savedReports.daily'),
+        weekly: translate('reports360.savedReports.weekly'),
+        monthly: translate('reports360.savedReports.monthly'),
+    }[frequency] || translate('reports360.savedReports.manual');
 }
 </script>
 
@@ -219,15 +227,15 @@ function savedHref(savedReport) {
                 <template #actions>
                     <Button v-if="routeName" variant="outline" @click="openSavedReports">
                         <Save class="h-4 w-4" :stroke-width="1.75" />
-                        Ruaj
+                        {{ $t('reports360.savedReports.save') }}
                     </Button>
                     <Button variant="outline" @click="exportExcel">
                         <Download class="h-4 w-4" :stroke-width="1.75" />
-                        Excel
+                        {{ $t('reports360.savedReports.excel') }}
                     </Button>
                     <Button variant="ghost" @click="doPrint">
                         <Printer class="h-4 w-4" :stroke-width="1.75" />
-                        PDF / Print
+                        {{ $t('reports360.savedReports.pdfPrint') }}
                     </Button>
                 </template>
             </PageHeader>
@@ -290,20 +298,20 @@ function savedHref(savedReport) {
             <slot />
         </div>
 
-        <Modal :show="savedModalOpen" title="Ruaj dhe automatizo raportin" max-width="lg" @close="savedModalOpen = false">
+        <Modal :show="savedModalOpen" :title="$t('reports360.savedReports.modalTitle')" max-width="lg" @close="savedModalOpen = false">
             <div class="space-y-4">
                 <div>
-                    <label class="mb-1.5 block text-label text-neutral-600">Emri</label>
+                    <label class="mb-1.5 block text-label text-neutral-600">{{ $t('reports360.savedReports.name') }}</label>
                     <input v-model="saveForm.name" type="text" maxlength="100" class="w-full rounded-lg border-neutral-200 text-body-sm focus:border-accent-500 focus:ring-accent-500" />
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div>
-                        <label class="mb-1.5 block text-label text-neutral-600">Dërgimi</label>
+                        <label class="mb-1.5 block text-label text-neutral-600">{{ $t('reports360.savedReports.delivery') }}</label>
                         <select v-model="saveForm.frequency" class="w-full rounded-lg border-neutral-200 text-body-sm focus:border-accent-500 focus:ring-accent-500">
-                            <option value="">Vetëm ruaje</option>
-                            <option value="daily">Çdo ditë</option>
-                            <option value="weekly">Çdo javë</option>
-                            <option value="monthly">Çdo muaj</option>
+                            <option value="">{{ $t('reports360.savedReports.saveOnly') }}</option>
+                            <option value="daily">{{ $t('reports360.savedReports.daily') }}</option>
+                            <option value="weekly">{{ $t('reports360.savedReports.weekly') }}</option>
+                            <option value="monthly">{{ $t('reports360.savedReports.monthly') }}</option>
                         </select>
                     </div>
                     <div>
@@ -315,23 +323,23 @@ function savedHref(savedReport) {
                 <div class="flex justify-end">
                     <Button variant="primary" :disabled="saving || !saveForm.name.trim()" @click="saveReport">
                         <Save class="h-4 w-4" />
-                        {{ saving ? 'Duke ruajtur…' : 'Ruaj raportin' }}
+                        {{ saving ? $t('reports360.savedReports.saving') : $t('reports360.savedReports.saveReport') }}
                     </Button>
                 </div>
 
                 <div class="border-t border-neutral-200 pt-4">
-                    <h4 class="mb-2 text-body-sm font-semibold text-primary-900">Raportet e ruajtura</h4>
+                    <h4 class="mb-2 text-body-sm font-semibold text-primary-900">{{ $t('reports360.savedReports.title') }}</h4>
                     <div v-if="savedReports.length" class="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
                         <div v-for="savedReport in savedReports" :key="savedReport.id" class="flex items-center gap-3 px-3 py-3">
                             <Clock3 class="h-4 w-4 shrink-0 text-neutral-400" />
                             <Link :href="savedHref(savedReport)" class="min-w-0 flex-1 no-underline">
                                 <p class="truncate text-body-sm font-semibold text-primary-900 hover:text-accent-700">{{ savedReport.name }}</p>
-                                <p class="text-tiny text-neutral-500">{{ savedReport.frequency || 'Manual' }}<span v-if="savedReport.next_delivery_at"> · {{ new Date(savedReport.next_delivery_at).toLocaleDateString(getIntlLocale()) }}</span></p>
+                                <p class="text-tiny text-neutral-500">{{ frequencyLabel(savedReport.frequency) }}<span v-if="savedReport.next_delivery_at"> · {{ new Date(savedReport.next_delivery_at).toLocaleDateString(getIntlLocale()) }}</span></p>
                             </Link>
                             <button type="button" class="rounded-md p-2 text-neutral-400 hover:bg-error-50 hover:text-error-600" @click="deleteSavedReport(savedReport)"><Trash2 class="h-4 w-4" /></button>
                         </div>
                     </div>
-                    <p v-else class="rounded-lg bg-neutral-50 px-3 py-5 text-center text-body-sm text-neutral-500">Nuk ka raporte të ruajtura.</p>
+                    <p v-else class="rounded-lg bg-neutral-50 px-3 py-5 text-center text-body-sm text-neutral-500">{{ $t('reports360.savedReports.empty') }}</p>
                 </div>
             </div>
         </Modal>

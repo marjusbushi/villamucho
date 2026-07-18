@@ -5071,6 +5071,25 @@
         "risk": "Në risk"
       }
     },
+    "savedReports": {
+      "save": "Ruaj",
+      "excel": "Excel",
+      "pdfPrint": "PDF / Printo",
+      "modalTitle": "Ruaj dhe automatizo raportin",
+      "name": "Emri",
+      "delivery": "Dërgimi",
+      "saveOnly": "Vetëm ruaje",
+      "daily": "Çdo ditë",
+      "weekly": "Çdo javë",
+      "monthly": "Çdo muaj",
+      "manual": "Manual",
+      "saving": "Duke ruajtur…",
+      "saveReport": "Ruaj raportin",
+      "title": "Raportet e ruajtura",
+      "empty": "Nuk ka raporte të ruajtura.",
+      "loadError": "Raportet e ruajtura nuk u ngarkuan.",
+      "saveError": "Raporti nuk u ruajt."
+    },
     "zReport": {
       "mismatch": "Mospërputhje"
     },
