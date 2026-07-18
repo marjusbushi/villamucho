@@ -94,7 +94,7 @@ final class SupplierPerformanceReportService
         $current = $bills->filter(fn (Bill $bill) => $bill->issue_date->betweenIncluded($from, $end));
         $supplier = $bills->first()?->supplier;
         $outstanding = $bills->sum(fn (Bill $bill) => $this->remainingAt($bill, $end));
-        $overdue = $bills->filter(fn (Bill $bill) => $bill->due_date?->lt($end))
+        $overdue = $bills->filter(fn (Bill $bill) => $bill->due_date?->lt($end->startOfDay()))
             ->sum(fn (Bill $bill) => $this->remainingAt($bill, $end));
         $eligible = $current->filter(fn (Bill $bill) => $this->isPaymentEligible($bill, $end));
         $settled = $current->filter(fn (Bill $bill) => $this->remainingAt($bill, $end) <= 0.005);

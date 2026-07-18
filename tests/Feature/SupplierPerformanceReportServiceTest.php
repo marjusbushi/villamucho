@@ -35,7 +35,7 @@ class SupplierPerformanceReportServiceTest extends TestCase
 
         $paidOnTime = $this->bill($supplierA, 'A-1', '2026-07-01', '2026-07-10', 100, 'Ushqim');
         $partialLate = $this->bill($supplierA, 'A-2', '2026-07-02', '2026-07-05', 50, 'Ushqim');
-        $notDue = $this->bill($supplierB, 'B-1', '2026-07-03', '2026-07-20', 50, 'Pije');
+        $this->bill($supplierB, 'B-1', '2026-07-03', '2026-07-15', 50, 'Pije');
 
         $this->payment($paidOnTime, $account, $user, 100, '2026-07-08 10:00:00');
         $this->payment($partialLate, $account, $user, 20, '2026-07-04 10:00:00');
@@ -60,7 +60,7 @@ class SupplierPerformanceReportServiceTest extends TestCase
         $this->assertSame(66.67, $result['summary']['average_bill']);
         $this->assertSame(3, $result['summary']['bill_count']);
         $this->assertSame(2, $result['summary']['supplier_count']);
-        $this->assertSame(50.0, $result['summary']['on_time_rate']);
+        $this->assertSame(33.3, $result['summary']['on_time_rate']);
         $this->assertSame(30.0, $result['summary']['overdue_exposure']);
         $this->assertSame(80.0, $result['summary']['outstanding']);
         $this->assertSame(75.0, $result['summary']['top_supplier_share']);
