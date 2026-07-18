@@ -17,7 +17,7 @@ final class GuestMovementService
         $arrivals = Reservation::query()
             ->whereDate('check_in_date', '>=', $period->from->toDateString())
             ->whereDate('check_in_date', '<=', $period->to->toDateString())
-            ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
+            ->whereIn('status', ['pending', 'confirmed', 'checked_in', 'checked_out'])
             ->whereNull('no_show_at')
             ->with(['room:id,room_number,room_type_id', 'room.roomType:id,name', 'guest:id,first_name,last_name,phone'])
             ->orderBy('check_in_date')
@@ -82,7 +82,7 @@ final class GuestMovementService
         $payments = Payment::query()
             ->whereIn('reservation_id', $ids)
             ->notVoided()
-            ->select('reservation_id', DB::raw('SUM(amount) as paid'))
+            ->select('reservation_id', DB::raw("SUM(CASE WHEN COALESCE(type, 'payment') IN ('payment', 'deposit', 'writeoff') THEN amount WHEN type = 'refund' THEN -ABS(amount) ELSE 0 END) as paid"))
             ->groupBy('reservation_id')
             ->pluck('paid', 'reservation_id');
 
@@ -119,7 +119,8 @@ final class GuestMovementService
             'count' => $rows->count(),
             'pax' => $rows->sum('pax'),
             'nights' => $rows->sum('nights'),
-            'balance' => round((float) $rows->sum('balance'), 2),
+            'balance' => round((float) $rows->sum(fn (array $row) => max(0, (float) $row['balance'])), 2),
+            'credit' => round((float) $rows->sum(fn (array $row) => max(0, -(float) $row['balance'])), 2),
         ];
     }
 }

@@ -49,21 +49,25 @@ final class OutstandingBalanceService
         $payments = Payment::query()
             ->whereIn('reservation_id', $ids)
             ->notVoided()
-            ->select('reservation_id', DB::raw('SUM(amount) as paid'))
+            ->select(
+                'reservation_id',
+                DB::raw("SUM(CASE WHEN COALESCE(type, 'payment') IN ('payment', 'deposit') THEN amount WHEN type = 'refund' THEN -ABS(amount) ELSE 0 END) as paid"),
+                DB::raw("SUM(CASE WHEN type = 'writeoff' THEN amount ELSE 0 END) as written_off"),
+            )
             ->groupBy('reservation_id')
             ->get()
             ->keyBy('reservation_id');
 
         $rows = $stays->map(function (Reservation $reservation) use ($folio, $payments, $asOf) {
             $items = $folio->get($reservation->id);
-            $gross = round(
+            $gross = round(max(0,
                 (float) $reservation->total_amount
                 + (float) ($items?->charges ?? 0)
                 - (float) ($items?->discounts ?? 0),
-                2,
-            );
+            ), 2);
             $paid = round((float) ($payments->get($reservation->id)?->paid ?? 0), 2);
-            $balance = round($gross - $paid, 2);
+            $writtenOff = round((float) ($payments->get($reservation->id)?->written_off ?? 0), 2);
+            $balance = round($gross - $paid - $writtenOff, 2);
             $dueDate = CarbonImmutable::parse($reservation->check_out_date);
             $daysOverdue = $dueDate->lessThan($asOf) ? (int) $dueDate->diffInDays($asOf) : 0;
             $bucket = $this->bucketFor($daysOverdue);
@@ -82,41 +86,45 @@ final class OutstandingBalanceService
                 'bucket' => $bucket,
                 'gross' => $gross,
                 'paid' => $paid,
+                'written_off' => $writtenOff,
                 'balance' => $balance,
             ];
-        })->filter(fn (array $row) => $row['balance'] > 0.009)
+        });
+        $openRows = $rows->filter(fn (array $row) => $row['balance'] > 0.009)
             ->sortBy([
                 fn (array $a, array $b) => $b['days_overdue'] <=> $a['days_overdue'],
                 fn (array $a, array $b) => $b['balance'] <=> $a['balance'],
             ])->values();
 
-        $total = round((float) $rows->sum('balance'), 2);
-        $overdue = $rows->where('days_overdue', '>', 0);
-        $critical = $rows->where('days_overdue', '>', 30);
+        $total = round((float) $openRows->sum('balance'), 2);
+        $overdue = $openRows->where('days_overdue', '>', 0);
+        $critical = $openRows->where('days_overdue', '>', 30);
         $gross = round((float) $rows->sum('gross'), 2);
         $paid = round((float) $rows->sum('paid'), 2);
 
         return [
             'as_of' => $asOf->toDateString(),
             'summary' => [
-                'count' => $rows->count(),
+                'count' => $openRows->count(),
                 'total' => $total,
                 'gross' => $gross,
                 'paid' => $paid,
-                'collection_rate' => $gross > 0 ? round($paid / $gross * 100, 1) : 0.0,
+                'collection_rate' => $gross > 0
+                    ? round(max(0, min(100, $paid / $gross * 100)), 1)
+                    : 0.0,
                 'overdue_count' => $overdue->count(),
                 'overdue_total' => round((float) $overdue->sum('balance'), 2),
                 'critical_count' => $critical->count(),
                 'critical_total' => round((float) $critical->sum('balance'), 2),
-                'average_balance' => $rows->isNotEmpty() ? round($total / $rows->count(), 2) : 0.0,
+                'average_balance' => $openRows->isNotEmpty() ? round($total / $openRows->count(), 2) : 0.0,
             ],
-            'buckets' => $this->bucketSummary($rows, $total),
-            'statuses' => $rows->groupBy('status')->map(fn (Collection $statusRows, string $status) => [
+            'buckets' => $this->bucketSummary($openRows, $total),
+            'statuses' => $openRows->groupBy('status')->map(fn (Collection $statusRows, string $status) => [
                 'status' => $status,
                 'count' => $statusRows->count(),
                 'amount' => round((float) $statusRows->sum('balance'), 2),
             ])->sortByDesc('amount')->values()->all(),
-            'rows' => $rows->all(),
+            'rows' => $openRows->all(),
         ];
     }
 

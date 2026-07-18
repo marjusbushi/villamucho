@@ -5071,6 +5071,28 @@
         "risk": "At risk"
       }
     },
+    "savedReports": {
+      "save": "Save",
+      "excel": "Excel",
+      "pdfPrint": "PDF / Print",
+      "modalTitle": "Save and automate report",
+      "name": "Name",
+      "delivery": "Delivery",
+      "saveOnly": "Save only",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "manual": "Manual",
+      "saving": "Saving…",
+      "saveReport": "Save report",
+      "title": "Saved reports",
+      "empty": "No saved reports.",
+      "loadError": "Saved reports could not be loaded.",
+      "saveError": "The report could not be saved."
+    },
+    "zReport": {
+      "mismatch": "Mismatch"
+    },
     "cancellationRisk": {
       "title": "Cancellations & No-Show",
       "short": "Losses and reservations requiring action.",
@@ -5096,6 +5118,8 @@
       "riskScore": "Risk",
       "action": "Next action",
       "balance": "Balance",
+      "exposure": "Outstanding",
+      "bookingValue": "Booking value",
       "levels": {
         "critical": "Critical",
         "high": "High",

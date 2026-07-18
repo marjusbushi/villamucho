@@ -7,7 +7,10 @@ use Carbon\CarbonImmutable;
 
 final class CancellationRiskService
 {
-    public function __construct(private readonly KpiCalculator $kpiCalculator) {}
+    public function __construct(
+        private readonly KpiCalculator $kpiCalculator,
+        private readonly RoomRevenueService $roomRevenue,
+    ) {}
 
     /** @return array{period:array,summary:array,daily:array,channels:array,losses:array,at_risk:array,risk_levels:array} */
     public function summary(ReportingPeriod $period, ?CarbonImmutable $asOf = null): array
@@ -20,14 +23,16 @@ final class CancellationRiskService
             ->with([
                 'room:id,room_number',
                 'guest:id,first_name,last_name',
+                'folioItems:id,reservation_id,pos_order_id,type,amount',
                 'payments' => fn ($query) => $query->notVoided()->select('id', 'reservation_id', 'amount', 'type'),
             ])
             ->get([
                 'id', 'room_id', 'guest_id', 'channel', 'status', 'check_in_date',
                 'check_out_date', 'total_amount', 'no_show_at', 'created_at',
             ]);
+        $discountFactors = $this->roomRevenue->discountFactors($reservations->pluck('id')->all());
 
-        $records = $reservations->map(function (Reservation $reservation) use ($asOf, $channelRisk) {
+        $records = $reservations->map(function (Reservation $reservation) use ($asOf, $channelRisk, $discountFactors) {
             $isNoShow = $reservation->no_show_at !== null;
             $isCancelled = $reservation->status === 'cancelled' && ! $isNoShow;
             $channel = Reservation::normalizeChannel($reservation->channel);
@@ -37,9 +42,19 @@ final class CancellationRiskService
                     'refund' => -abs((float) $payment->amount),
                     default => 0.0,
                 }), 2);
-            $value = round((float) $reservation->total_amount, 2);
-            $balance = round(max(0, $value - $paid), 2);
-            $risk = $this->riskFor($reservation, $asOf, $channelRisk[$channel] ?? 0.0, $balance, $value);
+            $additionalCharges = (float) $reservation->folioItems
+                ->whereNotIn('type', ['discount', 'room'])
+                ->sum('amount');
+            $discounts = (float) $reservation->folioItems
+                ->where('type', 'discount')
+                ->sum('amount');
+            $billTotal = round(max(0, (float) $reservation->total_amount + $additionalCharges - $discounts), 2);
+            $value = round(
+                (float) $reservation->total_amount * ($discountFactors[$reservation->id] ?? 1),
+                2,
+            );
+            $balance = round(max(0, $billTotal - $paid), 2);
+            $risk = $this->riskFor($reservation, $asOf, $channelRisk[$channel] ?? 0.0, $balance, $billTotal);
 
             return [
                 'id' => $reservation->id,
@@ -49,6 +64,7 @@ final class CancellationRiskService
                 'check_in' => $reservation->check_in_date->toDateString(),
                 'check_out' => $reservation->check_out_date->toDateString(),
                 'value' => $value,
+                'bill_total' => $billTotal,
                 'paid' => $paid,
                 'balance' => $balance,
                 'is_cancelled' => $isCancelled,
@@ -128,7 +144,7 @@ final class CancellationRiskService
                 'no_show_value' => $noShowValue,
                 'lost_value' => round($cancelledValue + $noShowValue, 2),
                 'at_risk_count' => $atRisk->count(),
-                'at_risk_value' => round((float) $atRisk->sum('value'), 2),
+                'at_risk_value' => round((float) $atRisk->sum('balance'), 2),
             ],
             'daily' => $daily,
             'channels' => $channels,
@@ -162,7 +178,7 @@ final class CancellationRiskService
     }
 
     /** @return array{is_at_risk:bool,score:int,level:string,drivers:array,action:string} */
-    private function riskFor(Reservation $reservation, CarbonImmutable $asOf, float $channelRate, float $balance, float $value): array
+    private function riskFor(Reservation $reservation, CarbonImmutable $asOf, float $channelRate, float $balance, float $billTotal): array
     {
         if ($reservation->status === 'cancelled' || $reservation->no_show_at !== null || ! in_array($reservation->status, ['pending', 'confirmed'], true)) {
             return ['is_at_risk' => false, 'score' => 0, 'level' => 'low', 'drivers' => [], 'action' => 'none'];
@@ -180,7 +196,7 @@ final class CancellationRiskService
                 $score += 35;
                 $drivers[] = 'pending_confirmation';
             }
-            if ($balance >= $value && $value > 0) {
+            if ($balance >= $billTotal && $billTotal > 0) {
                 $score += 25;
                 $drivers[] = 'unpaid';
             } elseif ($balance > 0) {

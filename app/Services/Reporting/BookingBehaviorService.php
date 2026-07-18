@@ -36,9 +36,9 @@ final class BookingBehaviorService
             ->whereDate('check_in_date', '<=', $period->to->toDateString())
             ->where('status', '!=', 'cancelled')
             ->whereNull('no_show_at')
-            ->get(['id', 'channel', 'check_in_date', 'check_out_date', 'created_at'])
+            ->get(['id', 'channel', 'check_in_date', 'check_out_date', 'booked_at', 'created_at'])
             ->map(function (Reservation $reservation) {
-                $created = CarbonImmutable::parse($reservation->created_at)->startOfDay();
+                $created = CarbonImmutable::parse($reservation->booked_at ?? $reservation->created_at)->startOfDay();
                 $checkIn = CarbonImmutable::parse($reservation->check_in_date)->startOfDay();
                 $checkOut = CarbonImmutable::parse($reservation->check_out_date)->startOfDay();
 

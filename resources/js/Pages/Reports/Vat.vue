@@ -39,7 +39,7 @@ const sourceHref = (row) => row.source === 'pms' && props.canViewReservations
     : row.source === 'pos' && props.canViewPos ? route('pos.index', { order: row.source_id }) : null;
 
 const kpis = computed(() => [
-    { label: t('gross'), value: money(summary.value.gross), tone: 'accent', icon: ReceiptText, detail: `${summary.value.fiscalized || 0} ${t('documents')}` },
+    { label: t('gross'), value: money(summary.value.gross), tone: 'accent', icon: ReceiptText, detail: `${summary.value.tax_documents || 0} ${t('documents')}` },
     { label: t('vat'), value: money(summary.value.vat), tone: 'warning', icon: FileCheckCorner, detail: `${t('net')}: ${money(summary.value.net)}` },
     { label: t('coverage'), value: pct(summary.value.coverage_rate), tone: Number(summary.value.coverage_rate) >= 100 ? 'success' : 'warning', icon: BadgeCheck, detail: `${summary.value.fiscalized || 0}/${summary.value.documents || 0}` },
     { label: t('missing'), value: summary.value.missing || 0, tone: Number(summary.value.missing) > 0 ? 'error' : 'success', icon: CircleAlert, detail: `${summary.value.failed || 0} ${t('failed').toLocaleLowerCase(getIntlLocale())}` },

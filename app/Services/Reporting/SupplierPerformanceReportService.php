@@ -37,7 +37,7 @@ final class SupplierPerformanceReportService
             ->whereDate('issue_date', '<=', $end->toDateString())
             ->with([
                 'supplier:id,name,category,payment_terms_days,is_active',
-                'payments:id,bill_id,amount_base,paid_at',
+                'payments:id,bill_id,direction,amount_base,paid_at',
                 'items:id,bill_id,inventory_item_id,description,quantity,unit,unit_cost,line_total,received_at',
                 'items.item:id,name,sku,unit,type',
             ])
@@ -99,7 +99,7 @@ final class SupplierPerformanceReportService
         $eligible = $current->filter(fn (Bill $bill) => $this->isPaymentEligible($bill, $end));
         $settled = $current->filter(fn (Bill $bill) => $this->remainingAt($bill, $end) <= 0.005);
         $paymentDays = $settled->map(function (Bill $bill) use ($end) {
-            $lastPayment = $bill->payments->where('paid_at', '<=', $end)->max('paid_at');
+            $lastPayment = $bill->payments->where('direction', 'out')->where('paid_at', '<=', $end)->max('paid_at');
 
             return $lastPayment ? max(0, $bill->issue_date->diffInDays(Carbon::parse($lastPayment))) : 0;
         });
@@ -129,7 +129,10 @@ final class SupplierPerformanceReportService
 
     private function remainingAt(Bill $bill, CarbonInterface $end): float
     {
-        $paid = (float) $bill->payments->filter(fn ($payment) => $payment->paid_at->lte($end))->sum('amount_base');
+        $paid = (float) $bill->payments
+            ->where('direction', 'out')
+            ->filter(fn ($payment) => $payment->paid_at->lte($end))
+            ->sum('amount_base');
 
         return max(0, round((float) $bill->total_base - $paid, 2));
     }
@@ -146,7 +149,7 @@ final class SupplierPerformanceReportService
             return false;
         }
 
-        $lastPayment = $bill->payments->where('paid_at', '<=', $end)->max('paid_at');
+        $lastPayment = $bill->payments->where('direction', 'out')->where('paid_at', '<=', $end)->max('paid_at');
 
         return $lastPayment && Carbon::parse($lastPayment)->startOfDay()->lte($bill->due_date);
     }

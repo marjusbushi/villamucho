@@ -4,6 +4,7 @@ namespace App\Services\Reporting;
 
 use App\Models\FolioItem;
 use App\Models\PosOrder;
+use App\Models\PosOrderPayment;
 use Carbon\CarbonPeriod;
 
 final class DepartmentRevenueService
@@ -52,15 +53,40 @@ final class DepartmentRevenueService
                     ->orWhere(fn ($legacy) => $legacy->whereNull('business_date')->whereBetween('paid_at', [$period->from->startOfDay(), $period->to->endOfDay()]))
                     ->orWhere(fn ($legacy) => $legacy->whereNull('business_date')->whereNull('paid_at')->whereBetween('created_at', [$period->from->startOfDay(), $period->to->endOfDay()]));
             })
-            ->get(['id', 'total_amount', 'business_date', 'paid_at', 'created_at']);
-        $refunds = PosOrder::query()
+            ->get(['id', 'reservation_id', 'total_amount', 'business_date', 'paid_at', 'created_at']);
+        $refunds = PosOrderPayment::query()
+            ->where('direction', 'out')
+            ->whereBetween('paid_at', [$period->from->startOfDay(), $period->to->endOfDay()])
+            ->with('order:id,reservation_id')
+            ->get(['id', 'pos_order_id', 'amount', 'paid_at']);
+        $legacyRefunds = PosOrder::query()
             ->whereNotNull('refunded_at')
             ->whereBetween('refunded_at', [$period->from->startOfDay(), $period->to->endOfDay()])
-            ->get(['id', 'total_amount', 'refunded_at']);
+            ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'out'))
+            ->get(['id', 'reservation_id', 'total_amount', 'refunded_at']);
+        $posOrderIds = $orders->pluck('id')
+            ->merge($refunds->pluck('pos_order_id'))
+            ->merge($legacyRefunds->pluck('id'))
+            ->unique();
         $linkedPosReservations = FolioItem::query()
-            ->whereIn('pos_order_id', $orders->pluck('id')->merge($refunds->pluck('id'))->unique())
+            ->whereIn('pos_order_id', $posOrderIds)
             ->whereNotNull('reservation_id')
             ->pluck('reservation_id', 'pos_order_id');
+        foreach ($orders as $order) {
+            if ($order->reservation_id) {
+                $linkedPosReservations->put($order->id, $order->reservation_id);
+            }
+        }
+        foreach ($refunds as $refund) {
+            if ($refund->order?->reservation_id) {
+                $linkedPosReservations->put($refund->pos_order_id, $refund->order->reservation_id);
+            }
+        }
+        foreach ($legacyRefunds as $refund) {
+            if ($refund->reservation_id) {
+                $linkedPosReservations->put($refund->id, $refund->reservation_id);
+            }
+        }
         $factors = $this->roomRevenue->discountFactors(
             $folioRows->pluck('reservation_id')->merge($linkedPosReservations->values())->unique()->values()->all(),
         );
@@ -87,12 +113,23 @@ final class DepartmentRevenueService
             }
         }
 
-        foreach ($refunds as $order) {
-            $date = $order->refunded_at?->toDateString();
+        foreach ($refunds as $refund) {
+            $date = $refund->paid_at?->toDateString();
             if ($date && isset($daily[$date])) {
                 $row = $daily->get($date);
-                $reservationId = $linkedPosReservations->get($order->id);
-                $amount = (float) $order->total_amount * ($factors[$reservationId] ?? 1);
+                $reservationId = $linkedPosReservations->get($refund->pos_order_id);
+                $amount = (float) $refund->amount * ($factors[$reservationId] ?? 1);
+                $row['pos'] = round($row['pos'] - $amount, 2);
+                $daily->put($date, $row);
+            }
+        }
+
+        foreach ($legacyRefunds as $refund) {
+            $date = $refund->refunded_at?->toDateString();
+            if ($date && isset($daily[$date])) {
+                $row = $daily->get($date);
+                $reservationId = $linkedPosReservations->get($refund->id);
+                $amount = (float) $refund->total_amount * ($factors[$reservationId] ?? 1);
                 $row['pos'] = round($row['pos'] - $amount, 2);
                 $daily->put($date, $row);
             }

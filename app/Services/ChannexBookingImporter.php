@@ -146,6 +146,9 @@ class ChannexBookingImporter
                 ];
                 if (! $existed) {
                     $values['created_via'] = Reservation::CREATED_VIA_CHANNEL_MANAGER;
+                    // inserted_at is when Channex first received this booking revision.
+                    // Preserve it only on creation: later modifications must not reset lead time.
+                    $values['booked_at'] = $rev['inserted_at'] ?? now();
                 }
 
                 $res = Reservation::updateOrCreate(

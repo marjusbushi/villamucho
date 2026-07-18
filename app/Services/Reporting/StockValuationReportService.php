@@ -77,7 +77,8 @@ final class StockValuationReportService
 
         $stockValue = round((float) $rows->sum('ending_value'), 2);
         $openingValue = round((float) $rows->sum('opening_value'), 2);
-        $atRisk = $rows->whereIn('status', ['negative', 'out', 'low']);
+        $atRisk = $rows->filter(fn (array $row) => $row['status'] === 'negative'
+            || ($row['is_active'] && in_array($row['status'], ['out', 'low'], true)));
 
         return [
             'period' => $period->toArray(),
@@ -111,8 +112,8 @@ final class StockValuationReportService
         $openingUnitCost = $openingQuantity > 0.00005 ? max(0, $openingLedgerValue / $openingQuantity) : $fallbackCost;
         $endingUnitCost = $endingQuantity > 0.00005 ? max(0, $endingLedgerValue / $endingQuantity) : $fallbackCost;
 
-        $received = $movements->filter(fn ($row) => ! in_array($row->type, ['transfer_in', 'sale_release', 'sale_return'], true)
-            && (float) $row->period_quantity > 0);
+        $received = $movements->where('type', 'purchase')
+            ->filter(fn ($row) => (float) $row->period_quantity > 0);
         $consumption = $movements->whereIn('type', ['sale', 'room_charge', 'sale_release', 'sale_return']);
         $consumedQuantity = max(0, -(float) $consumption->sum('period_quantity'));
         $consumedValue = max(0, -(float) $consumption->sum('period_value'));

@@ -63,12 +63,14 @@ class ExecutiveDashboardServicesTest extends TestCase
         FolioItem::create(['reservation_id' => $reservation->id, 'description' => 'Bar', 'amount' => 20, 'type' => 'bar', 'charge_date' => '2026-07-01']);
         FolioItem::create(['reservation_id' => $reservation->id, 'description' => 'Ulje', 'amount' => 10, 'type' => 'discount', 'charge_date' => '2026-07-01']);
         Payment::create(['reservation_id' => $reservation->id, 'amount' => 40, 'method' => 'cash', 'created_by' => $user->id]);
+        Payment::create(['reservation_id' => $reservation->id, 'amount' => 10, 'method' => 'cash', 'created_by' => $user->id, 'type' => 'refund']);
+        Payment::create(['reservation_id' => $reservation->id, 'amount' => 5, 'method' => 'cash', 'created_by' => $user->id, 'type' => 'writeoff']);
         Payment::create(['reservation_id' => $reservation->id, 'amount' => 30, 'method' => 'cash', 'created_by' => $user->id, 'is_voided' => true]);
 
         $summary = app(OutstandingBalanceService::class)->summary();
 
         $this->assertSame(1, $summary['count']);
-        $this->assertSame(70.0, $summary['total']);
+        $this->assertSame(75.0, $summary['total']);
     }
 
     public function test_outstanding_analytics_groups_balances_into_actionable_aging_buckets(): void
@@ -114,19 +116,54 @@ class ExecutiveDashboardServicesTest extends TestCase
             }
         }
 
+        $paidRoom = Room::create([
+            'room_type_id' => $type->id,
+            'room_number' => '206',
+            'floor' => 2,
+            'status' => 'available',
+        ]);
+        $paidStay = Reservation::create([
+            'room_id' => $paidRoom->id,
+            'guest_id' => $guest->id,
+            'created_by' => $user->id,
+            'check_in_date' => '2026-07-01',
+            'check_out_date' => '2026-07-02',
+            'status' => 'checked_out',
+            'total_amount' => 100,
+            'adults' => 1,
+            'channel' => 'direct',
+        ]);
+        Payment::create([
+            'reservation_id' => $paidStay->id,
+            'amount' => 100,
+            'method' => 'cash',
+            'created_by' => $user->id,
+        ]);
+        $refundedStay = Reservation::whereHas('room', fn ($query) => $query->where('room_number', '202'))->firstOrFail();
+        Payment::create([
+            'reservation_id' => $refundedStay->id,
+            'amount' => 10,
+            'method' => 'cash',
+            'type' => 'refund',
+            'created_by' => $user->id,
+        ]);
+
         $analytics = app(OutstandingBalanceService::class)->analytics(CarbonImmutable::parse('2026-07-18'));
         $buckets = collect($analytics['buckets'])->keyBy('key');
 
         $this->assertSame(5, $analytics['summary']['count']);
-        $this->assertSame(340.0, $analytics['summary']['total']);
-        $this->assertSame(240.0, $analytics['summary']['overdue_total']);
+        $this->assertSame(350.0, $analytics['summary']['total']);
+        $this->assertSame(250.0, $analytics['summary']['overdue_total']);
         $this->assertSame(90.0, $analytics['summary']['critical_total']);
-        $this->assertSame(32.0, $analytics['summary']['collection_rate']);
+        $this->assertSame(41.7, $analytics['summary']['collection_rate']);
+        $this->assertSame(600.0, $analytics['summary']['gross']);
+        $this->assertSame(250.0, $analytics['summary']['paid']);
         $this->assertSame(100.0, $buckets['not_due']['amount']);
-        $this->assertSame(80.0, $buckets['1_7']['amount']);
+        $this->assertSame(90.0, $buckets['1_7']['amount']);
         $this->assertSame(70.0, $buckets['8_30']['amount']);
         $this->assertSame(50.0, $buckets['31_60']['amount']);
         $this->assertSame(40.0, $buckets['61_plus']['amount']);
         $this->assertSame('61_plus', $analytics['rows'][0]['bucket']);
+        $this->assertSame(10.0, collect($analytics['rows'])->firstWhere('room', '202')['paid']);
     }
 }

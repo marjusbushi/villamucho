@@ -3,6 +3,7 @@
 namespace App\Services\Reporting;
 
 use App\Models\PosOrder;
+use App\Models\PosOrderPayment;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -34,9 +35,28 @@ final class PosPerformanceService
     {
         $orders = $this->range(PosOrder::query(), $period)
             ->where('status', 'completed')
-            ->whereNull('refunded_at')
             ->with(['items.menuItem.category'])
             ->get();
+        $refunds = PosOrderPayment::query()
+            ->where('direction', 'out')
+            ->whereBetween('paid_at', [$period->from->startOfDay(), $period->to->endOfDay()])
+            ->with(['order.items.menuItem.category'])
+            ->get();
+        $legacyRefunds = PosOrder::query()
+            ->whereNotNull('refunded_at')
+            ->whereBetween('refunded_at', [$period->from->startOfDay(), $period->to->endOfDay()])
+            ->whereDoesntHave('payments', fn ($query) => $query->where('direction', 'out'))
+            ->with(['items.menuItem.category'])
+            ->get();
+        $refundEvents = $refunds->map(fn (PosOrderPayment $refund) => [
+            'order' => $refund->order,
+            'amount' => (float) $refund->amount,
+            'paid_at' => $refund->paid_at,
+        ])->concat($legacyRefunds->map(fn (PosOrder $order) => [
+            'order' => $order,
+            'amount' => (float) $order->total_amount,
+            'paid_at' => $order->refunded_at,
+        ]));
 
         $categories = collect();
         $items = collect();
@@ -69,7 +89,35 @@ final class PosPerformanceService
             }
         }
 
-        $totalRevenue = round((float) $orders->sum('total_amount'), 2);
+        foreach ($refundEvents as $refund) {
+            $order = $refund['order'];
+            if (! $order || (float) $order->total_amount <= 0) {
+                continue;
+            }
+
+            $revenue = -$refund['amount'];
+            $when = CarbonImmutable::parse($refund['paid_at']);
+            $hour = $hours->get($when->hour);
+            $hour['revenue'] += $revenue;
+            $hours->put($when->hour, $hour);
+            $weekday = $weekdays->get($when->dayOfWeekIso);
+            $weekday['revenue'] += $revenue;
+            $weekdays->put($when->dayOfWeekIso, $weekday);
+
+            $refundRatio = min(1, $refund['amount'] / (float) $order->total_amount);
+            $saleFactor = (float) $order->subtotal_amount > 0 ? (float) $order->total_amount / (float) $order->subtotal_amount : 1.0;
+            foreach ($order->items as $line) {
+                $itemRevenue = -(float) $line->total_price * $saleFactor * $refundRatio;
+                $itemCost = -(float) $line->quantity * (float) ($line->menuItem?->cost_price ?? 0) * $refundRatio;
+                $category = $line->menuItem?->category?->name ?: 'Pa kategori';
+                $item = $line->menuItem?->name ?: 'Artikull';
+                $this->accumulate($categories, $category, -(float) $line->quantity * $refundRatio, $itemRevenue, $itemCost);
+                $this->accumulate($items, "{$category}\0{$item}", -(float) $line->quantity * $refundRatio, $itemRevenue, $itemCost, $category, $item);
+                $totalCost += $itemCost;
+            }
+        }
+
+        $totalRevenue = round((float) $orders->sum('total_amount') - (float) $refundEvents->sum('amount'), 2);
         $orderCount = $orders->count();
         $grossProfit = round($totalRevenue - $totalCost, 2);
 
@@ -85,8 +133,8 @@ final class PosPerformanceService
                 'gross_profit' => $grossProfit,
                 'gross_margin' => $totalRevenue > 0 ? round($grossProfit / $totalRevenue * 100, 1) : 0.0,
             ],
-            'categories' => $categories->sortByDesc('revenue')->values()->all(),
-            'top_items' => $items->sortByDesc('revenue')->take(15)->values()->all(),
+            'categories' => $categories->filter(fn (array $row) => abs($row['revenue']) > 0.009 || abs($row['cost']) > 0.009)->sortByDesc('revenue')->values()->all(),
+            'top_items' => $items->filter(fn (array $row) => abs($row['revenue']) > 0.009 || abs($row['cost']) > 0.009)->sortByDesc('revenue')->take(15)->values()->all(),
             'hours' => $hours->map(fn (array $row) => [...$row, 'revenue' => round($row['revenue'], 2)])->values()->all(),
             'weekdays' => $weekdays->map(fn (array $row) => [...$row, 'revenue' => round($row['revenue'], 2)])->values()->all(),
         ];
@@ -104,7 +152,7 @@ final class PosPerformanceService
         });
     }
 
-    private function accumulate(Collection $rows, string $key, int $quantity, float $revenue, float $cost, ?string $category = null, ?string $name = null): void
+    private function accumulate(Collection $rows, string $key, float $quantity, float $revenue, float $cost, ?string $category = null, ?string $name = null): void
     {
         $row = $rows->get($key, ['name' => $name ?? $key, 'category' => $category, 'qty' => 0, 'revenue' => 0.0, 'cost' => 0.0]);
         $row['qty'] += $quantity;

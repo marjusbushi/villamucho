@@ -39,16 +39,26 @@ class MaintenanceSlaReportServiceTest extends TestCase
         ]);
         $overdue->forceFill(['created_at' => '2026-07-10 10:00:00', 'updated_at' => '2026-07-10 10:00:00'])->saveQuietly();
 
+        $carryover = MaintenanceIssue::create([
+            'reported_by' => $user->id, 'title' => 'Carryover issue', 'category' => 'electrical',
+            'priority' => 'high', 'status' => 'verified', 'due_at' => '2026-07-10 01:00:00',
+            'started_at' => '2026-07-09 21:00:00', 'resolved_at' => '2026-07-10 00:00:00',
+            'verified_at' => '2026-07-10 00:10:00',
+        ]);
+        $carryover->forceFill(['created_at' => '2026-07-09 20:00:00', 'updated_at' => '2026-07-10 00:10:00'])->saveQuietly();
+
         $report = app(MaintenanceSlaReportService::class)->summary(new ReportingPeriod('2026-07-10', '2026-07-10'));
 
         $this->assertSame(2, $report['summary']['reported']);
-        $this->assertSame(1, $report['summary']['resolved']);
+        $this->assertSame(2, $report['summary']['resolved']);
         $this->assertSame(1, $report['summary']['overdue']);
         $this->assertSame(100.0, $report['summary']['sla_rate']);
         $this->assertSame(1.0, $report['summary']['avg_response_hours']);
         $this->assertSame(4.0, $report['summary']['avg_resolution_hours']);
         $this->assertSame(4.0, $report['summary']['downtime_hours']);
         $this->assertSame(1, $report['summary']['affected_rooms']);
+        $this->assertSame(2, collect($report['daily'])->firstWhere('date', '2026-07-10')['resolved']);
+        $this->assertSame(1, collect($report['priorities'])->firstWhere('key', 'high')['resolved']);
     }
 
     public function test_it_caps_live_snapshots_merges_downtime_and_ignores_old_rooms(): void

@@ -8,6 +8,7 @@ use App\Models\Room;
 use App\Models\RoomInventorySnapshot;
 use App\Models\RoomType;
 use App\Services\Reporting\ReportingPeriod;
+use App\Services\Reporting\RoomRevenueService;
 use App\Services\Reporting\StayRevenueAllocator;
 use App\Tenancy\TenantContext;
 use Illuminate\Console\Command;
@@ -28,7 +29,7 @@ class PricingSnapshot extends Command
 
     protected $description = 'Record on-the-books occupancy per future stay date and room type';
 
-    public function handle(StayRevenueAllocator $revenueAllocator): int
+    public function handle(StayRevenueAllocator $revenueAllocator, RoomRevenueService $roomRevenue): int
     {
         if (! $this->ensureTenantContext()) {
             return self::FAILURE;
@@ -51,6 +52,7 @@ class PricingSnapshot extends Command
             ->whereDate('check_in_date', '<=', $horizon)
             ->with('room:id,room_type_id')
             ->get(['id', 'room_id', 'check_in_date', 'check_out_date', 'total_amount']);
+        $discountFactors = $roomRevenue->discountFactors($reservations->pluck('id')->all());
 
         $rows = [];
         $now = now();
@@ -66,7 +68,7 @@ class PricingSnapshot extends Command
                 $reservation->id => $revenueAllocator->allocate(
                     $reservation->check_in_date,
                     $reservation->check_out_date,
-                    $reservation->total_amount,
+                    round((float) $reservation->total_amount * ($discountFactors[$reservation->id] ?? 1), 2),
                     $snapshotPeriod,
                 ),
             ]);

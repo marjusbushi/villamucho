@@ -28,6 +28,10 @@ class StockValuationReportServiceTest extends TestCase
             'name' => 'Çaj', 'sku' => 'CAJ', 'type' => 'ingredient', 'unit' => 'piece',
             'average_cost' => 1, 'minimum_stock' => 2, 'is_active' => true,
         ]);
+        $setup = InventoryItem::create([
+            'name' => 'Setup stock', 'sku' => 'SETUP', 'type' => 'ingredient', 'unit' => 'piece',
+            'average_cost' => 1, 'minimum_stock' => 0, 'is_active' => true,
+        ]);
 
         foreach ([
             [$central, 'opening_balance', 10, 2, '2026-07-01 09:00:00'],
@@ -47,22 +51,28 @@ class StockValuationReportServiceTest extends TestCase
                 'created_by' => $user->id,
             ]);
         }
+        InventoryMovement::create([
+            'inventory_item_id' => $setup->id, 'warehouse_id' => $central->id,
+            'type' => 'opening_balance', 'quantity' => 10, 'unit_cost' => 1,
+            'occurred_at' => '2026-07-10 08:00:00', 'created_by' => $user->id,
+        ]);
 
         $current = app(StockValuationReportService::class)
             ->summary(new ReportingPeriod('2026-07-10', '2026-07-15'));
 
-        $this->assertSame(16.33, $current['summary']['stock_value']);
+        $this->assertSame(26.33, $current['summary']['stock_value']);
         $this->assertSame(20.0, $current['summary']['opening_value']);
-        $this->assertSame(-3.67, $current['summary']['stock_change']);
+        $this->assertSame(6.33, $current['summary']['stock_change']);
         $this->assertSame(15.0, $current['summary']['received_value']);
         $this->assertSame(18.67, $current['summary']['consumed_value']);
         $this->assertSame(4.0, $current['summary']['transfer_value']);
         $this->assertSame(1, $current['summary']['at_risk_count']);
-        $this->assertSame(2, $current['summary']['total_items']);
-        $this->assertSame(7.0, $current['items'][1]['ending_quantity']);
-        $this->assertSame('healthy', $current['items'][1]['status']);
+        $this->assertSame(3, $current['summary']['total_items']);
+        $coffeeRow = collect($current['items'])->firstWhere('id', $coffee->id);
+        $this->assertSame(7.0, $coffeeRow['ending_quantity']);
+        $this->assertSame('healthy', $coffeeRow['status']);
         $this->assertSame('out', $current['items'][0]['status']);
-        $this->assertSame(16.33, round(collect($current['warehouses'])->sum('stock_value'), 2));
+        $this->assertSame(26.33, round(collect($current['warehouses'])->sum('stock_value'), 2));
         $this->assertSame('Kafe', $current['top_consumption'][0]['name']);
     }
 }

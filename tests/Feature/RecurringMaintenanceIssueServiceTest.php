@@ -25,7 +25,13 @@ class RecurringMaintenanceIssueServiceTest extends TestCase
         $room102 = Room::create(['room_type_id' => $type->id, 'room_number' => '102', 'floor' => 1, 'status' => 'available']);
 
         $this->issue($room101, $user, 'AC stopped', 'climate', '2026-01-10 09:00:00', 'AC-101', 'Air conditioner');
-        $this->issue($room101, $user, 'No cooling', 'climate', '2026-07-05 09:00:00', ' ac-101 ', 'Air conditioner');
+        $historical = $this->issue($room101, $user, 'No cooling', 'climate', '2026-07-05 09:00:00', ' ac-101 ', 'Air conditioner');
+        $historical->forceFill([
+            'status' => 'verified',
+            'started_at' => '2026-07-05 10:00:00',
+            'resolved_at' => '2026-07-08 09:00:00',
+            'verified_at' => '2026-07-12 09:00:00',
+        ])->saveQuietly();
         $this->issue($room101, $user, 'AC alarm', 'climate', '2026-07-10 09:00:00', 'AC-101', 'Air conditioner');
         $this->issue($room101, $user, 'Sink leak', 'plumbing', '2026-06-20 09:00:00', null, 'Sink');
         $this->issue($room101, $user, 'Water under sink', 'plumbing', '2026-07-08 09:00:00', null, ' sink ');
@@ -33,7 +39,7 @@ class RecurringMaintenanceIssueServiceTest extends TestCase
         $this->issue($room102, $user, 'Loose handle', 'furniture', '2026-07-07 10:00:00');
         $this->issue($room101, $user, 'Future repeat', 'climate', '2026-07-20 09:00:00', 'AC-101');
 
-        $report = app(RecurringMaintenanceIssueService::class)->summary(new ReportingPeriod('2026-07-01', '2026-07-31'));
+        $report = app(RecurringMaintenanceIssueService::class)->summary(new ReportingPeriod('2026-07-01', '2026-07-10'));
 
         $this->assertSame(2, $report['summary']['recurring_groups']);
         $this->assertSame(3, $report['summary']['repeat_occurrences']);
@@ -42,6 +48,7 @@ class RecurringMaintenanceIssueServiceTest extends TestCase
         $this->assertSame(2, $report['groups'][0]['period_occurrences']);
         $this->assertSame(3, $report['groups'][0]['total_occurrences']);
         $this->assertSame('AC-101', $report['groups'][0]['asset_code']);
+        $this->assertSame(3, $report['groups'][0]['open_count']);
 
         CarbonImmutable::setTestNow();
     }
