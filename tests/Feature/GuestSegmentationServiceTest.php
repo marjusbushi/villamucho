@@ -41,6 +41,10 @@ class GuestSegmentationServiceTest extends TestCase
         $this->assertSame('new', $byName['New Test']['segment_360']);
         $this->assertSame('dormant', $byName['Dormant Test']['segment_360']);
         $this->assertSame(5, collect($report['segments'])->sum('guests'));
+        $dormant = app(GuestSegmentationService::class)->summary('dormant');
+        $this->assertSame('dormant', $dormant['active_segment']);
+        $this->assertCount(1, $dormant['guests']);
+        $this->assertSame('dormant', $dormant['guests'][0]['segment_360']);
         CarbonImmutable::setTestNow();
     }
 

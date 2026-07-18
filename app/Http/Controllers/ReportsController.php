@@ -632,8 +632,10 @@ class ReportsController extends Controller
 
     public function guestSegments(Request $request, GuestSegmentationService $report): Response
     {
+        $request->validate(['segment' => ['nullable', 'in:all,vip,loyal,returning,new,dormant']]);
+
         return Inertia::render('Reports/GuestSegments', [
-            'analytics' => $report->summary(),
+            'analytics' => $report->summary($request->input('segment', 'all')),
             'canViewGuests' => $request->user()?->can('view_guests') ?? false,
             'currency' => $this->currency(),
         ]);

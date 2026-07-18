@@ -9,7 +9,7 @@ final class GuestSegmentationService
     public function __construct(private readonly GuestLifetimeValueService $lifetimeValue) {}
 
     /** @return array{as_of:string,summary:array,segments:array,guests:array,rules:array} */
-    public function summary(): array
+    public function summary(string $activeSegment = 'all'): array
     {
         $rows = collect($this->lifetimeValue->summary(null)['guests']);
         $vipThreshold = $this->percentile($rows->pluck('net_value'), 0.8);
@@ -40,8 +40,13 @@ final class GuestSegmentationService
             ];
         });
 
+        $visibleGuests = $activeSegment === 'all'
+            ? $segmented
+            : $segmented->where('segment_360', $activeSegment);
+
         return [
             'as_of' => today()->toDateString(),
+            'active_segment' => $activeSegment,
             'summary' => [
                 'total_guests' => $segmented->count(),
                 'active_guests' => $segmented->where('days_since_last', '<=', 365)->count(),
@@ -51,7 +56,7 @@ final class GuestSegmentationService
                 'vip_threshold' => round($vipThreshold, 2),
             ],
             'segments' => $segments->all(),
-            'guests' => $segmented->sort(function (array $left, array $right) {
+            'guests' => $visibleGuests->sort(function (array $left, array $right) {
                 $order = ['vip', 'loyal', 'returning', 'new', 'dormant'];
                 $segmentOrder = array_search($left['segment_360'], $order, true) <=> array_search($right['segment_360'], $order, true);
 
