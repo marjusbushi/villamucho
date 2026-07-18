@@ -23,7 +23,8 @@ class BookingBehaviorServiceTest extends TestCase
         $type = RoomType::create(['name' => 'Standard', 'base_price' => 100, 'max_occupancy' => 2, 'amenities' => []]);
 
         $this->reservation($user, $guest, $type, '101', 'direct', '2026-07-10', '2026-07-11', '2026-07-10');
-        $this->reservation($user, $guest, $type, '102', 'booking.com', '2026-07-10', '2026-07-13', '2026-06-30');
+        $imported = $this->reservation($user, $guest, $type, '102', 'booking.com', '2026-07-10', '2026-07-13', '2026-06-30');
+        $imported->forceFill(['created_at' => '2026-07-09 10:00:00'])->saveQuietly();
         $this->reservation($user, $guest, $type, '103', 'expedia', '2026-07-12', '2026-07-20', '2026-05-10');
         $this->reservation($user, $guest, $type, '104', 'direct', '2026-07-08', '2026-07-10', '2026-07-07');
         $this->reservation($user, $guest, $type, '105', 'agoda', '2026-07-11', '2026-07-13', '2026-07-01', 'cancelled');
@@ -87,6 +88,7 @@ class BookingBehaviorServiceTest extends TestCase
             'channel' => $channel,
         ]);
         $reservation->forceFill([
+            'booked_at' => $createdAt.' 10:00:00',
             'created_at' => $createdAt.' 10:00:00',
             'updated_at' => $createdAt.' 10:00:00',
             'no_show_at' => $noShow ? $checkIn.' 18:00:00' : null,
