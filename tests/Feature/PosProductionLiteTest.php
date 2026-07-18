@@ -226,9 +226,9 @@ class PosProductionLiteTest extends TestCase
         $this->actingAs($this->admin)->get(route('reports.posPaymentMix', ['from' => '2026-07-17', 'to' => '2026-07-17']))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('summary.grand_total', 55)
-                ->where('summary.order_count', 1)
-                ->where('rows.0.method', 'cash'));
+                ->where('analytics.current.summary.net_collected', 55)
+                ->where('analytics.current.summary.order_population', 1)
+                ->where('analytics.current.methods.0.method', 'cash'));
     }
 
     public function test_mixed_version_shift_posts_legacy_cash_and_new_tenders_once(): void
@@ -267,8 +267,8 @@ class PosProductionLiteTest extends TestCase
         $this->actingAs($this->admin)->get(route('reports.posVoids', ['from' => '2026-07-16', 'to' => '2026-07-16']))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('summary.count', 1)
-                ->where('summary.total', 25)
-                ->where('rows.0.created_at', '16/07 12:00'));
+                ->where('analytics.current.summary.void_count', 1)
+                ->where('analytics.current.summary.void_value', 25)
+                ->where('analytics.current.voids.0.occurred_at', '2026-07-16 12:00'));
     }
 }
