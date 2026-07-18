@@ -11,37 +11,31 @@ final class PickupPaceService
 {
     public const HORIZONS = [1, 3, 7, 14, 30];
 
-    public function __construct(private readonly StayRevenueAllocator $revenueAllocator) {}
+    public function __construct(
+        private readonly StayRevenueAllocator $revenueAllocator,
+        private readonly RoomRevenueService $roomRevenue,
+    ) {}
 
     /** @return array{period:array,current:array,horizons:array,daily:array,baseline_days:?int,history_started_at:?string} */
     public function summary(ReportingPeriod $period, ?CarbonImmutable $asOf = null): array
     {
         $asOf ??= CarbonImmutable::today();
         $current = $this->currentOnBooks($period);
-        $typeCount = RoomType::query()->count();
+        $typeIds = RoomType::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
         $horizons = [];
         $references = [];
 
         foreach (self::HORIZONS as $days) {
             $target = $asOf->subDays($days);
-            $snapshotDate = RoomInventorySnapshot::query()
-                ->whereDate('snapshot_date', '<=', $target->toDateString())
-                ->whereDate('snapshot_date', '>=', $target->subDays(2)->toDateString())
-                ->whereDate('stay_date', '>=', $period->from->toDateString())
-                ->whereDate('stay_date', '<=', $period->to->toDateString())
-                ->max('snapshot_date');
-
-            $snapshotDay = $snapshotDate ? CarbonImmutable::parse($snapshotDate)->toDateString() : null;
-            $reference = $snapshotDay
-                ? $this->snapshotOnBooks($snapshotDay, $period, $typeCount)
-                : null;
+            $reference = $this->snapshotNear($target, $period, $typeIds);
+            $snapshotDay = $reference['snapshot_date'] ?? null;
             $available = $reference !== null && $reference['complete'];
             $revenueAvailable = $available && $reference['revenue_complete'];
 
             $horizons[] = [
                 'days' => $days,
                 'snapshot_date' => $snapshotDay,
-                'actual_days' => $snapshotDate ? CarbonImmutable::parse($snapshotDate)->diffInDays($asOf) : null,
+                'actual_days' => $snapshotDay ? (int) CarbonImmutable::parse($snapshotDay)->diffInDays($asOf) : null,
                 'available' => $available,
                 'revenue_available' => $revenueAvailable,
                 'current_nights' => $current['nights'],
@@ -98,12 +92,17 @@ final class PickupPaceService
             ->whereDate('check_in_date', '<=', $period->to->toDateString())
             ->whereDate('check_out_date', '>', $period->from->toDateString())
             ->get(['id', 'room_id', 'check_in_date', 'check_out_date', 'total_amount']);
+        $discountFactors = $this->roomRevenue->discountFactors($reservations->pluck('id')->all());
 
         foreach ($reservations as $reservation) {
+            $recognizedRoomRevenue = round(
+                (float) $reservation->total_amount * ($discountFactors[$reservation->id] ?? 1),
+                2,
+            );
             foreach ($this->revenueAllocator->allocate(
                 $reservation->check_in_date,
                 $reservation->check_out_date,
-                $reservation->total_amount,
+                $recognizedRoomRevenue,
                 $period,
             ) as $date => $amount) {
                 $daily[$date]['rooms'][(string) $reservation->room_id] = true;
@@ -123,14 +122,47 @@ final class PickupPaceService
         ];
     }
 
-    private function snapshotOnBooks(string $snapshotDate, ReportingPeriod $period, int $typeCount): array
+    /** @param array<int> $typeIds */
+    private function snapshotNear(CarbonImmutable $target, ReportingPeriod $period, array $typeIds): ?array
+    {
+        if ($typeIds === []) {
+            return null;
+        }
+
+        $snapshotDays = RoomInventorySnapshot::query()
+            ->whereDate('snapshot_date', '<=', $target->toDateString())
+            ->whereDate('snapshot_date', '>=', $target->subDays(2)->toDateString())
+            ->whereDate('stay_date', '>=', $period->from->toDateString())
+            ->whereDate('stay_date', '<=', $period->to->toDateString())
+            ->orderByDesc('snapshot_date')
+            ->pluck('snapshot_date')
+            ->map(fn ($date) => CarbonImmutable::parse($date)->toDateString())
+            ->unique()
+            ->values();
+        $latest = null;
+
+        foreach ($snapshotDays as $snapshotDay) {
+            $reference = $this->snapshotOnBooks($snapshotDay, $period, $typeIds);
+            $reference['snapshot_date'] = $snapshotDay;
+            $latest ??= $reference;
+            if ($reference['complete']) {
+                return $reference;
+            }
+        }
+
+        return $latest;
+    }
+
+    /** @param array<int> $typeIds */
+    private function snapshotOnBooks(string $snapshotDate, ReportingPeriod $period, array $typeIds): array
     {
         $rows = RoomInventorySnapshot::query()
             ->whereDate('snapshot_date', $snapshotDate)
             ->whereDate('stay_date', '>=', $period->from->toDateString())
             ->whereDate('stay_date', '<=', $period->to->toDateString())
+            ->whereIn('room_type_id', $typeIds)
             ->get(['stay_date', 'booked', 'booked_revenue']);
-        $expectedRows = $period->days() * $typeCount;
+        $expectedRows = $period->days() * count($typeIds);
         $coverage = $expectedRows > 0 ? min(100, round($rows->count() / $expectedRows * 100, 1)) : 0;
         $revenueComplete = $rows->isNotEmpty() && $rows->every(fn ($row) => $row->booked_revenue !== null);
         $daily = $rows->groupBy(fn ($row) => $row->stay_date->toDateString())
