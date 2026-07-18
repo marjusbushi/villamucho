@@ -26,6 +26,7 @@ use App\Services\Reporting\PaymentReconciliationService;
 use App\Services\Reporting\PickupPaceService;
 use App\Services\Reporting\RecurringMaintenanceIssueService;
 use App\Services\Reporting\ReportingPeriod;
+use App\Services\Reporting\RoomReadinessService;
 use App\Services\Reporting\RoomTypePerformanceService;
 use App\Services\Reporting\StayRevenueAllocator;
 use App\Tenancy\TenantContext;
@@ -951,6 +952,21 @@ class ReportsController extends Controller
             'filters' => ['from' => $from, 'to' => $to],
             'analytics' => $report->summary(new ReportingPeriod($from, $to)),
             'canViewMaintenance' => $request->user()?->can('view_maintenance') ?? false,
+            'currency' => $this->currency(),
+        ]);
+    }
+
+    public function roomReadiness(Request $request, RoomReadinessService $report): Response
+    {
+        return Inertia::render('Reports/RoomReadiness', [
+            'analytics' => $report->snapshot(
+                $request->user()?->can('view_reservations') ?? false,
+                $request->user()?->can('view_housekeeping') ?? false,
+            ),
+            'permissions' => [
+                'reservations' => $request->user()?->can('view_reservations') ?? false,
+                'housekeeping' => $request->user()?->can('view_housekeeping') ?? false,
+            ],
             'currency' => $this->currency(),
         ]);
     }

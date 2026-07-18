@@ -68,6 +68,7 @@ class ReportsLoadTest extends TestCase
             'reports.housekeepingReport' => 'Reports/Housekeeping',
             'reports.maintenanceSla' => 'Reports/MaintenanceSla',
             'reports.recurringMaintenance' => 'Reports/RecurringMaintenance',
+            'reports.roomReadiness' => 'Reports/RoomReadiness',
             'reports.inHouse' => 'Reports/InHouse',
             'reports.discounts' => 'Reports/Discounts',
             'reports.departmentRevenue' => 'Reports/DepartmentRevenue',
