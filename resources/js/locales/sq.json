@@ -5040,6 +5040,36 @@
         "negative": "Stok negativ"
       }
     },
+    "supplierPerformance": {
+      "title": "Furnitorët & Blerjet",
+      "short": "Shpenzimet, pagesat, furnizimet dhe risku sipas furnitorit.",
+      "category": "POS & inventari",
+      "spend": "Blerje totale",
+      "avgBill": "Fatura mesatare",
+      "onTime": "Pagesa në afat",
+      "overdue": "Detyrim i vonuar",
+      "outstanding": "Detyrim i hapur",
+      "bySupplier": "Blerjet sipas furnitorit",
+      "byCategory": "Blerjet sipas kategorisë",
+      "supplierDetail": "Performanca e furnitorëve",
+      "suppliers": "furnitorë",
+      "supplier": "Furnitori",
+      "bills": "fatura",
+      "receiptRate": "Marrë në stok",
+      "statusLabel": "Gjendja",
+      "overdueShort": "vonuar",
+      "days": "ditë",
+      "topItems": "Artikujt më të blerë",
+      "items": "artikuj",
+      "item": "Artikulli",
+      "quantity": "Sasia",
+      "unitCost": "Kosto/njësi",
+      "status": {
+        "healthy": "Në rregull",
+        "watch": "Për t'u ndjekur",
+        "risk": "Në risk"
+      }
+    },
     "cancellationRisk": {
       "title": "Anulime & No-Show",
       "short": "Humbjet dhe rezervimet që kërkojnë veprim.",
