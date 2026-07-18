@@ -193,38 +193,22 @@ class ReportsController extends Controller
     }
 
     /** Guest directory / CRM: per-guest stays, nights, spend and visit history. */
-    public function guests(Request $request): Response
+    public function guests(Request $request, GuestLifetimeValueService $lifetimeValue): Response
     {
-        [$from, $to] = $this->range($request);
-
-        $guests = Guest::with(['reservations' => function ($q) {
-            $q->where('status', '!=', 'cancelled')
-                ->select('id', 'guest_id', 'check_in_date', 'check_out_date', 'total_amount');
-        }])->get(['id', 'first_name', 'last_name', 'email', 'phone', 'nationality']);
-
-        $rows = $guests->map(function ($g) {
-            $res = $g->reservations;
-            $stays = $res->count();
-            $nights = (int) $res->sum(fn ($r) => $r->nights);
-            $totalSpent = (float) $res->sum('total_amount');
-            $checkIns = $res->pluck('check_in_date')->filter();
-
-            return [
-                'id' => $g->id,
-                'guest' => trim("{$g->first_name} {$g->last_name}") ?: 'Mysafir',
-                'email' => $g->email,
-                'phone' => $g->phone,
-                'nationality' => $g->nationality ?: '—',
-                'stays' => $stays,
-                'nights' => $nights,
-                'total_spent' => round($totalSpent, 2),
-                'last_visit' => $checkIns->isNotEmpty() ? $checkIns->max()?->toDateString() : null,
-                'first_seen' => $checkIns->isNotEmpty() ? $checkIns->min()?->toDateString() : null,
-            ];
-        })
-            ->filter(fn ($r) => $r['stays'] > 0)
-            ->sortByDesc('total_spent')
-            ->values();
+        $analytics = $lifetimeValue->summary(null);
+        $nationalities = Guest::query()->pluck('nationality', 'id');
+        $rows = collect($analytics['guests'])->map(fn (array $guest) => [
+            'id' => $guest['id'],
+            'guest' => $guest['guest'],
+            'email' => $guest['email'],
+            'phone' => $guest['phone'],
+            'nationality' => $nationalities->get($guest['id']) ?: '—',
+            'stays' => $guest['stays'],
+            'nights' => $guest['nights'],
+            'total_spent' => $guest['net_value'],
+            'last_visit' => $guest['last_visit'],
+            'first_seen' => $guest['first_visit'],
+        ])->values();
 
         return Inertia::render('Reports/Guests', [
             'rows' => $rows,
@@ -232,7 +216,7 @@ class ReportsController extends Controller
                 'total_guests' => $rows->count(),
                 'repeat_guests' => $rows->filter(fn ($r) => $r['stays'] >= 2)->count(),
                 'total_nights' => (int) $rows->sum('nights'),
-                'total_revenue' => round((float) $rows->sum('total_spent'), 2),
+                'total_revenue' => $analytics['summary']['net_lifetime_value'],
             ],
             'currency' => $this->currency(),
         ]);
