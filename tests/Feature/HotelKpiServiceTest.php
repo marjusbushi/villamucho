@@ -6,6 +6,7 @@ use App\Models\FolioItem;
 use App\Models\Guest;
 use App\Models\MaintenanceIssue;
 use App\Models\PosOrder;
+use App\Models\PosOrderPayment;
 use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
@@ -87,10 +88,14 @@ class HotelKpiServiceTest extends TestCase
             'status' => 'completed', 'payment_method' => 'cash', 'total_amount' => 50,
             'business_date' => '2026-07-01', 'paid_at' => '2026-07-01 18:00:00', 'created_by' => $user->id,
         ]);
-        PosOrder::create([
+        $refundedOrder = PosOrder::create([
             'status' => 'completed', 'payment_method' => 'cash', 'total_amount' => 20,
             'business_date' => '2026-06-30', 'paid_at' => '2026-06-30 18:00:00',
             'refunded_at' => '2026-07-02 10:00:00', 'created_by' => $user->id,
+        ]);
+        PosOrderPayment::create([
+            'pos_order_id' => $refundedOrder->id, 'direction' => 'out', 'method' => 'cash',
+            'amount' => 20, 'paid_at' => '2026-07-02 10:00:00', 'created_by' => $user->id,
         ]);
 
         $summary = app(HotelKpiService::class)->summary(new ReportingPeriod('2026-07-01', '2026-07-02'));

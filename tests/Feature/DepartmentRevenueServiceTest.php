@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\FolioItem;
 use App\Models\Guest;
 use App\Models\PosOrder;
+use App\Models\PosOrderPayment;
 use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
@@ -41,6 +42,14 @@ class DepartmentRevenueServiceTest extends TestCase
             'reservation_id' => $reservation->id, 'pos_order_id' => $refunded->id,
             'description' => 'Room charge', 'amount' => 50, 'type' => 'restaurant', 'charge_date' => '2026-07-02',
         ]);
+        PosOrderPayment::create([
+            'pos_order_id' => $refunded->id, 'direction' => 'out', 'method' => 'card',
+            'amount' => 20, 'paid_at' => '2026-07-03 12:00:00', 'created_by' => $user->id,
+        ]);
+        PosOrderPayment::create([
+            'pos_order_id' => $refunded->id, 'direction' => 'out', 'method' => 'cash',
+            'amount' => 30, 'paid_at' => '2026-07-03 12:01:00', 'created_by' => $user->id,
+        ]);
         PosOrder::create([
             'status' => 'completed', 'payment_method' => 'cash', 'total_amount' => 40,
             'business_date' => '2026-07-03', 'paid_at' => '2026-07-03 13:00:00', 'created_by' => $user->id,
@@ -61,6 +70,7 @@ class DepartmentRevenueServiceTest extends TestCase
         $this->assertSame(40.0, $report['current']['summary']['pos']);
         $this->assertSame(28.42, $report['current']['summary']['other']);
         $this->assertSame(352.63, $report['current']['summary']['total']);
+        $this->assertSame(-7.37, collect($report['current']['daily'])->firstWhere('date', '2026-07-03')['pos']);
         $this->assertSame(80.6, collect($report['current']['departments'])->firstWhere('department', 'rooms')['share']);
         $this->assertNull($report['changes']['total']);
     }
