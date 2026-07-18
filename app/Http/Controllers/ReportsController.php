@@ -152,44 +152,16 @@ class ReportsController extends Controller
     }
 
     /** Outstanding balances (debtors): every non-cancelled stay that still owes money. */
-    public function outstanding(): Response
+    public function outstanding(Request $request, OutstandingBalanceService $outstandingBalances): Response
     {
-        $stays = Reservation::whereIn('status', ['confirmed', 'checked_in', 'checked_out'])
-            ->with(['room:id,room_number', 'guest:id,first_name,last_name,phone'])
-            ->get(['id', 'room_id', 'guest_id', 'status', 'check_in_date', 'check_out_date', 'total_amount']);
-
-        $ids = $stays->pluck('id')->all();
-        $folio = FolioItem::whereIn('reservation_id', $ids)
-            ->select('reservation_id',
-                DB::raw("SUM(CASE WHEN type NOT IN ('discount','room') THEN amount ELSE 0 END) as charges"),
-                DB::raw("SUM(CASE WHEN type = 'discount' THEN amount ELSE 0 END) as discounts"))
-            ->groupBy('reservation_id')->get()->keyBy('reservation_id');
-        $pay = Payment::whereIn('reservation_id', $ids)
-            ->notVoided()
-            ->select('reservation_id', DB::raw('SUM(amount) as paid'))
-            ->groupBy('reservation_id')->get()->keyBy('reservation_id');
-
-        $rows = $stays->map(function ($r) use ($folio, $pay) {
-            $gross = round((float) $r->total_amount + (float) ($folio[$r->id]->charges ?? 0) - (float) ($folio[$r->id]->discounts ?? 0), 2);
-            $paid = (float) ($pay[$r->id]->paid ?? 0);
-
-            return [
-                'id' => $r->id,
-                'guest' => trim("{$r->guest?->first_name} {$r->guest?->last_name}") ?: 'Mysafir',
-                'phone' => $r->guest?->phone,
-                'room' => $r->room?->room_number,
-                'status' => $r->status,
-                'check_in' => $r->check_in_date?->toDateString(),
-                'check_out' => $r->check_out_date?->toDateString(),
-                'gross' => $gross,
-                'paid' => round($paid, 2),
-                'balance' => round($gross - $paid, 2),
-            ];
-        })->filter(fn ($r) => $r['balance'] > 0.009)->sortByDesc('balance')->values();
+        $analytics = $outstandingBalances->analytics();
 
         return Inertia::render('Reports/Outstanding', [
-            'rows' => $rows,
-            'total' => round((float) $rows->sum('balance'), 2),
+            'analytics' => $analytics,
+            // Preserve the original payload while report consumers migrate to analytics.
+            'rows' => $analytics['rows'],
+            'total' => $analytics['summary']['total'],
+            'canViewReservations' => (bool) $request->user()?->can('view_reservations'),
             'currency' => $this->currency(),
         ]);
     }
