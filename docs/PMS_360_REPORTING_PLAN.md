@@ -51,7 +51,7 @@
 
 ## Faza 1 — Executive Dashboard
 
-**Statusi: implementuar; në pritje të review në staging.**
+**Statusi: përfunduar dhe në staging.**
 
 - Revenue, Occupancy, ADR, RevPAR, TRevPAR.
 - Krahasim me periudhën e kaluar dhe vitin e kaluar.
