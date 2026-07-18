@@ -17,23 +17,28 @@ final class MaintenanceSlaReportService
     {
         $periodEnd = $period->to->endOfDay();
         $asOf = $periodEnd->min(CarbonImmutable::now());
-        $issues = MaintenanceIssue::withTrashed()
+        $allIssues = MaintenanceIssue::withTrashed()
             ->with([
                 'room:id,room_number',
                 'assignee:id,name',
                 'events' => fn ($query) => $query->oldest('created_at')->oldest('id'),
             ])
-            ->whereBetween('created_at', [$period->from->startOfDay(), $asOf])
+            ->where('created_at', '<=', $asOf)
             ->orderByDesc('created_at')
             ->get([
                 'id', 'room_id', 'assigned_to', 'title', 'category', 'priority', 'status',
                 'due_at', 'started_at', 'resolved_at', 'verified_at', 'created_at',
             ]);
-        $resolved = $issues->filter(fn (MaintenanceIssue $issue) => $this->isResolvedAt($issue, $asOf));
+        $reported = $allIssues->filter(fn (MaintenanceIssue $issue) => $this->inPeriod($issue->created_at, $period, $asOf));
+        $resolved = $allIssues->filter(fn (MaintenanceIssue $issue) => $this->inPeriod($this->resolvedAt($issue, $asOf), $period, $asOf));
         $slaEligible = $resolved->filter(fn (MaintenanceIssue $issue) => $issue->due_at);
         $slaMet = $slaEligible->filter(fn (MaintenanceIssue $issue) => $this->resolvedAt($issue, $asOf)?->lessThanOrEqualTo($issue->due_at));
-        $openAtEnd = $issues->reject(fn (MaintenanceIssue $issue) => $this->isResolvedAt($issue, $asOf));
+        $openAtEnd = $allIssues->reject(fn (MaintenanceIssue $issue) => $this->isResolvedAt($issue, $asOf));
         $overdue = $openAtEnd->filter(fn (MaintenanceIssue $issue) => $issue->due_at && $issue->due_at->lessThan($asOf));
+        $issues = $reported->concat($resolved)->concat($openAtEnd)->unique('id')->sortByDesc(fn (MaintenanceIssue $issue) => max(
+            $issue->created_at?->timestamp ?? 0,
+            $this->resolvedAt($issue, $asOf)?->timestamp ?? 0,
+        ))->values();
 
         $roomIds = Room::query()->pluck('id');
         $intervals = collect($this->downtime->forRooms($roomIds, $period));
@@ -42,19 +47,19 @@ final class MaintenanceSlaReportService
         return [
             'period' => $period->toArray(),
             'summary' => [
-                'reported' => $issues->count(),
+                'reported' => $reported->count(),
                 'resolved' => $resolved->count(),
                 'open' => $openAtEnd->count(),
                 'overdue' => $overdue->count(),
                 'sla_rate' => $slaEligible->isEmpty() ? 0.0 : round($slaMet->count() / $slaEligible->count() * 100, 1),
-                'avg_response_hours' => $this->averageResponseHours($issues, $asOf),
+                'avg_response_hours' => $this->averageResponseHours($reported, $asOf),
                 'avg_resolution_hours' => $this->averageResolutionHours($resolved, $asOf),
                 'downtime_hours' => $downtime['hours'],
                 'affected_rooms' => $downtime['rooms'],
             ],
-            'priorities' => $this->grouped($issues, 'priority', $asOf),
-            'categories' => $this->grouped($issues, 'category', $asOf),
-            'daily' => $this->daily($issues, $period, $asOf),
+            'priorities' => $this->grouped($reported, $resolved, 'priority', $asOf),
+            'categories' => $this->grouped($reported, $resolved, 'category', $asOf),
+            'daily' => $this->daily($allIssues, $period, $asOf),
             'issues' => $issues->take(50)->map(function (MaintenanceIssue $issue) use ($asOf) {
                 $resolvedAt = $this->resolvedAt($issue, $asOf);
                 $status = $this->statusAt($issue, $asOf);
@@ -78,18 +83,21 @@ final class MaintenanceSlaReportService
         ];
     }
 
-    private function grouped(Collection $issues, string $field, CarbonImmutable $periodEnd): array
+    private function grouped(Collection $reported, Collection $resolved, string $field, CarbonImmutable $periodEnd): array
     {
-        return $issues->groupBy($field)->map(function (Collection $rows, string $key) use ($periodEnd) {
-            $resolved = $rows->filter(fn (MaintenanceIssue $issue) => $this->isResolvedAt($issue, $periodEnd));
-            $slaEligible = $resolved->filter(fn (MaintenanceIssue $issue) => $issue->due_at);
+        $keys = $reported->pluck($field)->merge($resolved->pluck($field))->filter()->unique();
+
+        return $keys->map(function (string $key) use ($reported, $resolved, $field, $periodEnd) {
+            $reportedRows = $reported->where($field, $key);
+            $resolvedRows = $resolved->where($field, $key);
+            $slaEligible = $resolvedRows->filter(fn (MaintenanceIssue $issue) => $issue->due_at);
 
             return [
                 'key' => $key,
-                'reported' => $rows->count(),
-                'resolved' => $resolved->count(),
+                'reported' => $reportedRows->count(),
+                'resolved' => $resolvedRows->count(),
                 'sla_rate' => $slaEligible->isEmpty() ? 0.0 : round($slaEligible->filter(fn (MaintenanceIssue $issue) => $this->resolvedAt($issue, $periodEnd)?->lessThanOrEqualTo($issue->due_at))->count() / $slaEligible->count() * 100, 1),
-                'avg_resolution_hours' => $this->averageResolutionHours($resolved, $periodEnd),
+                'avg_resolution_hours' => $this->averageResolutionHours($resolvedRows, $periodEnd),
             ];
         })->sortByDesc('reported')->values()->all();
     }
@@ -191,5 +199,10 @@ final class MaintenanceSlaReportService
     private function hours($from, $to): ?float
     {
         return $from && $to ? round(CarbonImmutable::parse($from)->diffInMinutes(CarbonImmutable::parse($to)) / 60, 1) : null;
+    }
+
+    private function inPeriod($value, ReportingPeriod $period, CarbonImmutable $asOf): bool
+    {
+        return $value && CarbonImmutable::parse($value)->betweenIncluded($period->from->startOfDay(), $asOf);
     }
 }
