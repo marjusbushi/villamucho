@@ -58,4 +58,54 @@ class SavedReportTest extends TestCase
         $this->assertNotNull($report->last_delivered_at);
         $this->assertTrue($report->next_delivery_at->isFuture());
     }
+
+    public function test_report_route_is_whitelisted_and_only_owner_can_delete_it(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $owner = User::factory()->create();
+        $otherAdmin = User::factory()->create();
+        $owner->assignRole('admin');
+        $otherAdmin->assignRole('admin');
+
+        $this->actingAs($owner)->postJson(route('reports.saved.store'), [
+            'name' => 'Route e palejuar',
+            'route_name' => 'settings.index',
+        ])->assertUnprocessable()->assertJsonValidationErrors('route_name');
+
+        $report = SavedReport::create([
+            'user_id' => $owner->id,
+            'name' => 'Raporti privat',
+            'route_name' => 'reports.executive',
+            'filters' => [],
+        ]);
+
+        $this->actingAs($otherAdmin)
+            ->deleteJson(route('reports.saved.destroy', $report))
+            ->assertForbidden();
+        $this->assertDatabaseHas('saved_reports', ['id' => $report->id]);
+    }
+
+    public function test_scheduler_skips_inactive_and_future_reports(): void
+    {
+        Mail::fake();
+        $user = User::factory()->create();
+
+        foreach ([
+            ['is_active' => false, 'next_delivery_at' => now()->subMinute()],
+            ['is_active' => true, 'next_delivery_at' => now()->addHour()],
+        ] as $state) {
+            SavedReport::create(array_merge([
+                'user_id' => $user->id,
+                'name' => 'Jo për dërgim',
+                'route_name' => 'reports.executive',
+                'filters' => [],
+                'frequency' => 'daily',
+                'delivery_email' => 'owner@example.test',
+            ], $state));
+        }
+
+        $this->artisan('reports:deliver-scheduled')->assertSuccessful();
+
+        Mail::assertNothingSent();
+    }
 }
