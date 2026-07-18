@@ -497,15 +497,18 @@ onMounted(() => {
                 <p v-if="!touchMode || view !== 'sale'" class="mt-1 text-body-sm text-neutral-500">{{ view === 'sale' ? 'Porosia dhe pagesa përfundojnë në një ekran.' : view === 'orders' ? 'Ndrysho, arkëto ose anulo porositë ende të hapura.' : view === 'receipts' ? 'Historiku i shitjeve, kuponëve dhe rimbursimeve.' : 'Hapja, mbyllja dhe kontrolli i arkës sipas turnit.' }}</p>
             </div>
             <div v-if="view === 'sale'" class="flex flex-wrap items-center gap-2">
-                <div v-if="!touchMode" class="inline-flex items-center rounded-xl border border-neutral-200 bg-neutral-100 p-1 shadow-sm" aria-label="Mënyra e përdorimit të POS-it">
-                    <span class="inline-flex h-9 items-center rounded-lg bg-white px-3 text-small font-semibold text-primary-900 shadow-sm">Standard</span>
-                    <button type="button" class="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-small font-semibold text-neutral-500 transition hover:bg-white hover:text-accent-700" @click="toggleTouchMode">
-                        <Maximize2 class="h-4 w-4" /> Touch
-                    </button>
-                </div>
-                <button v-else type="button" class="inline-flex h-9 items-center gap-2 rounded-lg border border-accent-200 bg-white px-3 text-small font-semibold text-accent-700 shadow-sm transition hover:border-accent-300 hover:bg-accent-50" @click="toggleTouchMode">
-                    <Minimize2 class="h-4 w-4" /> Dil nga Touch
-                </button>
+                <Button
+                    variant="outline"
+                    class="w-32"
+                    :aria-label="touchMode ? 'Kalo në modalitetin standard' : 'Kalo në modalitetin touch'"
+                    @click="toggleTouchMode"
+                >
+                    <template #icon-left>
+                        <Minimize2 v-if="touchMode" class="h-4 w-4" />
+                        <Maximize2 v-else class="h-4 w-4" />
+                    </template>
+                    {{ touchMode ? 'Standard' : 'Touch' }}
+                </Button>
                 <div class="rounded-xl border border-neutral-200 bg-white px-4 py-2 shadow-card">
                     <p class="text-tiny font-semibold uppercase tracking-wide text-neutral-400">Hapur</p>
                     <p class="text-h4 text-warning-700">{{ stats.open }}</p>
