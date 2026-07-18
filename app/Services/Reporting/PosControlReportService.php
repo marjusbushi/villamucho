@@ -87,8 +87,9 @@ final class PosControlReportService
         $grossIn = round((float) $ledger->where('direction', 'in')->sum('amount'), 2);
         $refundTotal = round((float) $ledger->where('direction', 'out')->sum('amount'), 2);
         $saleOrders = $ledger->where('direction', 'in')->pluck('pos_order_id')->unique();
-        $exceptionOrders = $refunds->pluck('pos_order_id')->concat($voidRows->pluck('id'))->unique()->count();
-        $population = $saleOrders->concat($voidRows->pluck('id'))->unique()->count();
+        $refundOrders = $refunds->pluck('pos_order_id')->unique();
+        $exceptionOrders = $refundOrders->concat($voidRows->pluck('id'))->unique()->count();
+        $population = $saleOrders->concat($refundOrders)->concat($voidRows->pluck('id'))->unique()->count();
         $methods = $ledger->groupBy('method')->map(function (Collection $rows, string $method) use ($grossIn) {
             $in = (float) $rows->where('direction', 'in')->sum('amount');
             $out = (float) $rows->where('direction', 'out')->sum('amount');

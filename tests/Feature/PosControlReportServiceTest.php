@@ -58,4 +58,24 @@ class PosControlReportServiceTest extends TestCase
         $this->assertCount(1, $current['voids']);
         $this->assertNull($report['changes']['exception_rate']);
     }
+
+    public function test_refund_only_orders_are_included_in_the_exception_population(): void
+    {
+        $user = User::factory()->create();
+        $sale = PosOrder::create([
+            'status' => 'completed', 'payment_method' => 'card', 'total_amount' => 80,
+            'business_date' => '2026-07-01', 'paid_at' => '2026-07-01 12:00:00',
+            'created_by' => $user->id,
+        ]);
+        PosOrderPayment::create([
+            'pos_order_id' => $sale->id, 'direction' => 'out', 'method' => 'card',
+            'amount' => 80, 'paid_at' => '2026-07-10 12:00:00', 'created_by' => $user->id,
+        ]);
+
+        $current = app(PosControlReportService::class)
+            ->summary(new ReportingPeriod('2026-07-10', '2026-07-10'));
+
+        $this->assertSame(1, $current['summary']['order_population']);
+        $this->assertSame(100.0, $current['summary']['exception_rate']);
+    }
 }
