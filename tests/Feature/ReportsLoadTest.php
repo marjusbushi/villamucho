@@ -75,6 +75,11 @@ class ReportsLoadTest extends TestCase
                 ->assertInertia(fn (AssertableInertia $p) => $p->component($component));
         }
 
+        $this->actingAs($admin)->from(route('reports.channels'))
+            ->get(route('reports.channels', ['from' => '2026-07-31', 'to' => '2026-07-01']))
+            ->assertRedirect(route('reports.channels'))
+            ->assertSessionHasErrors('to');
+
         $this->actingAs($admin)->from(route('reports.pace'))
             ->get(route('reports.pace', ['from' => today()->subDay()->toDateString(), 'to' => today()->toDateString()]))
             ->assertRedirect(route('reports.pace'))

@@ -12,6 +12,7 @@ use App\Models\Reservation;
 use App\Models\Room;
 use App\Services\BaseCurrency;
 use App\Services\Reporting\BudgetTargetService;
+use App\Services\Reporting\ChannelPerformanceService;
 use App\Services\Reporting\HotelKpiService;
 use App\Services\Reporting\OutstandingBalanceService;
 use App\Services\Reporting\PickupPaceService;
@@ -131,39 +132,19 @@ class ReportsController extends Controller
     }
 
     /** Production by channel: bookings, revenue, commission, net, nights. */
-    public function channels(Request $request): Response
+    public function channels(Request $request, ChannelPerformanceService $channelPerformance): Response
     {
+        $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+
         [$from, $to] = $this->range($request);
-
-        $rows = Reservation::whereBetween('check_in_date', [$from, $to])
-            ->where('status', '!=', 'cancelled')
-            ->get(['channel', 'total_amount', 'commission_amount', 'check_in_date', 'check_out_date'])
-            ->groupBy(fn ($r) => Reservation::normalizeChannel($r->channel))
-            ->map(function ($group, $channel) {
-                $revenue = (float) $group->sum('total_amount');
-                $commission = (float) $group->sum('commission_amount');
-
-                return [
-                    'channel' => $channel,
-                    'count' => $group->count(),
-                    'nights' => (int) $group->sum(fn ($r) => $r->nights),
-                    'revenue' => round($revenue, 2),
-                    'commission' => round($commission, 2),
-                    'net' => round($revenue - $commission, 2),
-                ];
-            })
-            ->sortByDesc('revenue')->values();
+        $period = new ReportingPeriod($from, $to);
 
         return Inertia::render('Reports/Channels', [
-            'filters' => ['from' => $from, 'to' => $to],
-            'rows' => $rows,
-            'totals' => [
-                'count' => (int) $rows->sum('count'),
-                'nights' => (int) $rows->sum('nights'),
-                'revenue' => round((float) $rows->sum('revenue'), 2),
-                'commission' => round((float) $rows->sum('commission'), 2),
-                'net' => round((float) $rows->sum('net'), 2),
-            ],
+            'filters' => $period->toArray(),
+            'analytics' => $channelPerformance->withComparisons($period),
             'currency' => $this->currency(),
         ]);
     }

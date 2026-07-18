@@ -3582,7 +3582,7 @@
         "executive": "Pasqyra ekzekutive",
         "performance": "ADR / RevPAR / Mbushja",
         "pace": "Tempo & Pickup",
-        "channels": "Prodhimi sipas kanaleve",
+        "channels": "Direct vs OTA",
         "cancellations": "Anulime & No-Show",
         "bookingBehavior": "Sjellja e rezervimit",
         "arrivals": "Manifesti i mbërritjeve",
@@ -4654,6 +4654,20 @@
       "next7": "7 ditët e ardhshme",
       "next30": "30 ditët e ardhshme",
       "next90": "90 ditët e ardhshme"
+    },
+    "distribution": {
+      "title": "Direct vs OTA",
+      "short": "Të ardhurat, komisionet dhe rezultati neto sipas kanalit.",
+      "category": "Rezervime & kanale",
+      "netRevenue": "Të ardhura neto",
+      "directShare": "Pesha Direct",
+      "commission": "Komisione",
+      "netAdr": "ADR neto",
+      "dailyNet": "Të ardhurat neto ditore",
+      "grossRevenue": "Të ardhura bruto",
+      "byChannel": "Performanca sipas kanalit",
+      "share": "Pesha",
+      "bookings": "Rezervime"
     }
   },
   "financeSuppliers": {
