@@ -231,7 +231,7 @@ const fileInputClass = 'block w-full text-small text-neutral-500 file:mr-3 file:
                 </div>
             </section>
 
-            <div class="flex justify-end pt-2 sticky bottom-0 bg-white/80 backdrop-blur-sm -mx-6 px-6 py-3 border-t border-neutral-100">
+            <div class="settings-actions">
                 <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_3f4e7027d585') }}</Button>
             </div>
         </form>

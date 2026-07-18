@@ -114,7 +114,7 @@ const fileInputClass = 'block w-full text-small text-neutral-500 file:mr-3 file:
                 <p class="text-tiny text-neutral-400 mt-1.5">{{ $t('admin.generated.k_b338b59f1a88') }}</p>
             </FormGroup>
 
-            <div class="flex justify-end pt-2">
+            <div class="settings-actions">
                 <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_1620bd2141ad') }}</Button>
             </div>
         </form>

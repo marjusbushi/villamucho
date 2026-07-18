@@ -110,7 +110,7 @@ function refresh() {
                 </div>
             </div>
 
-            <div class="flex justify-end">
+            <div class="settings-actions">
                 <Button :disabled="form.processing" @click="submit">{{ $t('admin.generated.k_3055b6598548') }}</Button>
             </div>
         </div>

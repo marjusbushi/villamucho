@@ -45,7 +45,7 @@ function submit() {
                 Vendos email-in te “Të dhënat e hotelit” që njoftimet të mund të dërgohen.
             </p>
 
-            <div class="flex justify-end">
+            <div class="settings-actions">
                 <Button type="submit" :loading="form.processing">Ruaj njoftimet</Button>
             </div>
         </form>
