@@ -23,7 +23,7 @@ final class RecurringMaintenanceIssueService
             ->whereBetween('created_at', [$lookbackFrom, $asOf])
             ->get([
                 'id', 'room_id', 'title', 'category', 'priority', 'status',
-                'asset_name', 'asset_code', 'created_at',
+                'asset_name', 'asset_code', 'started_at', 'resolved_at', 'verified_at', 'closed_at', 'created_at',
             ]);
         $periodIssues = $issues->filter(fn (MaintenanceIssue $issue) => $this->inPeriod($issue, $period, $asOf));
 
@@ -121,8 +121,19 @@ final class RecurringMaintenanceIssueService
 
     private function statusAt(MaintenanceIssue $issue, CarbonImmutable $asOf): string
     {
-        return $issue->events
+        $eventStatus = $issue->events
             ->filter(fn ($event) => $event->to_status && CarbonImmutable::parse($event->created_at)->lessThanOrEqualTo($asOf))
-            ->last()?->to_status ?: $issue->status;
+            ->last()?->to_status;
+        if ($eventStatus) {
+            return $eventStatus;
+        }
+
+        foreach (['closed_at' => 'closed', 'verified_at' => 'verified', 'resolved_at' => 'resolved', 'started_at' => 'in_progress'] as $column => $status) {
+            if ($issue->{$column}?->lessThanOrEqualTo($asOf)) {
+                return $status;
+            }
+        }
+
+        return $issue->status;
     }
 }
