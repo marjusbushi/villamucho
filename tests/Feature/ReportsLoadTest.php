@@ -84,6 +84,17 @@ class ReportsLoadTest extends TestCase
                 ->assertInertia(fn (AssertableInertia $p) => $p->component($component));
         }
 
+        $this->actingAs($admin)
+            ->get(route('reports.roomStatus'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Reports/RoomStatus')
+                ->where('counts.total', 1)
+                ->where('counts.occupied', 1)
+                ->where('counts.available', 0)
+                ->where('rows.0.room_number', '101')
+                ->where('rows.0.status', 'occupied'));
+
         $this->actingAs($admin)->from(route('reports.channels'))
             ->get(route('reports.channels', ['from' => '2026-07-31', 'to' => '2026-07-01']))
             ->assertRedirect(route('reports.channels'))
