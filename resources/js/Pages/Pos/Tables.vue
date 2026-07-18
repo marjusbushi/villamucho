@@ -8,14 +8,13 @@ import Card from '@/Components/UI/Card.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import {
-    ArrowRightLeft, Banknote, Check, ChefHat, FileText, Minus,
-    Plus, Printer, ReceiptText, Search, ShoppingCart, Users,
+    ArrowRightLeft, Banknote, Check, FileText,
+    Plus, Printer, ReceiptText,
 } from 'lucide-vue-next';
 
 const props = defineProps({
     tables: { type: Array, default: () => [] },
     areas: { type: Array, default: () => [] },
-    menu: { type: Array, default: () => [] },
     activeReservations: { type: Array, default: () => [] },
     currentShift: { type: Object, default: null },
     currency: { type: String, default: 'EUR' },
@@ -28,11 +27,6 @@ const props = defineProps({
 const toasts = ref(null);
 const activeArea = ref(props.areas[0] || 'Salla kryesore');
 const selectedTableId = ref(props.selectedTableId || null);
-const activeCategory = ref(props.menu[0]?.id || null);
-const searchQuery = ref('');
-const cart = ref([]);
-const covers = ref(2);
-const showRoundModal = ref(false);
 const showSummaryModal = ref(false);
 const showTransferModal = ref(false);
 const showPaymentModal = ref(false);
@@ -48,16 +42,8 @@ const selectedTable = computed(() => props.tables.find((table) => Number(table.i
 const selectedOrder = computed(() => selectedTable.value?.open_order || null);
 const areaTables = computed(() => props.tables.filter((table) => table.area === activeArea.value));
 const freeTables = computed(() => props.tables.filter((table) => table.status === 'free' && Number(table.id) !== Number(selectedTableId.value)));
-const cartCount = computed(() => cart.value.reduce((sum, item) => sum + item.quantity, 0));
-const cartTotal = computed(() => cart.value.reduce((sum, item) => sum + item.price * item.quantity, 0));
 const splitCash = computed(() => Math.min(Number(selectedOrder.value?.total_amount || 0), Math.max(0, Number(splitCashAmount.value || 0))));
 const splitCard = computed(() => Math.max(0, Math.round((Number(selectedOrder.value?.total_amount || 0) - splitCash.value) * 100) / 100));
-const allMenuItems = computed(() => props.menu.flatMap((category) => category.items.map((item) => ({ ...item, category_id: category.id }))));
-const visibleMenuItems = computed(() => {
-    const query = searchQuery.value.trim().toLocaleLowerCase('sq');
-    if (query) return allMenuItems.value.filter((item) => item.name.toLocaleLowerCase('sq').includes(query));
-    return props.menu.find((category) => Number(category.id) === Number(activeCategory.value))?.items || [];
-});
 
 function money(value) {
     return new Intl.NumberFormat('sq-AL', { style: 'currency', currency: props.currency }).format(Number(value || 0));
@@ -83,45 +69,16 @@ function tableStatus(table) {
 }
 
 function selectTable(table) {
-    if (!props.currentShift) {
-        toasts.value?.error('Hap një turn përpara se të zgjedhësh tavolinën.');
-        return;
-    }
     selectedTableId.value = table.id;
     showSummaryModal.value = false;
-    nextTick(() => openRound());
 }
 
-function openRound() {
+function openOrder() {
     if (!props.currentShift) {
         toasts.value?.error('Hap një turn përpara se të regjistrosh porosi.');
         return;
     }
-    cart.value = [];
-    covers.value = selectedOrder.value?.covers || 2;
-    activeCategory.value = props.menu[0]?.id || null;
-    showRoundModal.value = true;
-}
-
-function openSummaryFromTouch() {
-    showRoundModal.value = false;
-    showSummaryModal.value = true;
-}
-
-function openPaymentFromTouch() {
-    showRoundModal.value = false;
-    openPayment();
-}
-
-function addItem(item) {
-    const existing = cart.value.find((line) => Number(line.id) === Number(item.id));
-    if (existing) existing.quantity += 1;
-    else cart.value.push({ id: item.id, name: item.name, price: Number(item.price), image_path: item.image_path, quantity: 1 });
-}
-
-function changeQuantity(item, delta) {
-    item.quantity += delta;
-    if (item.quantity <= 0) cart.value = cart.value.filter((line) => line !== item);
+    router.visit(route('pos.index', { table: selectedTable.value.id }));
 }
 
 function findRound(tables, roundId) {
@@ -142,33 +99,21 @@ function printProductionTicket(table, round) {
     });
 }
 
-function submitRound(send) {
-    if (!selectedTable.value || !cart.value.length || saving.value) return;
-    saving.value = true;
-    router.post(route('pos.tables.rounds.store', selectedTable.value.id), {
-        items: cart.value.map((item) => ({ menu_item_id: item.id, quantity: item.quantity })),
-        covers: selectedOrder.value ? null : covers.value,
-        send,
-    }, {
-        preserveScroll: true,
-        onSuccess: (page) => {
-            showRoundModal.value = false;
-            cart.value = [];
-            const error = page.props.flash?.error;
-            if (error) {
-                toasts.value?.error(error);
-                return;
-            }
-            toasts.value?.success(page.props.flash?.success || (send ? 'Porosia u dërgua.' : 'Porosia u ruajt.'));
-            if (send && page.props.printRoundId) {
-                const found = findRound(page.props.tables, page.props.printRoundId);
-                if (found) printProductionTicket(found.table, found.round);
-            }
-            selectedTableId.value = null;
-        },
-        onError: (errors) => toasts.value?.error(errors.inventory || errors.items || 'Porosia nuk u ruajt.'),
-        onFinish: () => { saving.value = false; },
-    });
+function printTableSummary() {
+    if (!selectedOrder.value) return;
+    document.body.classList.add('printing-table-summary');
+    window.print();
+    window.setTimeout(() => document.body.classList.remove('printing-table-summary'), 500);
+}
+
+function payFromSummary() {
+    showSummaryModal.value = false;
+    openPayment();
+}
+
+function fiscalizeFromSummary() {
+    toasts.value?.info('Fiskalizimi bëhet pas pagesës. Pas arkëtimit hapet kuponi me butonin Fiskalizo.');
+    payFromSummary();
 }
 
 function sendDraft(round) {
@@ -240,21 +185,19 @@ function payTable() {
         payment_method: paymentMethod.value === 'split' ? null : paymentMethod.value,
         payments,
         reservation_id: paymentMethod.value === 'room_charge' ? paymentReservationId.value : null,
-        return_to: 'tables',
-        table_id: selectedTable.value.id,
     }, {
         preserveScroll: true,
-        onSuccess: (page) => {
-            showPaymentModal.value = false;
-            selectedTableId.value = null;
-            toasts.value?.success(page.props.flash?.success || 'Pagesa u regjistrua dhe tavolina u lirua.');
-        },
+        onSuccess: () => { showPaymentModal.value = false; },
         onError: (errors) => toasts.value?.error(errors.order || errors.payments || errors.reservation_id || 'Pagesa nuk u regjistrua.'),
         onFinish: () => { saving.value = false; },
     });
 }
 
 onMounted(() => {
+    if (props.printRoundId) {
+        const found = findRound(props.tables, props.printRoundId);
+        if (found) printProductionTicket(found.table, found.round);
+    }
     if (props.autoAction === 'pay' && selectedOrder.value) openPayment();
 });
 </script>
@@ -266,13 +209,13 @@ onMounted(() => {
                 <div>
                     <p class="text-small font-semibold text-accent-700">POS Bar/Restorant / Shitje</p>
                     <h1 class="mt-1 text-h2 text-primary-900">Shitje POS</h1>
-                    <p class="mt-1 text-body-sm text-neutral-500">Zgjidh tavolinën, shto porosinë në Touch POS dhe dërgoje për printim.</p>
+                    <p class="mt-1 text-body-sm text-neutral-500">Zgjidh tavolinën, pastaj hap Porosinë ose Përmbledhjen e llogarisë.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <Badge :variant="currentShift ? 'success' : 'warning'" dot size="sm">
                         {{ currentShift ? `Turn aktiv · ${currentShift.user_name} · ${currentShift.opened_at}` : 'Pa turn aktiv' }}
                     </Badge>
-                    <Button v-if="selectedTable" variant="primary" @click="openRound"><Plus class="h-4 w-4" /> Shto porosi</Button>
+                    <Button v-if="selectedTable" variant="primary" @click="openOrder"><Plus class="h-4 w-4" /> Porosi</Button>
                 </div>
             </div>
 
@@ -289,7 +232,7 @@ onMounted(() => {
             >
                 <Card :padding="false" class="overflow-hidden">
                     <div class="flex flex-col gap-3 border-b border-neutral-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div><h2 class="text-h4 text-primary-900">Zgjidh tavolinën</h2><p class="mt-1 text-small text-neutral-500">Prek një tavolinë dhe POS Touch hapet menjëherë.</p></div>
+                        <div><h2 class="text-h4 text-primary-900">Zgjidh tavolinën</h2><p class="mt-1 text-small text-neutral-500">Prek tavolinën për të parë veprimet: Porosi ose Përmbledhje.</p></div>
                         <div class="flex gap-2 overflow-x-auto">
                             <button v-for="area in areas" :key="area" type="button" class="rounded-lg border px-3 py-2 text-small font-semibold whitespace-nowrap" :class="activeArea === area ? 'border-accent-600 bg-accent-50 text-accent-700' : 'border-neutral-200 text-neutral-500'" @click="activeArea = area">{{ area }}</button>
                         </div>
@@ -308,7 +251,7 @@ onMounted(() => {
                         >
                             <div class="flex items-start justify-between gap-2"><div><p class="font-bold text-primary-900">{{ table.name }}</p><p class="mt-0.5 text-small text-neutral-500">{{ table.seats }} vende</p></div><Badge :variant="tableStatus(table).badge" dot size="sm">{{ tableStatus(table).label }}</Badge></div>
                             <div v-if="table.open_order" class="mt-7 flex items-end justify-between"><div><p class="text-h4 text-primary-900">{{ money(table.open_order.total_amount) }}</p><p class="mt-0.5 text-tiny text-neutral-500">{{ elapsed(table.open_order.created_at) }} · {{ table.open_order.rounds.length }} porosi</p></div><ArrowRightLeft class="h-4 w-4 text-neutral-400" /></div>
-                            <div v-else class="mt-8 flex items-center justify-between text-small text-neutral-400"><span>Prek për ta hapur</span><Plus class="h-4 w-4" /></div>
+                            <div v-else class="mt-8 flex items-center justify-between text-small text-neutral-400"><span>Prek për ta zgjedhur</span><Plus class="h-4 w-4" /></div>
                         </button>
                     </div>
                 </Card>
@@ -318,7 +261,10 @@ onMounted(() => {
                         <div class="border-b border-neutral-200 px-5 py-4">
                             <div class="flex flex-wrap items-start justify-between gap-3">
                                 <div><div class="flex items-center gap-2"><h2 class="text-h3 text-primary-900">{{ selectedTable.name }}</h2><Badge :variant="tableStatus(selectedTable).badge" dot size="sm">{{ tableStatus(selectedTable).label }}</Badge></div><p class="mt-1 text-small text-neutral-500">{{ selectedOrder ? `${selectedOrder.covers || '—'} persona · ${elapsed(selectedOrder.created_at)} · ${selectedOrder.created_by || 'Stafi'}` : `${selectedTable.seats} vende · pa llogari të hapur` }}</p></div>
-                                <Button variant="primary" size="sm" @click="openRound"><Plus class="h-4 w-4" /> Shto porosi</Button>
+                                <div class="flex gap-2">
+                                    <Button variant="primary" size="sm" @click="openOrder"><Plus class="h-4 w-4" /> Porosi</Button>
+                                    <Button variant="outline" size="sm" :disabled="!selectedOrder" @click="showSummaryModal = true"><FileText class="h-4 w-4" /> Përmbledhje</Button>
+                                </div>
                             </div>
                         </div>
 
@@ -333,15 +279,14 @@ onMounted(() => {
                                 </div>
                             </div>
                         </div>
-                        <div v-else class="grid flex-1 place-items-center px-6 py-16 text-center"><div><span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-neutral-100 text-neutral-400"><ReceiptText class="h-6 w-6" /></span><p class="mt-4 font-semibold text-primary-900">Tavolina është e lirë</p><p class="mt-1 text-body-sm text-neutral-500">Shto porosinë e parë për të hapur llogarinë.</p><Button variant="primary" class="mt-5" @click="openRound"><Plus class="h-4 w-4" /> Porosia e parë</Button></div></div>
+                        <div v-else class="grid flex-1 place-items-center px-6 py-16 text-center"><div><span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-neutral-100 text-neutral-400"><ReceiptText class="h-6 w-6" /></span><p class="mt-4 font-semibold text-primary-900">Tavolina është e lirë</p><p class="mt-1 text-body-sm text-neutral-500">Hap POS-in ekzistues për porosinë e parë.</p><Button variant="primary" class="mt-5" @click="openOrder"><Plus class="h-4 w-4" /> Porosi</Button></div></div>
 
                         <div v-if="selectedOrder" class="border-t border-neutral-200 bg-neutral-50 p-4">
                             <div class="mb-3 flex items-center justify-between"><span class="text-body-sm font-semibold text-neutral-600">Totali i tavolinës</span><strong class="text-h3 text-primary-900">{{ money(selectedOrder.total_amount) }}</strong></div>
-                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                 <Button variant="outline" size="sm" @click="showTransferModal = true"><ArrowRightLeft class="h-4 w-4" /> Transfero</Button>
-                                <Button variant="outline" size="sm" @click="showSummaryModal = true"><FileText class="h-4 w-4" /> Përmbledhja</Button>
                                 <Button :variant="selectedOrder.service_status === 'bill_requested' ? 'success' : 'outline'" size="sm" @click="toggleBillRequest"><ReceiptText class="h-4 w-4" /> {{ selectedOrder.service_status === 'bill_requested' ? 'Fatura u kërkua' : 'Kërko faturën' }}</Button>
-                                <Button variant="primary" size="sm" @click="openPayment"><Banknote class="h-4 w-4" /> Paguaj</Button>
+                                <Button variant="primary" size="sm" @click="showSummaryModal = true"><FileText class="h-4 w-4" /> Përmbledhje</Button>
                             </div>
                         </div>
                     </template>
@@ -349,41 +294,25 @@ onMounted(() => {
             </div>
         </div>
 
-        <Modal :show="showRoundModal" :title="`Shitje Touch · ${selectedTable?.name || ''}`" max-width="screen" @close="showRoundModal = false">
-            <div class="flex h-[calc(100dvh-8rem)] min-h-[560px] flex-col">
-                <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-                    <div class="flex flex-wrap items-center gap-3">
-                        <Badge :variant="selectedTable ? tableStatus(selectedTable).badge : 'neutral'" dot size="sm">{{ selectedTable ? tableStatus(selectedTable).label : '—' }}</Badge>
-                        <span class="text-body-sm font-semibold text-primary-900">{{ selectedOrder ? `${selectedOrder.rounds.length} porosi · ${money(selectedOrder.total_amount)} gjithsej` : 'Llogari e re' }}</span>
-                        <span class="text-small text-neutral-500">{{ selectedTable?.area }} · {{ selectedTable?.seats }} vende</span>
-                    </div>
-                    <div v-if="selectedOrder" class="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" @click="openSummaryFromTouch"><FileText class="h-4 w-4" /> Përmbledhja</Button>
-                        <Button variant="primary" size="sm" @click="openPaymentFromTouch"><Banknote class="h-4 w-4" /> Paguaj</Button>
-                    </div>
-                </div>
-                <div class="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.28fr)]">
-                <div class="min-w-0 overflow-y-auto pr-1">
-                    <div class="relative"><Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input v-model="searchQuery" type="search" class="w-full rounded-lg border-neutral-200 py-2.5 pl-9 pr-3 text-body-sm focus:border-accent-500 focus:ring-accent-500" placeholder="Kërko produktin..." /></div>
-                    <div class="mt-3 flex gap-2 overflow-x-auto pb-1"><button v-for="category in menu" :key="category.id" type="button" class="rounded-full border px-4 py-2 text-small font-semibold whitespace-nowrap" :class="activeCategory === category.id ? 'border-primary-900 bg-primary-900 text-white' : 'border-neutral-200 text-neutral-600'" @click="activeCategory = category.id">{{ category.name }}</button></div>
-                    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                        <button v-for="item in visibleMenuItems" :key="item.id" type="button" class="overflow-hidden rounded-xl border border-neutral-200 bg-white text-left transition hover:border-accent-400 hover:shadow-card touch-manipulation" @click="addItem(item)"><div class="grid h-24 place-items-center overflow-hidden bg-neutral-100"><img v-if="item.image_path" :src="`/storage/${item.image_path}`" :alt="item.name" class="h-full w-full object-cover" /><ChefHat v-else class="h-7 w-7 text-neutral-300" /></div><div class="p-3"><p class="truncate font-semibold text-primary-900">{{ item.name }}</p><p class="mt-1 text-body-sm font-bold text-accent-700">{{ money(item.price) }}</p></div></button>
-                    </div>
-                </div>
-                <div class="flex min-h-0 flex-col rounded-xl border border-neutral-200 bg-neutral-50">
-                    <div class="border-b border-neutral-200 p-4"><div class="flex items-center justify-between"><div><p class="font-bold text-primary-900">Raundi i ri</p><p class="text-small text-neutral-500">{{ cartCount }} artikuj</p></div><div v-if="!selectedOrder" class="flex items-center gap-2 text-small"><Users class="h-4 w-4 text-neutral-400" /><input v-model.number="covers" type="number" min="1" max="99" class="w-16 rounded-lg border-neutral-200 py-1.5 text-center" /></div></div></div>
-                    <div class="min-h-0 flex-1 overflow-y-auto p-3">
-                        <div v-if="cart.length" class="space-y-2"><div v-for="item in cart" :key="item.id" class="rounded-lg border border-neutral-200 bg-white p-3"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="truncate font-semibold text-primary-900">{{ item.name }}</p><p class="text-small text-neutral-500">{{ money(item.price) }} / copë</p></div><strong>{{ money(item.price * item.quantity) }}</strong></div><div class="mt-3 flex items-center gap-2"><button type="button" class="grid h-9 w-9 place-items-center rounded-lg border border-neutral-200" @click="changeQuantity(item, -1)"><Minus class="h-4 w-4" /></button><span class="w-8 text-center font-bold">{{ item.quantity }}</span><button type="button" class="grid h-9 w-9 place-items-center rounded-lg border border-neutral-200" @click="changeQuantity(item, 1)"><Plus class="h-4 w-4" /></button></div></div></div>
-                        <div v-else class="grid h-full min-h-64 place-items-center text-center"><div><ShoppingCart class="mx-auto h-8 w-8 text-neutral-300" /><p class="mt-3 font-semibold text-primary-900">Raundi është bosh</p><p class="mt-1 text-small text-neutral-500">Prek produktet për t’i shtuar.</p></div></div>
-                    </div>
-                    <div class="border-t border-neutral-200 bg-white p-4"><div class="mb-3 flex items-center justify-between"><span class="text-body-sm text-neutral-500">Totali i raundit</span><strong class="text-h3">{{ money(cartTotal) }}</strong></div><div class="grid grid-cols-2 gap-2"><Button variant="outline" size="lg" :disabled="!cart.length" :loading="saving" @click="submitRound(false)">Mbaj pa dërguar</Button><Button variant="primary" size="lg" :disabled="!cart.length" :loading="saving" @click="submitRound(true)"><Printer class="h-4 w-4" /> Dërgo & printo</Button></div></div>
-                </div>
-                </div>
-            </div>
-        </Modal>
-
         <Modal :show="showSummaryModal" :title="`Përmbledhja · ${selectedTable?.name || ''}`" max-width="lg" @close="showSummaryModal = false">
-            <div v-if="selectedOrder" class="space-y-4"><div class="grid grid-cols-3 gap-3"><div class="rounded-lg bg-neutral-50 p-3"><p class="text-tiny text-neutral-500">Raunde</p><p class="mt-1 text-h4">{{ selectedOrder.rounds.length }}</p></div><div class="rounded-lg bg-neutral-50 p-3"><p class="text-tiny text-neutral-500">Persona</p><p class="mt-1 text-h4">{{ selectedOrder.covers || '—' }}</p></div><div class="rounded-lg bg-accent-50 p-3"><p class="text-tiny text-accent-700">Totali</p><p class="mt-1 text-h4 text-accent-800">{{ money(selectedOrder.total_amount) }}</p></div></div><div v-for="round in selectedOrder.rounds" :key="round.id || round.sequence" class="rounded-lg border border-neutral-200 p-3"><div class="flex justify-between"><strong>Porosia #{{ round.sequence }}</strong><strong>{{ money(round.total) }}</strong></div><p class="mt-1 text-small text-neutral-500">{{ round.items.map(item => `${item.quantity}× ${item.name}`).join(', ') }}</p></div></div>
+            <section v-if="selectedOrder" id="table-account-summary" class="space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="rounded-lg bg-neutral-50 p-3"><p class="text-tiny text-neutral-500">Porosi</p><p class="mt-1 text-h4">{{ selectedOrder.rounds.length }}</p></div>
+                    <div class="rounded-lg bg-neutral-50 p-3"><p class="text-tiny text-neutral-500">Persona</p><p class="mt-1 text-h4">{{ selectedOrder.covers || '—' }}</p></div>
+                    <div class="rounded-lg bg-accent-50 p-3"><p class="text-tiny text-accent-700">Totali</p><p class="mt-1 text-h4 text-accent-800">{{ money(selectedOrder.total_amount) }}</p></div>
+                </div>
+                <div v-for="round in selectedOrder.rounds" :key="round.id || round.sequence" class="rounded-lg border border-neutral-200 p-3">
+                    <div class="flex justify-between"><strong>Porosia #{{ round.sequence }}</strong><strong>{{ money(round.total) }}</strong></div>
+                    <p class="mt-1 text-small text-neutral-500">{{ round.items.map(item => `${item.quantity}× ${item.name}`).join(', ') }}</p>
+                </div>
+                <div class="flex items-center justify-between border-t border-neutral-200 pt-4 text-h4"><span>Totali</span><strong>{{ money(selectedOrder.total_amount) }}</strong></div>
+            </section>
+            <template #footer>
+                <Button variant="ghost" @click="showSummaryModal = false">Mbyll</Button>
+                <Button variant="outline" @click="printTableSummary"><Printer class="h-4 w-4" /> Printo</Button>
+                <Button variant="primary" @click="payFromSummary"><Banknote class="h-4 w-4" /> Paguaj</Button>
+                <Button variant="outline" @click="fiscalizeFromSummary"><ReceiptText class="h-4 w-4" /> Fiskalizo pas pagesës</Button>
+            </template>
         </Modal>
 
         <Modal :show="showTransferModal" title="Transfero llogarinë" max-width="sm" @close="showTransferModal = false">
@@ -411,6 +340,10 @@ onMounted(() => {
 <style>
 .production-ticket { display: none; }
 @media print {
+    body.printing-table-summary * { visibility: hidden !important; }
+    body.printing-table-summary #table-account-summary,
+    body.printing-table-summary #table-account-summary * { visibility: visible !important; }
+    body.printing-table-summary #table-account-summary { position: absolute; left: 0; top: 0; width: 80mm; padding: 6mm; color: #000; background: #fff; font-family: ui-monospace, monospace; }
     body.printing-production-ticket * { visibility: hidden !important; }
     body.printing-production-ticket #production-ticket,
     body.printing-production-ticket #production-ticket * { visibility: visible !important; }

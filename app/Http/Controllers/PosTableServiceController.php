@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
-use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
@@ -74,17 +73,6 @@ class PosTableServiceController extends Controller
         return Inertia::render('Pos/Tables', [
             'tables' => $payload,
             'areas' => $tables->pluck('area')->unique()->values(),
-            'menu' => MenuCategory::with(['items' => fn ($query) => $query->where('is_available', true)->orderBy('name')])
-                ->orderBy('sort_order')->get()->map(fn (MenuCategory $category) => [
-                    'id' => $category->id,
-                    'name' => $category->name,
-                    'items' => $category->items->map(fn (MenuItem $item) => [
-                        'id' => $item->id,
-                        'name' => $item->name,
-                        'price' => (float) $item->price,
-                        'image_path' => $item->image_path,
-                    ])->values(),
-                ])->values(),
             'activeReservations' => $activeReservations,
             'currentShift' => ($shift = PosShift::currentFor($request->user()->id)) ? [
                 'id' => $shift->id,
