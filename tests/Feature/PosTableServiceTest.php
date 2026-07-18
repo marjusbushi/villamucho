@@ -57,6 +57,21 @@ class PosTableServiceTest extends TestCase
         $this->assertDatabaseCount('pos_tables', 10);
     }
 
+    public function test_selected_table_opens_the_existing_pos_sale_workspace(): void
+    {
+        $this->actingAs($this->admin)->get(route('pos.tables'))->assertOk();
+        $table = PosTable::firstOrFail();
+
+        $this->actingAs($this->admin)->get(route('pos.index', ['table' => $table->id]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Pos/Index')
+                ->where('view', 'sale')
+                ->where('tableContext.id', $table->id)
+                ->where('tableContext.name', $table->name)
+                ->where('tableContext.number', $table->number));
+    }
+
     public function test_sent_round_opens_table_account_and_preserves_round_trace(): void
     {
         $this->actingAs($this->admin)->get(route('pos.tables'));

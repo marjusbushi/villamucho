@@ -12,6 +12,7 @@ use App\Models\PosOrder;
 use App\Models\PosOrderItem;
 use App\Models\PosOrderPayment;
 use App\Models\PosShift;
+use App\Models\PosTable;
 use App\Models\Reservation;
 use App\Models\Setting;
 use App\Models\Warehouse;
@@ -51,6 +52,19 @@ class PosController extends Controller
             'pos.shifts' => 'shifts',
             default => 'sale',
         };
+        $tableContext = null;
+        if ($view === 'sale' && $request->integer('table')) {
+            $table = PosTable::query()
+                ->where('is_active', true)
+                ->findOrFail($request->integer('table'));
+            $tableContext = [
+                'id' => $table->id,
+                'number' => $table->number,
+                'name' => $table->name,
+                'area' => $table->area,
+                'seats' => $table->seats,
+            ];
+        }
         $query = PosOrder::select(
             'id', 'reservation_id', 'table_number', 'pos_table_id', 'status',
             'payment_method', 'subtotal_amount', 'discount_amount', 'discount_reason', 'is_complimentary',
@@ -242,6 +256,7 @@ class PosController extends Controller
             'canCloseShift' => $request->user()->can('close_pos_shift'),
             'defaultOpeningFloat' => (float) Setting::get('pos.default_opening_float', 0),
             'receiptSettings' => $this->receiptSettings(),
+            'tableContext' => $tableContext,
             'stats' => [
                 'open' => PosOrder::where('status', 'open')->count(),
                 'today_completed' => PosOrder::where('status', 'completed')->whereNull('refunded_at')->where(function ($today) {
