@@ -57,6 +57,18 @@ class CancellationRiskServiceTest extends TestCase
         $this->assertSame(20.0, $analytics['changes']['no_show_rate']);
         $this->assertSame(250.0, $analytics['changes']['lost_value']);
         $this->assertNull($analytics['changes']['at_risk_count']);
+
+        $future = $this->reservation($user, $guest, $type, '108', 'booking.com', 'confirmed', '2026-08-01', 240);
+        $futureAnalytics = app(CancellationRiskService::class)
+            ->summary(new ReportingPeriod('2026-08-01', '2026-08-01'));
+        $risk = collect($futureAnalytics['at_risk'])->firstWhere('id', $future->id);
+
+        $this->assertNotNull($risk);
+        $this->assertSame(50, $risk['risk_score']);
+        $this->assertSame('high', $risk['risk_level']);
+        $this->assertSame(['unpaid', 'high_risk_channel'], $risk['risk_drivers']);
+        $this->assertSame('secure_payment', $risk['recommended_action']);
+        $this->assertSame(1, $futureAnalytics['risk_levels']['high']);
     }
 
     private function reservation(
