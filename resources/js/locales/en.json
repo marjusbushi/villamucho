@@ -4776,6 +4776,20 @@
       "tabs": { "all": "All rooms", "arrivals": "Arrivals", "attention": "Attention" },
       "states": { "ready": "Ready for arrival", "available": "Available", "checked_in": "Checked in", "cleaning": "Cleaning", "cleaning_for_arrival": "Cleaning for arrival", "turnover": "Checkout + arrival", "departure_pending": "Departure pending", "maintenance": "Maintenance", "occupied": "Occupied / blocked", "unassigned": "Room not assigned" }
     },
+    "guestMovements": {
+      "title": "Guest Movements",
+      "short": "Arrivals, departures and in-house guests in one workspace.",
+      "category": "Operations",
+      "tabs": { "arrivals": "Arrivals", "departures": "Departures", "in_house": "In-house live" },
+      "kpis": { "arrivals": "Arrivals", "departures": "Departures", "in_house": "In-house stays", "guests": "Guests", "nights": "Nights", "balance": "Outstanding", "openPos": "Open POS orders" },
+      "guest": "Guest",
+      "room": "Room",
+      "period": "Stay",
+      "status": "Status",
+      "pax": "Pax",
+      "balance": "Balance",
+      "statuses": { "pending": "Pending", "confirmed": "Confirmed", "checked_in": "Checked in", "checked_out": "Checked out" }
+    },
     "housekeepingProductivity": {
       "title": "Housekeeping Productivity & Turnaround",
       "short": "Actual housekeeping time, completion and productivity.",

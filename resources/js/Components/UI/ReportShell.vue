@@ -15,6 +15,7 @@ const props = defineProps({
     description: { type: String, default: '' },
     category: { type: String, default: '' },
     presetMode: { type: String, default: 'historical' },
+    query: { type: Object, default: () => ({}) },
 });
 
 const reportMeta = {
@@ -77,7 +78,7 @@ const periodLabel = computed(() => {
 
 function navigate(params = {}) {
     if (!props.routeName) return;
-    router.get(route(props.routeName), params, { preserveState: true, preserveScroll: true, replace: true });
+    router.get(route(props.routeName), { ...props.query, ...params }, { preserveState: true, preserveScroll: true, replace: true });
 }
 
 function apply() {
