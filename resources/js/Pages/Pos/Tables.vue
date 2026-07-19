@@ -231,7 +231,7 @@ onMounted(() => {
             </div>
 
             <div
-                class="grid min-h-0 flex-1 gap-3 2xl:grid-cols-[minmax(0,1fr)_minmax(330px,0.34fr)]"
+                class="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.4fr)]"
             >
                 <Card :padding="false" class="flex min-h-0 flex-col overflow-hidden">
                     <div class="flex flex-col gap-3 border-b border-neutral-200 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -245,7 +245,7 @@ onMounted(() => {
                             <span class="font-semibold text-accent-700">Hapur {{ money(stats.open_total) }}</span>
                         </div>
                     </div>
-                    <div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+                    <div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                         <button
                             v-for="table in areaTables"
                             :key="table.id"
