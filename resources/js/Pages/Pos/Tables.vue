@@ -7,6 +7,7 @@ import Button from '@/Components/UI/Button.vue';
 import Card from '@/Components/UI/Card.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
+import PosSalespersonSwitcher from '@/Components/Pos/PosSalespersonSwitcher.vue';
 import {
     ArrowRightLeft, Banknote, Check, FileText,
     Plus, Printer, ReceiptText,
@@ -22,6 +23,9 @@ const props = defineProps({
     selectedTableId: { type: Number, default: null },
     autoAction: { type: String, default: '' },
     stats: { type: Object, default: () => ({}) },
+    currentSalesperson: { type: Object, default: null },
+    salespeople: { type: Array, default: () => [] },
+    posSettings: { type: Object, default: () => ({}) },
 });
 
 const toasts = ref(null);
@@ -221,6 +225,8 @@ onMounted(() => {
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                    <PosSalespersonSwitcher v-if="posSettings.salesperson_enabled" :current="currentSalesperson" :salespeople="salespeople" />
+                    <Button v-if="posSettings.service_mode === 'hybrid'" size="lg" variant="outline" :href="route('pos.index', { direct: 1 })">Shitje direkte</Button>
                     <div v-if="selectedTable" class="mr-1 rounded-lg bg-neutral-100 px-3 py-2 text-body-sm font-bold text-primary-900">
                         {{ selectedTable.name }} · {{ selectedOrder ? money(selectedOrder.total_amount) : 'E lirë' }}
                     </div>
@@ -288,6 +294,10 @@ onMounted(() => {
                         <div v-else class="grid flex-1 place-items-center px-6 py-16 text-center"><div><span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-neutral-100 text-neutral-400"><ReceiptText class="h-6 w-6" /></span><p class="mt-4 font-semibold text-primary-900">Tavolina është e lirë</p><p class="mt-1 text-body-sm text-neutral-500">Përdor butonin “Porosi” sipër për të hapur POS-in.</p></div></div>
 
                         <div v-if="selectedOrder" class="border-t border-neutral-200 bg-neutral-50 p-4">
+                            <div v-if="posSettings.salesperson_enabled" class="mb-3 flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-2.5">
+                                <div class="min-w-0"><p class="text-tiny font-semibold uppercase tracking-wide text-neutral-400">Salesperson i tavolinës</p><p class="truncate text-body-sm font-bold text-primary-900">{{ selectedOrder.salesperson?.name || selectedOrder.created_by || 'Stafi' }}</p></div>
+                                <PosSalespersonSwitcher compact :current="selectedOrder.salesperson || currentSalesperson" :salespeople="salespeople" :order-id="selectedOrder.id" />
+                            </div>
                             <div class="mb-3 flex items-center justify-between"><span class="text-body-sm font-semibold text-neutral-600">Totali i tavolinës</span><strong class="text-h3 text-primary-900">{{ money(selectedOrder.total_amount) }}</strong></div>
                             <div class="grid grid-cols-2 gap-2">
                                 <Button variant="outline" size="sm" @click="showTransferModal = true"><ArrowRightLeft class="h-4 w-4" /> Transfero</Button>

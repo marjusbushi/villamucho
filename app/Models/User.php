@@ -87,7 +87,7 @@ class User extends Authenticatable implements OAuthenticatable
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenant::class)
-            ->withPivot(['is_owner', 'is_active'])
+            ->withPivot(['is_owner', 'is_active', 'pos_salesperson_enabled', 'pos_pin_hash'])
             ->withTimestamps();
     }
 

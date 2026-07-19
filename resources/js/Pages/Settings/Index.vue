@@ -23,6 +23,7 @@ import MarketRatesTab from './Tabs/MarketRatesTab.vue';
 import MenuTab from './Tabs/MenuTab.vue';
 import NotificationsTab from './Tabs/NotificationsTab.vue';
 import PricingProgramsTab from './Tabs/PricingProgramsTab.vue';
+import PosTab from './Tabs/PosTab.vue';
 import RoomTypesTab from './Tabs/RoomTypesTab.vue';
 import SecurityTab from './Tabs/SecurityTab.vue';
 import WebsiteTab from './Tabs/WebsiteTab.vue';
@@ -40,6 +41,7 @@ const props = defineProps({
     userManagement: { type: Object, default: () => ({}) },
     auditHistory: { type: Object, default: () => ({}) },
     integrations: { type: Array, default: () => [] },
+    posStaff: { type: Array, default: () => [] },
 });
 
 const toasts = ref(null);
@@ -161,6 +163,7 @@ function selectMobileTab(tabId) {
                     <RoomTypesTab v-else-if="activeTab === 'room-types'" :room-types="roomTypes" :amenities="amenities" :toasts="toasts" />
                     <AmenitiesTab v-else-if="activeTab === 'amenities'" :amenities="amenities" :toasts="toasts" />
                     <FloorsTab v-else-if="activeTab === 'floors'" :floors="floors" :toasts="toasts" />
+                    <PosTab v-else-if="activeTab === 'pos'" :settings="settings.pos || {}" :staff="posStaff" :toasts="toasts" />
                     <MenuTab v-else-if="activeTab === 'menu'" :categories="menuCategories" :inventory-items="inventoryItems" :warehouses="inventoryWarehouses" :inventory-enabled="modules.finance === true" :currency-symbol="settings.financial?.default_currency_symbol || '€'" :toasts="toasts" />
                     <HousekeepingTab v-else-if="activeTab === 'housekeeping'" :settings="settings.housekeeping || {}" :checklist-defaults="checklistDefaults" :toasts="toasts" />
                     <FinancialTab v-else-if="activeTab === 'financial'" :settings="settings.financial || {}" :toasts="toasts" />

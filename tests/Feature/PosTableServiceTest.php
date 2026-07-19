@@ -11,6 +11,8 @@ use App\Models\PosTable;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -92,6 +94,7 @@ class PosTableServiceTest extends TestCase
         $this->assertNotNull($round->printed_at);
         $this->assertSame(3.0, (float) $order->total_amount);
         $this->assertSame(3, $order->covers);
+        $this->assertSame($this->admin->id, $order->salesperson_id);
         $this->assertDatabaseHas('pos_order_items', [
             'pos_order_id' => $order->id,
             'pos_order_round_id' => $round->id,
@@ -160,6 +163,7 @@ class PosTableServiceTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame('completed', $order->fresh()->status);
+        $this->assertSame($this->admin->id, $order->fresh()->cashier_id);
         $this->actingAs($this->admin)->get(route('pos.tables', ['table' => $destination->id]))
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('tables.1.status', 'free'));
@@ -203,5 +207,76 @@ class PosTableServiceTest extends TestCase
 
         $this->assertSame('open', $order->fresh()->status);
         $this->assertSame('draft', $order->rounds()->firstOrFail()->status);
+    }
+
+    public function test_salesperson_can_switch_with_pin_and_new_order_keeps_that_owner(): void
+    {
+        $waiter = User::factory()->create(['name' => 'Kamerieri Test']);
+        DB::table('tenant_user')->where('user_id', $waiter->id)->update([
+            'pos_salesperson_enabled' => true,
+            'pos_pin_hash' => Hash::make('1234'),
+        ]);
+
+        $this->actingAs($this->admin)->post(route('pos.salesperson.switch'), [
+            'user_id' => $waiter->id,
+            'pin' => '1234',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)->get(route('pos.tables'));
+        $table = PosTable::firstOrFail();
+        $this->actingAs($this->admin)->post(route('pos.tables.rounds.store', $table), [
+            'items' => [['menu_item_id' => $this->item->id, 'quantity' => 1]],
+            'send' => true,
+        ])->assertSessionHasNoErrors();
+
+        $order = PosOrder::firstOrFail();
+        $this->assertSame($waiter->id, $order->salesperson_id);
+        $this->assertSame($this->admin->id, $order->created_by);
+    }
+
+    public function test_wrong_pin_does_not_change_the_active_salesperson(): void
+    {
+        $waiter = User::factory()->create();
+        DB::table('tenant_user')->where('user_id', $waiter->id)->update([
+            'pos_salesperson_enabled' => true,
+            'pos_pin_hash' => Hash::make('1234'),
+        ]);
+
+        $this->actingAs($this->admin)->post(route('pos.salesperson.switch'), [
+            'user_id' => $waiter->id,
+            'pin' => '9999',
+        ])->assertSessionHasErrors('pin');
+
+        $this->actingAs($this->admin)->get(route('pos.tables'));
+        $table = PosTable::firstOrFail();
+        $this->actingAs($this->admin)->post(route('pos.tables.rounds.store', $table), [
+            'items' => [['menu_item_id' => $this->item->id, 'quantity' => 1]],
+            'send' => true,
+        ]);
+
+        $this->assertSame($this->admin->id, PosOrder::firstOrFail()->salesperson_id);
+    }
+
+    public function test_open_order_salesperson_can_be_transferred_with_target_pin(): void
+    {
+        $waiter = User::factory()->create(['name' => 'Kamerieri i Dytë']);
+        DB::table('tenant_user')->where('user_id', $waiter->id)->update([
+            'pos_salesperson_enabled' => true,
+            'pos_pin_hash' => Hash::make('2468'),
+        ]);
+        $this->actingAs($this->admin)->get(route('pos.tables'));
+        $table = PosTable::firstOrFail();
+        $this->actingAs($this->admin)->post(route('pos.tables.rounds.store', $table), [
+            'items' => [['menu_item_id' => $this->item->id, 'quantity' => 1]],
+            'send' => true,
+        ]);
+        $order = PosOrder::firstOrFail();
+
+        $this->actingAs($this->admin)->post(route('pos.salesperson.transfer', $order), [
+            'user_id' => $waiter->id,
+            'pin' => '2468',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame($waiter->id, $order->fresh()->salesperson_id);
     }
 }

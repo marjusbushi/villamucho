@@ -8,6 +8,7 @@ export const settingsTabs = [
     { id: 'booking-policies', labelSq: 'Rezervimet & politikat', labelEn: 'Reservations & policies', group: 'operations' },
     { id: 'pricing-programs', labelSq: 'Çmimet & OTA', labelEn: 'Pricing & OTA', group: 'operations' },
     { id: 'market-rates', labelSq: 'Çmimet e tregut', labelEn: 'Market rates', group: 'operations' },
+    { id: 'pos', labelSq: 'POS & Shërbimi', labelEn: 'POS & service', group: 'operations', module: 'pos' },
     { id: 'menu', labelSq: 'Menuja POS', labelEn: 'POS menu', group: 'operations', module: 'pos' },
     { id: 'housekeeping', labelSq: 'Housekeeping', labelEn: 'Housekeeping', group: 'operations', module: 'housekeeping' },
     { id: 'financial', labelSq: 'Financa', labelEn: 'Finance', group: 'operations' },

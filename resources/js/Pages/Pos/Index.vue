@@ -12,6 +12,7 @@ import TextInput from '@/Components/UI/TextInput.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import ToastContainer from '@/Components/UI/ToastContainer.vue';
 import ShiftBanner from '@/Components/Pos/ShiftBanner.vue';
+import PosSalespersonSwitcher from '@/Components/Pos/PosSalespersonSwitcher.vue';
 import PosReceipt from '@/Components/Invoices/PosReceipt.vue';
 import { ArrowLeft, Banknote, Clock3, Maximize2, Minimize2, Minus, Pencil, Plus, Printer, ReceiptText, RotateCcw, Search, ShoppingCart, Star, Trash2, X } from 'lucide-vue-next';
 
@@ -29,6 +30,9 @@ const props = defineProps({
     defaultOpeningFloat: { type: Number, default: 0 },
     receiptSettings: { type: Object, default: () => ({}) },
     tableContext: { type: Object, default: null },
+    currentSalesperson: { type: Object, default: null },
+    salespeople: { type: Array, default: () => [] },
+    posSettings: { type: Object, default: () => ({}) },
 });
 
 const toasts = ref(null);
@@ -521,7 +525,9 @@ onMounted(() => {
                 <p v-if="!touchMode || view !== 'sale'" class="mt-1 text-body-sm text-neutral-500">{{ view === 'sale' ? 'Porosia dhe pagesa përfundojnë në një ekran.' : view === 'orders' ? 'Ndrysho, arkëto ose anulo porositë ende të hapura.' : view === 'receipts' ? 'Historiku i shitjeve, kuponëve dhe rimbursimeve.' : 'Hapja, mbyllja dhe kontrolli i arkës sipas turnit.' }}</p>
             </div>
             <div v-if="view === 'sale'" class="flex flex-wrap items-center gap-2">
+                <PosSalespersonSwitcher v-if="posSettings.salesperson_enabled" :current="currentSalesperson" :salespeople="salespeople" />
                 <Button v-if="tableContext" variant="outline" class="h-[58px]" :href="route('pos.tables', { table: tableContext.id })"><ArrowLeft class="h-4 w-4" /> Tavolinat</Button>
+                <Button v-else-if="posSettings.service_mode === 'hybrid'" variant="outline" class="h-[58px]" :href="route('pos.tables')">Tavolinat</Button>
                 <button
                     v-if="!tableContext"
                     type="button"

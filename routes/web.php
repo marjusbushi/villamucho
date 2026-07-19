@@ -15,6 +15,7 @@ use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\MessagesController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\PosSalespersonController;
 use App\Http\Controllers\PosShiftController;
 use App\Http\Controllers\PosTableServiceController;
 use App\Http\Controllers\PricingController;
@@ -313,6 +314,8 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
         Route::post('/pos/rounds/{posOrderRound}/send', [PosTableServiceController::class, 'sendRound'])->middleware('permission:update_pos_orders')->name('pos.rounds.send');
         Route::post('/pos/tables/{posTable}/bill', [PosTableServiceController::class, 'requestBill'])->middleware('permission:update_pos_orders')->name('pos.tables.bill');
         Route::post('/pos/tables/{posTable}/transfer', [PosTableServiceController::class, 'transfer'])->middleware('permission:update_pos_orders')->name('pos.tables.transfer');
+        Route::post('/pos/salesperson/switch', [PosSalespersonController::class, 'switch'])->middleware(['permission:create_pos_orders', 'throttle:10,1'])->name('pos.salesperson.switch');
+        Route::post('/pos/orders/{posOrder}/salesperson', [PosSalespersonController::class, 'transfer'])->middleware(['permission:update_pos_orders', 'throttle:10,1'])->name('pos.salesperson.transfer');
         Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
         Route::get('/pos/orders', [PosController::class, 'index'])->defaults('view', 'orders')->name('pos.orders');
         Route::get('/pos/receipts', [PosController::class, 'index'])->defaults('view', 'receipts')->name('pos.receipts');
@@ -473,6 +476,7 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
         Route::post('/settings/website', [SettingsController::class, 'updateWebsite'])->name('settings.website');
         Route::post('/settings/about', [SettingsController::class, 'updateAbout'])->name('settings.about');
         Route::put('/settings/financial', [SettingsController::class, 'updateFinancial'])->name('settings.financial');
+        Route::put('/settings/pos', [SettingsController::class, 'updatePos'])->middleware('module:pos')->name('settings.pos');
         Route::put('/settings/market-rates', [SettingsController::class, 'updateMarketRates'])->name('settings.market-rates');
         Route::put('/settings/currencies', [SettingsController::class, 'updateCurrencies'])->middleware('module:finance')->name('settings.currencies');
         Route::post('/settings/currencies/refresh', [SettingsController::class, 'refreshCurrencies'])->middleware('module:finance')->name('settings.currencies.refresh');
