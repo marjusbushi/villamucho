@@ -17,6 +17,8 @@ class PosOrder extends TenantModel
         'is_complimentary',
         'total_amount',
         'created_by',
+        'salesperson_id',
+        'cashier_id',
         'pos_shift_id',
         'paid_at',
         'business_date',
@@ -57,6 +59,16 @@ class PosOrder extends TenantModel
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function salesperson()
+    {
+        return $this->belongsTo(User::class, 'salesperson_id');
+    }
+
+    public function cashier()
+    {
+        return $this->belongsTo(User::class, 'cashier_id');
     }
 
     public function items()

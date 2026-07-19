@@ -22,6 +22,7 @@ use App\Services\FatureAlConfiguration;
 use App\Services\FinanceLedger;
 use App\Services\InventoryLedger;
 use App\Services\PosFiscalizationService;
+use App\Services\PosSalespersonService;
 use App\Services\VatConfiguration;
 use App\Tenancy\TenantContext;
 use App\Tenancy\TenantRule;
@@ -42,9 +43,10 @@ class PosController extends Controller
         private readonly FatureAlConfiguration $fatureAlConfiguration,
         private readonly TenantContext $tenantContext,
         private readonly VatConfiguration $vatConfiguration,
+        private readonly PosSalespersonService $posSalespeople,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $view = match ($request->route()?->getName()) {
             'pos.orders' => 'orders',
@@ -52,6 +54,13 @@ class PosController extends Controller
             'pos.shifts' => 'shifts',
             default => 'sale',
         };
+        $posSettings = $this->posSalespeople->settings();
+        if ($view === 'sale' && ! $request->integer('table') && ! $request->boolean('direct')) {
+            if ($posSettings['service_mode'] === 'tables'
+                || ($posSettings['service_mode'] === 'hybrid' && $posSettings['opening_view'] === 'tables')) {
+                return redirect()->route('pos.tables');
+            }
+        }
         $tableContext = null;
         if ($view === 'sale' && $request->integer('table')) {
             $table = PosTable::query()
@@ -68,10 +77,10 @@ class PosController extends Controller
         $query = PosOrder::select(
             'id', 'reservation_id', 'table_number', 'pos_table_id', 'status',
             'payment_method', 'subtotal_amount', 'discount_amount', 'discount_reason', 'is_complimentary',
-            'total_amount', 'created_by', 'paid_at', 'business_date', 'cancelled_at', 'cancellation_reason',
+            'total_amount', 'created_by', 'salesperson_id', 'cashier_id', 'paid_at', 'business_date', 'cancelled_at', 'cancellation_reason',
             'refunded_at', 'refund_reason', 'created_at'
         )
-            ->with(['createdBy:id,name', 'items.menuItem:id,name', 'payments', 'fiscalDocument'])
+            ->with(['createdBy:id,name', 'salesperson:id,name', 'cashier:id,name', 'items.menuItem:id,name', 'payments', 'fiscalDocument'])
             ->orderByDesc('created_at');
 
         if (! $request->filled('status') && ! $request->integer('order_id')) {
@@ -233,6 +242,8 @@ class PosController extends Controller
                 'amount' => (float) $payment->amount,
             ])->values(),
             'created_by' => $order->createdBy ? ['name' => $order->createdBy->name] : null,
+            'salesperson' => $order->salesperson ? ['id' => $order->salesperson->id, 'name' => $order->salesperson->name] : ($order->createdBy ? ['id' => $order->createdBy->id, 'name' => $order->createdBy->name] : null),
+            'cashier' => $order->cashier ? ['id' => $order->cashier->id, 'name' => $order->cashier->name] : null,
             'items' => $order->items->map(fn ($item) => [
                 'id' => $item->id,
                 'menu_item_id' => $item->menu_item_id,
@@ -257,6 +268,9 @@ class PosController extends Controller
             'defaultOpeningFloat' => (float) Setting::get('pos.default_opening_float', 0),
             'receiptSettings' => $this->receiptSettings(),
             'tableContext' => $tableContext,
+            'currentSalesperson' => ($salesperson = $this->posSalespeople->current($request))->only(['id', 'name']),
+            'salespeople' => $this->posSalespeople->staff()->where('enabled', true)->values(),
+            'posSettings' => $posSettings,
             'stats' => [
                 'open' => PosOrder::where('status', 'open')->count(),
                 'today_completed' => PosOrder::where('status', 'completed')->whereNull('refunded_at')->where(function ($today) {
@@ -299,6 +313,7 @@ class PosController extends Controller
                 'pos_shift_id' => $shift->id,
                 'status' => 'open',
                 'created_by' => auth()->id(),
+                'salesperson_id' => $this->posSalespeople->current($request)->id,
                 'total_amount' => 0,
             ]);
 
@@ -488,6 +503,7 @@ class PosController extends Controller
                 // Cash physically enters the drawer of whoever finalizes the sale, so attribute the
                 // order to the completing user's shift — fixes cross-shift completion + legacy NULL orders.
                 'pos_shift_id' => $shift->id,
+                'cashier_id' => $request->user()->id,
             ]);
 
             foreach ($tenders as $tender) {

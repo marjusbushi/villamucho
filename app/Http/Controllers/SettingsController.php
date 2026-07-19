@@ -26,6 +26,7 @@ use App\Services\FatureAlClient;
 use App\Services\FatureAlConfiguration;
 use App\Services\IntegrationCatalog;
 use App\Services\MarketRates;
+use App\Services\PosSalespersonService;
 use App\Services\PricingRulesVersion;
 use App\Services\VatConfiguration;
 use App\Support\TenantStorage;
@@ -34,6 +35,7 @@ use App\Tenancy\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -51,6 +53,7 @@ class SettingsController extends Controller
         AuditTimeline $timeline,
         IntegrationCatalog $integrationCatalog,
         FatureAlConfiguration $fatureAlConfiguration,
+        PosSalespersonService $posSalespeople,
     ): Response {
         $settings = Setting::allGrouped();
         $tenant = app(TenantContext::class)->tenant();
@@ -123,6 +126,7 @@ class SettingsController extends Controller
             'userManagement' => $userController->pageData($request, 'user_'),
             'auditHistory' => $auditLogController->pageData($request, $timeline, 'audit_'),
             'integrations' => $integrationCatalog->forSettings($settings),
+            'posStaff' => $posSalespeople->staff(),
         ]);
     }
 
@@ -425,6 +429,63 @@ class SettingsController extends Controller
         ]);
 
         return back()->with('success', 'Konfigurimet financiare u ruajten.');
+    }
+
+    public function updatePos(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'service_mode' => ['required', Rule::in(['hybrid', 'tables', 'direct'])],
+            'opening_view' => ['required', Rule::in(['tables', 'products'])],
+            'salesperson_enabled' => ['required', 'boolean'],
+            'salesperson_required' => ['required', 'boolean'],
+            'staff' => ['required', 'array'],
+            'staff.*.id' => ['required', 'integer'],
+            'staff.*.enabled' => ['required', 'boolean'],
+            'staff.*.pin' => ['nullable', 'digits:4'],
+            'staff.*.clear_pin' => ['nullable', 'boolean'],
+        ]);
+
+        $tenantId = app(TenantContext::class)->id() ?? abort(404);
+        if ($data['salesperson_enabled'] && collect($data['staff'])->where('enabled', true)->isEmpty()) {
+            throw ValidationException::withMessages([
+                'staff' => 'Aktivizo të paktën një salesperson.',
+            ]);
+        }
+        $validIds = DB::table('tenant_user')
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->pluck('user_id');
+
+        DB::transaction(function () use ($data, $tenantId, $validIds) {
+            Setting::set('pos.service_mode', $data['service_mode']);
+            Setting::set('pos.opening_view', $data['opening_view']);
+            Setting::set('pos.salesperson_enabled', $data['salesperson_enabled'] ? '1' : '0', 'boolean');
+            Setting::set('pos.salesperson_required', $data['salesperson_required'] ? '1' : '0', 'boolean');
+
+            foreach ($data['staff'] as $staff) {
+                if (! $validIds->contains((int) $staff['id'])) {
+                    continue;
+                }
+                $updates = ['pos_salesperson_enabled' => (bool) $staff['enabled']];
+                if ($staff['clear_pin'] ?? false) {
+                    $updates['pos_pin_hash'] = null;
+                } elseif (filled($staff['pin'] ?? null)) {
+                    $updates['pos_pin_hash'] = Hash::make($staff['pin']);
+                }
+                DB::table('tenant_user')
+                    ->where('tenant_id', $tenantId)
+                    ->where('user_id', $staff['id'])
+                    ->update($updates);
+            }
+        });
+
+        AuditLog::record('settings.pos.update', null, [
+            'service_mode' => $data['service_mode'],
+            'opening_view' => $data['opening_view'],
+            'salesperson_enabled' => $data['salesperson_enabled'],
+        ]);
+
+        return back()->with('success', 'Konfigurimi POS u ruajt.');
     }
 
     // --- OTA pricing programs (Booking.com / Expedia) ---

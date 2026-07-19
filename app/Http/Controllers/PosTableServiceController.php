@@ -12,6 +12,7 @@ use App\Models\PosTable;
 use App\Models\Reservation;
 use App\Services\BaseCurrency;
 use App\Services\InventoryLedger;
+use App\Services\PosSalespersonService;
 use App\Tenancy\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,10 +23,17 @@ use Inertia\Response;
 
 class PosTableServiceController extends Controller
 {
-    public function __construct(private readonly InventoryLedger $inventoryLedger) {}
+    public function __construct(
+        private readonly InventoryLedger $inventoryLedger,
+        private readonly PosSalespersonService $posSalespeople,
+    ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        if ($this->posSalespeople->settings()['service_mode'] === 'direct') {
+            return redirect()->route('pos.index', ['direct' => 1]);
+        }
+
         $this->ensureDefaultTables();
 
         $tables = PosTable::query()
@@ -40,6 +48,7 @@ class PosTableServiceController extends Controller
             ->whereNotNull('pos_table_id')
             ->with([
                 'createdBy:id,name',
+                'salesperson:id,name',
                 'items.menuItem:id,name',
                 'rounds.createdBy:id,name',
                 'rounds.items.menuItem:id,name',
@@ -83,6 +92,9 @@ class PosTableServiceController extends Controller
             'printRoundId' => $request->session()->pull('pos_print_round_id'),
             'selectedTableId' => $request->integer('table') ?: null,
             'autoAction' => $request->string('action')->toString(),
+            'currentSalesperson' => ($salesperson = $this->posSalespeople->current($request))->only(['id', 'name']),
+            'salespeople' => $this->posSalespeople->staff()->where('enabled', true)->values(),
+            'posSettings' => $this->posSalespeople->settings(),
             'stats' => [
                 'total' => $tables->count(),
                 'occupied' => $payload->where('status', 'occupied')->count(),
@@ -120,6 +132,7 @@ class PosTableServiceController extends Controller
                     'service_status' => 'open',
                     'covers' => $data['covers'] ?? null,
                     'created_by' => $request->user()->id,
+                    'salesperson_id' => $this->posSalespeople->current($request)->id,
                     'total_amount' => 0,
                 ]);
             }
@@ -318,6 +331,9 @@ class PosTableServiceController extends Controller
             'total_amount' => (float) $order->total_amount,
             'created_at' => $order->created_at?->toIso8601String(),
             'created_by' => $order->createdBy?->name,
+            'salesperson' => $order->salesperson
+                ? ['id' => $order->salesperson->id, 'name' => $order->salesperson->name]
+                : ($order->createdBy ? ['id' => $order->createdBy->id, 'name' => $order->createdBy->name] : null),
             'rounds' => $rounds->values(),
         ];
     }
