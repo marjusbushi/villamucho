@@ -315,6 +315,25 @@ class PosTableServiceTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'second.waiter@example.com']);
     }
 
+    public function test_waiter_creation_reserves_pin_held_by_an_inactive_membership(): void
+    {
+        $inactive = User::factory()->create();
+        DB::table('tenant_user')->where('user_id', $inactive->id)->update([
+            'is_active' => false,
+            'pos_salesperson_enabled' => true,
+            'pos_pin_hash' => Hash::make('2580'),
+        ]);
+
+        $this->actingAs($this->admin)->post(route('settings.pos.salespeople.store'), [
+            'name' => 'Kamarieri i Ri',
+            'email' => 'inactive-pin.waiter@example.com',
+            'password' => 'WaiterPass2!',
+            'pin' => '2580',
+        ])->assertSessionHasErrors('pin');
+
+        $this->assertDatabaseMissing('users', ['email' => 'inactive-pin.waiter@example.com']);
+    }
+
     public function test_pos_settings_reject_assigning_an_existing_pin_to_another_waiter(): void
     {
         $first = User::factory()->create();

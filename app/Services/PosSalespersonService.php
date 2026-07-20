@@ -119,7 +119,6 @@ class PosSalespersonService
         $ignoredUserIds = array_map('intval', $ignoredUserIds);
         $memberships = DB::table('tenant_user')
             ->where('tenant_id', $this->tenantContext->id())
-            ->where('is_active', true)
             ->whereNotNull('pos_pin_hash')
             ->get(['user_id', 'pos_pin_hash']);
 
