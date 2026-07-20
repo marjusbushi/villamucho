@@ -18,6 +18,7 @@ use App\Models\RoomTypeImage;
 use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\TenantIntegration;
+use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AuditTimeline;
 use App\Services\BaseCurrency;
@@ -38,10 +39,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
+use Spatie\Permission\Models\Role;
 use Throwable;
 
 class SettingsController extends Controller
@@ -431,7 +434,7 @@ class SettingsController extends Controller
         return back()->with('success', 'Konfigurimet financiare u ruajten.');
     }
 
-    public function updatePos(Request $request): RedirectResponse
+    public function updatePos(Request $request, PosSalespersonService $posSalespeople): RedirectResponse
     {
         $data = $request->validate([
             'service_mode' => ['required', Rule::in(['hybrid', 'tables', 'direct'])],
@@ -455,6 +458,30 @@ class SettingsController extends Controller
             ->where('tenant_id', $tenantId)
             ->where('is_active', true)
             ->pluck('user_id');
+
+        $changingPinUserIds = collect($data['staff'])
+            ->filter(fn (array $staff) => filled($staff['pin'] ?? null) || ($staff['clear_pin'] ?? false))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+        $newPins = [];
+
+        foreach ($data['staff'] as $index => $staff) {
+            $pin = $staff['pin'] ?? null;
+            if (! filled($pin)) {
+                continue;
+            }
+
+            if (in_array($pin, $newPins, true)) {
+                throw ValidationException::withMessages([
+                    "staff.{$index}.pin" => 'Ky PIN është vendosur për një kamarier tjetër.',
+                ]);
+            }
+
+            $posSalespeople->assertPinAvailable($pin, $changingPinUserIds, "staff.{$index}.pin");
+            $newPins[] = $pin;
+        }
 
         DB::transaction(function () use ($data, $tenantId, $validIds) {
             Setting::set('pos.service_mode', $data['service_mode']);
@@ -486,6 +513,52 @@ class SettingsController extends Controller
         ]);
 
         return back()->with('success', 'Konfigurimi POS u ruajt.');
+    }
+
+    public function storePosSalesperson(Request $request, PosSalespersonService $posSalespeople): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'password' => ['required', Password::min(8)],
+            'pin' => ['required', 'digits:4'],
+        ]);
+
+        $tenantId = app(TenantContext::class)->id() ?? abort(404);
+        $posSalespeople->assertPinAvailable($data['pin']);
+
+        $user = DB::transaction(function () use ($data, $tenantId) {
+            $role = Role::query()
+                ->where('team_id', $tenantId)
+                ->where('guard_name', 'web')
+                ->where('name', 'pos_staff')
+                ->firstOrFail();
+
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => strtolower(trim($data['email'])),
+                'password' => $data['password'],
+                'current_tenant_id' => $tenantId,
+            ]);
+            $user->unsetRelation('roles')->assignRole($role);
+
+            DB::table('tenant_user')
+                ->where('tenant_id', $tenantId)
+                ->where('user_id', $user->id)
+                ->update([
+                    'pos_salesperson_enabled' => true,
+                    'pos_pin_hash' => Hash::make($data['pin']),
+                    'updated_at' => now(),
+                ]);
+
+            return $user;
+        });
+
+        AuditLog::record('settings.pos.salesperson.create', $user, [
+            'role' => 'pos_staff',
+        ]);
+
+        return back()->with('success', "Kamarieri {$user->name} u krijua dhe u aktivizua në POS.");
     }
 
     // --- OTA pricing programs (Booking.com / Expedia) ---
