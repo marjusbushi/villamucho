@@ -62,7 +62,12 @@ class FinanceLedger
                 'account_id' => self::accountFor($method)->id,
                 'amount' => $payment->amount,
                 'currency' => $currency,
-                'fx_rate' => $currency === $baseCurrency ? null : $this->fxRate($currency),
+                // FinancePayment uses source units per 1 base unit; Payment stores
+                // the inverse (base units per 1 source unit). Reuse the frozen
+                // snapshot instead of silently taking today's rate.
+                'fx_rate' => $currency === $baseCurrency
+                    ? null
+                    : round(1 / (float) ($payment->exchange_rate ?: 1 / $this->fxRate($currency)), 6),
                 'method' => $method,
                 'source' => 'auto',
                 'description' => match ($type) {
