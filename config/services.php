@@ -2,6 +2,10 @@
 
 return [
 
+    'openai' => [
+        'chatgpt_connect_url' => env('CHATGPT_CONNECT_URL', 'https://chatgpt.com/'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -84,6 +88,14 @@ return [
         'merchant_id' => env('POK_MERCHANT_ID'),
         'key_id' => env('POK_KEY_ID'),
         'key_secret' => env('POK_KEY_SECRET'),
+    ],
+
+    'fature_al' => [
+        // Special partner token required only by POST /register. Tenant API
+        // tokens returned by that endpoint remain encrypted per hotel.
+        'onboarding_token' => env('FATURE_AL_ONBOARDING_TOKEN'),
+        'app_name' => env('FATURE_AL_APP_NAME', 'LoraPMS'),
+        'build_version' => env('FATURE_AL_BUILD_VERSION', env('APP_VERSION', 'dev')),
     ],
 
 ];

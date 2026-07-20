@@ -36,6 +36,7 @@ class Reservation extends TenantModel
         'guest_id',
         'created_by',
         'created_via',
+        'booked_at',
         'confirmation_token',
         'check_in_date',
         'check_out_date',
@@ -78,6 +79,10 @@ class Reservation extends TenantModel
                 $reservation->created_via = static::CREATED_VIA_STAFF;
             }
 
+            if (empty($reservation->booked_at)) {
+                $reservation->booked_at = now();
+            }
+
             if (empty($reservation->confirmation_token)) {
                 $reservation->confirmation_token = (string) Str::random(40);
             }
@@ -101,6 +106,7 @@ class Reservation extends TenantModel
             // read '2026-09-06' — the edit form shifted every date one day back.
             'check_in_date' => 'date:Y-m-d',
             'check_out_date' => 'date:Y-m-d',
+            'booked_at' => 'datetime',
             'total_amount' => 'decimal:2',
             'rate_before_discount' => 'decimal:2',
             'direct_discount_pct' => 'decimal:2',

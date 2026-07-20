@@ -10,10 +10,12 @@ use App\Models\Tenant;
 use App\Models\TenantDomain;
 use App\Models\TenantIntegration;
 use App\Models\User;
+use App\Services\AiOAuthGrantManager;
 use App\Services\BaseCurrency;
 use App\Services\FatureAlClient;
 use App\Services\TenantBillingService;
 use App\Services\TenantHandoff;
+use App\Services\TenantOnboardingService;
 use App\Services\TenantRoleService;
 use App\Tenancy\TenantContext;
 use DateTimeImmutable;
@@ -146,6 +148,9 @@ class TenantController extends Controller
             'currencyOptions' => config('lora.tenant_currencies'),
             'timezoneGroups' => $this->timezoneGroups(),
             'roleOptions' => array_keys(TenantRoleService::definitions()),
+            'initialConfigTab' => in_array(request()->query('config'), ['domains', 'channex', 'pok', 'fature'], true)
+                ? request()->query('config')
+                : null,
         ]);
     }
 
@@ -193,14 +198,18 @@ class TenantController extends Controller
         return back()->with('success', "Të dhënat e {$tenant->name} u përditësuan.");
     }
 
-    public function storeMember(Request $request, Tenant $tenant, TenantContext $context): RedirectResponse
-    {
+    public function storeMember(
+        Request $request,
+        Tenant $tenant,
+        TenantContext $context,
+        AiOAuthGrantManager $grants,
+    ): RedirectResponse {
         $data = $this->validateMember($request);
         $email = Str::lower(trim($data['email']));
         $member = User::withoutGlobalScopes()->withTrashed()->where('email', $email)->first();
         $existing = (bool) $member;
 
-        DB::transaction(function () use (&$member, $existing, $tenant, $data, $email, $context) {
+        DB::transaction(function () use (&$member, $existing, $tenant, $data, $email, $context, $grants) {
             if (! $member) {
                 $member = User::create([
                     'name' => trim($data['name']),
@@ -225,6 +234,10 @@ class TenantController extends Controller
                 $member->id => ['is_owner' => false, 'is_active' => (bool) $data['is_active']],
             ]);
 
+            if (! $data['is_active']) {
+                $grants->disconnectTenant($member->id, $tenant->id);
+            }
+
             if (! $member->current_tenant_id) {
                 $member->forceFill(['current_tenant_id' => $tenant->id])->save();
             }
@@ -247,6 +260,7 @@ class TenantController extends Controller
         Tenant $tenant,
         int $member,
         TenantContext $context,
+        AiOAuthGrantManager $grants,
     ): RedirectResponse {
         $pivot = DB::table('tenant_user')
             ->where('tenant_id', $tenant->id)
@@ -277,7 +291,7 @@ class TenantController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($tenant, $user, $data, $context) {
+        DB::transaction(function () use ($tenant, $user, $data, $context, $grants) {
             $user->forceFill([
                 'name' => trim($data['name']),
                 'email' => Str::lower(trim($data['email'])),
@@ -287,6 +301,10 @@ class TenantController extends Controller
                 ->where('tenant_id', $tenant->id)
                 ->where('user_id', $user->id)
                 ->update(['is_active' => (bool) $data['is_active'], 'updated_at' => now()]);
+
+            if (! $data['is_active']) {
+                $grants->disconnectTenant($user->id, $tenant->id);
+            }
 
             if ($data['is_active'] && $user->trashed()) {
                 $user->restore();
@@ -307,6 +325,7 @@ class TenantController extends Controller
         Request $request,
         TenantRoleService $tenantRoles,
         TenantBillingService $billing,
+        TenantOnboardingService $onboarding,
         TenantContext $context,
     ): RedirectResponse {
         $data = $request->validate([
@@ -325,7 +344,7 @@ class TenantController extends Controller
             return back()->withErrors(['primary_domain' => 'Ky domain perdoret nga nje hotel tjeter.']);
         }
 
-        $tenant = DB::transaction(function () use ($data, $domain, $request, $tenantRoles, $billing) {
+        $tenant = DB::transaction(function () use ($data, $domain, $request, $tenantRoles, $billing, $onboarding) {
             $tenant = Tenant::create([
                 'uuid' => (string) Str::uuid(),
                 'name' => $data['name'],
@@ -420,6 +439,8 @@ class TenantController extends Controller
                 );
             }
 
+            $onboarding->findOrCreate($tenant);
+
             return $tenant;
         });
 
@@ -504,8 +525,12 @@ class TenantController extends Controller
         return back()->with('success', "Abonimi i {$tenant->name} u përditësua.");
     }
 
-    public function switch(Request $request, Tenant $tenant, TenantHandoff $handoff): RedirectResponse|SymfonyResponse
-    {
+    public function switch(
+        Request $request,
+        Tenant $tenant,
+        TenantHandoff $handoff,
+        TenantOnboardingService $onboarding,
+    ): RedirectResponse|SymfonyResponse {
         abort_unless($tenant->status === 'active', 422, 'Ky hotel nuk eshte aktiv.');
 
         $dashboardUrl = $this->tenantDashboardUrl($tenant);
@@ -520,7 +545,8 @@ class TenantController extends Controller
 
         $token = $handoff->issue($request->user(), $tenant, $targetHost);
 
-        $handoffUrl = $this->tenantHandoffUrl($dashboardUrl, $token);
+        $destination = $onboarding->tenantDestination($request->string('redirect')->toString());
+        $handoffUrl = $this->tenantHandoffUrl($dashboardUrl, $token, $destination);
         $headers = [
             'Cache-Control' => 'no-store, max-age=0',
             'Referrer-Policy' => 'no-referrer',
@@ -533,8 +559,12 @@ class TenantController extends Controller
         return redirect()->away($handoffUrl)->withHeaders($headers);
     }
 
-    public function updateStatus(Request $request, Tenant $tenant, TenantContext $context): RedirectResponse
-    {
+    public function updateStatus(
+        Request $request,
+        Tenant $tenant,
+        TenantContext $context,
+        AiOAuthGrantManager $grants,
+    ): RedirectResponse {
         $data = $request->validate([
             'status' => ['required', Rule::in(['active', 'suspended'])],
         ]);
@@ -542,7 +572,13 @@ class TenantController extends Controller
         // A suspended hotel is locked out everywhere: ResolveTenant only ever
         // resolves an ACTIVE tenant, so its domains 404 and it cannot be
         // switched into — no session/data is exposed while suspended.
-        $tenant->forceFill(['status' => $data['status']])->save();
+        DB::transaction(function () use ($tenant, $data, $grants): void {
+            $tenant->forceFill(['status' => $data['status']])->save();
+
+            if ($data['status'] === 'suspended') {
+                $grants->disconnectAllForTenant($tenant->id);
+            }
+        });
 
         $context->run($tenant, fn () => AuditLog::record('tenant.status', $tenant, [
             'status' => $data['status'],
@@ -831,7 +867,11 @@ class TenantController extends Controller
         $value = Str::lower(trim($domain));
         $host = parse_url(str_contains($value, '://') ? $value : 'https://'.$value, PHP_URL_HOST);
 
-        return is_string($host) && $host !== '' ? $host : null;
+        if (! is_string($host) || $host === '') {
+            return null;
+        }
+
+        return Str::startsWith($host, 'www.') ? Str::after($host, 'www.') : $host;
     }
 
     private function tenantDashboardUrl(Tenant $tenant): string
@@ -850,7 +890,7 @@ class TenantController extends Controller
         return ($local ? 'http://' : 'https://').$domain.'/dashboard';
     }
 
-    private function tenantHandoffUrl(string $dashboardUrl, string $token): string
+    private function tenantHandoffUrl(string $dashboardUrl, string $token, string $destination = '/dashboard'): string
     {
         $scheme = parse_url($dashboardUrl, PHP_URL_SCHEME);
         $host = parse_url($dashboardUrl, PHP_URL_HOST);
@@ -858,6 +898,10 @@ class TenantController extends Controller
 
         $origin = $scheme.'://'.$host.($port ? ':'.$port : '');
 
-        return $origin.'/tenant-handoff?token='.rawurlencode($token);
+        $url = $origin.'/tenant-handoff?token='.rawurlencode($token);
+
+        return $destination === '/dashboard'
+            ? $url
+            : $url.'&redirect='.rawurlencode($destination);
     }
 }

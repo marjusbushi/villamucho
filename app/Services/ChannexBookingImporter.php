@@ -61,7 +61,8 @@ class ChannexBookingImporter
         $revisionProperty = (string) ($rev['property_id'] ?? '');
         if ($expectedPropertyId !== null
             && ($expectedPropertyId === ''
-                || ($revisionProperty !== '' && $revisionProperty !== $expectedPropertyId))) {
+                || $revisionProperty === ''
+                || $revisionProperty !== $expectedPropertyId)) {
             $summary['status'] = 'foreign_property';
             $summary['flagged'][] = "revision belongs to property {$revisionProperty} — not ours, skipped";
             $this->log($channel, $ref !== '' ? $ref : (string) $revisionId, $revisionId, 'booking.foreign_property', null, null, 'skipped');
@@ -145,6 +146,9 @@ class ChannexBookingImporter
                 ];
                 if (! $existed) {
                     $values['created_via'] = Reservation::CREATED_VIA_CHANNEL_MANAGER;
+                    // inserted_at is when Channex first received this booking revision.
+                    // Preserve it only on creation: later modifications must not reset lead time.
+                    $values['booked_at'] = $rev['inserted_at'] ?? now();
                 }
 
                 $res = Reservation::updateOrCreate(

@@ -28,6 +28,7 @@ class MaintenanceController extends Controller
             'status' => ['nullable', Rule::in(['reported', 'assigned', 'in_progress', 'resolved', 'verified', 'closed'])],
             'priority' => ['nullable', Rule::in(['critical', 'high', 'medium', 'low'])],
             'search' => ['nullable', 'string', 'max:100'],
+            'issue_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $query = MaintenanceIssue::query()
@@ -49,6 +50,7 @@ class MaintenanceController extends Controller
                         ->orWhereHas('room', fn ($room) => $room->where('room_number', 'like', $needle));
                 });
             })
+            ->when($filters['issue_id'] ?? null, fn ($query, $id) => $query->whereKey($id))
             ->orderByRaw("CASE status WHEN 'reported' THEN 0 WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'resolved' THEN 3 WHEN 'verified' THEN 4 ELSE 5 END")
             ->orderByRaw("CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END")
             ->orderBy('due_at')

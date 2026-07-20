@@ -3,14 +3,20 @@
 namespace Tests\Feature;
 
 use App\Models\Bill;
+use App\Models\BillItem;
 use App\Models\FinanceAccount;
 use App\Models\FinancePayment;
+use App\Models\InventoryItem;
 use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Services\InventoryLedger;
 use Carbon\CarbonImmutable;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class FinanceBillsTest extends TestCase
@@ -133,6 +139,10 @@ class FinanceBillsTest extends TestCase
             'issue_date' => '2026-07-10', 'currency' => 'EUR', 'total' => 50,
         ])->assertForbidden();
 
+        $this->actingAs($rec)->post(route('finance.bills.import-ai.analyze'), [
+            'document' => UploadedFile::fake()->createWithContent('fatura.pdf', '%PDF-1.4'),
+        ])->assertForbidden();
+
         $bill = $this->lekBill($supplier);
         FinanceAccount::ensureDefaults();
         $this->actingAs($rec)->post(route('finance.bills.pay', $bill), [
@@ -141,6 +151,8 @@ class FinanceBillsTest extends TestCase
 
         $this->actingAs($rec)->post(route('finance.suppliers.store'), ['name' => 'X'])->assertForbidden();
         $this->actingAs($rec)->post(route('finance.bill-categories.store'), ['name' => 'Pajisje'])->assertForbidden();
+        $this->actingAs($rec)->put(route('finance.bill-categories.update', ['category' => 'Marketing']), ['name' => 'Reklama'])->assertForbidden();
+        $this->actingAs($rec)->delete(route('finance.bill-categories.destroy', ['category' => 'Marketing']))->assertForbidden();
     }
 
     public function test_bill_form_can_create_dynamic_categories_and_suppliers(): void
@@ -176,6 +188,86 @@ class FinanceBillsTest extends TestCase
                 ->where('suppliers.0.name', 'Tekno Hotel'));
     }
 
+    public function test_finance_categories_can_be_renamed_and_unused_categories_deleted(): void
+    {
+        $this->withoutVite();
+        $admin = $this->role('admin');
+        $supplier = $this->supplier('Eco Market');
+        $bill = $this->lekBill($supplier);
+
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->put(route('finance.bill-categories.update', ['category' => 'Ushqim & Pije']), [
+                'name' => 'Ushqime & Furnizime',
+            ])->assertRedirect(route('finance.suppliers'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertContains('Ushqime & Furnizime', Setting::get('financial.expense_categories'));
+        $this->assertNotContains('Ushqim & Pije', Setting::get('financial.expense_categories'));
+        $this->assertSame('Ushqime & Furnizime', $supplier->fresh()->category);
+        $this->assertSame('Ushqime & Furnizime', $bill->fresh()->category);
+
+        $this->actingAs($admin)->from(route('finance.bills.create'))
+            ->post(route('finance.bills.store'), [
+                'supplier_id' => $supplier->id,
+                'category' => 'Ushqim & Pije',
+                'issue_date' => '2026-07-15',
+                'currency' => 'ALL',
+                'fx_rate' => 98.7,
+                'total' => 9870,
+            ])->assertSessionHasErrors('category');
+
+        $this->actingAs($admin)->from(route('finance.bills.edit', $bill))
+            ->put(route('finance.bills.update', $bill), [
+                'supplier_id' => $supplier->id,
+                'number' => $bill->number,
+                'category' => 'Ushqim & Pije',
+                'issue_date' => '2026-07-10',
+                'due_date' => '2026-07-24',
+                'currency' => 'ALL',
+                'fx_rate' => 98.7,
+                'total' => 9870,
+            ])->assertSessionHasErrors('category');
+
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->delete(route('finance.bill-categories.destroy', ['category' => 'Ushqime & Furnizime']))
+            ->assertRedirect(route('finance.suppliers'))
+            ->assertSessionHas('error');
+
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->post(route('finance.bill-categories.store'), ['name' => 'Kopshtari'])
+            ->assertSessionHasNoErrors();
+        $this->assertContains('Kopshtari', Setting::get('financial.expense_categories'));
+
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->delete(route('finance.bill-categories.destroy', ['category' => 'Kopshtari']))
+            ->assertRedirect(route('finance.suppliers'))
+            ->assertSessionHasNoErrors();
+        $this->assertNotContains('Kopshtari', Setting::get('financial.expense_categories'));
+
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->post(route('finance.bill-categories.store'), ['name' => 'IT/Software'])
+            ->assertSessionHasNoErrors();
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->put(route('finance.bill-categories.update', ['category' => 'IT/Software']), ['name' => 'Teknologji'])
+            ->assertSessionHasNoErrors();
+        $this->assertContains('Teknologji', Setting::get('financial.expense_categories'));
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->delete(route('finance.bill-categories.destroy', ['category' => 'Teknologji']))
+            ->assertSessionHasNoErrors();
+    }
+
+    public function test_finance_category_rename_rejects_duplicate_names(): void
+    {
+        $this->withoutVite();
+        $admin = $this->role('admin');
+
+        $this->actingAs($admin)->from(route('finance.suppliers'))
+            ->put(route('finance.bill-categories.update', ['category' => 'Utilitete']), [
+                'name' => '  MARKETING  ',
+            ])->assertRedirect(route('finance.suppliers'))
+            ->assertSessionHasErrors('name');
+    }
+
     public function test_bills_page_ships_rows_and_category_totals(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-07-13 12:00:00'));
@@ -188,6 +280,7 @@ class FinanceBillsTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Finance/Bills')
+                ->where('bills.data.0.display_number', sprintf('BL-2026-%06d', $bill->id))
                 ->where('bills.data.0.remaining_base', 100)
                 ->where('byCategory.Ushqim & Pije', 100)
                 ->where('summary.open_total', 100)
@@ -197,6 +290,13 @@ class FinanceBillsTest extends TestCase
                 ->where('summary.due_soon_count', 0)
                 ->has('priorities', 1)
                 ->has('categories'));
+
+        $this->actingAs($manager)->get(route('finance.bills', [
+            'search' => sprintf('BL-2026-%06d', $bill->id),
+        ]))->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('bills.total', 1)
+                ->where('bills.data.0.id', $bill->id));
     }
 
     public function test_bill_create_is_a_dedicated_page_with_document_options(): void
@@ -214,7 +314,397 @@ class FinanceBillsTest extends TestCase
                 ->has('categories')
                 ->has('inventoryItems', 0)
                 ->has('warehouses', 1)
+                ->where('aiConfigured', false)
+                ->where('openAiImport', false)
                 ->where('can.manageBills', true));
+    }
+
+    public function test_unpaid_bill_opens_in_the_shared_form_and_can_be_updated(): void
+    {
+        $this->withoutVite();
+        $admin = $this->role('admin');
+        $supplier = $this->supplier();
+        $warehouse = Warehouse::ensureDefault();
+        $item = InventoryItem::create([
+            'name' => 'Peshqir', 'sku' => 'PESH-EDIT', 'type' => 'consumable',
+            'unit' => 'piece', 'average_cost' => 4, 'is_active' => true,
+        ]);
+        $bill = Bill::create([
+            'supplier_id' => $supplier->id, 'number' => 'EDIT-1', 'category' => 'Të tjera',
+            'issue_date' => '2026-07-16', 'due_date' => '2026-07-30',
+            'currency' => 'EUR', 'total' => 8, 'status' => 'open',
+        ]);
+        BillItem::create([
+            'bill_id' => $bill->id, 'inventory_item_id' => $item->id, 'warehouse_id' => $warehouse->id,
+            'description' => $item->name, 'quantity' => 2, 'unit' => 'piece', 'unit_cost' => 4, 'line_total' => 8,
+        ]);
+
+        $this->actingAs($admin)->get(route('finance.bills.edit', $bill))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Finance/BillCreate')
+                ->where('bill.id', $bill->id)
+                ->where('bill.stock_locked', false)
+                ->where('bill.items.0.inventory_item_id', $item->id));
+
+        $this->actingAs($admin)->put(route('finance.bills.update', $bill), [
+            'supplier_id' => $supplier->id,
+            'number' => 'EDIT-2',
+            'category' => 'Mirëmbajtje',
+            'issue_date' => '2026-07-17',
+            'due_date' => '2026-07-31',
+            'currency' => 'EUR',
+            'total' => 1,
+            'notes' => 'Korrigjuar',
+            'receive_stock' => false,
+            'items' => [[
+                'inventory_item_id' => $item->id,
+                'warehouse_id' => $warehouse->id,
+                'quantity' => 3,
+                'unit_cost' => 5,
+            ]],
+        ])->assertRedirect(route('finance.bills'))->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame('EDIT-2', $bill->number);
+        $this->assertSame('Mirëmbajtje', $bill->category);
+        $this->assertSame(15.0, (float) $bill->total);
+        $this->assertSame(3.0, (float) $bill->items()->firstOrFail()->quantity);
+        $this->assertSame(0.0, $item->fresh()->stock($warehouse->id));
+    }
+
+    public function test_bill_with_a_payment_is_read_only_and_cannot_be_updated(): void
+    {
+        $this->withoutVite();
+        $admin = $this->role('admin');
+        $receptionist = $this->role('receptionist');
+        $supplier = $this->supplier();
+        $bill = $this->lekBill($supplier);
+        $referencedItem = InventoryItem::create([
+            'name' => 'Transport fature', 'sku' => 'SERVICE-VIEW', 'type' => 'service',
+            'unit' => 'piece', 'average_cost' => 20, 'is_active' => true,
+        ]);
+        InventoryItem::create([
+            'name' => 'Kosto private katalogu', 'sku' => 'PRIVATE-CATALOG', 'type' => 'product',
+            'unit' => 'piece', 'average_cost' => 999, 'is_active' => true,
+        ]);
+        BillItem::create([
+            'bill_id' => $bill->id, 'inventory_item_id' => $referencedItem->id,
+            'description' => $referencedItem->name, 'quantity' => 1, 'unit' => 'piece',
+            'unit_cost' => 20, 'line_total' => 20, 'received_at' => now(),
+        ]);
+        FinanceAccount::ensureDefaults();
+        FinancePayment::create([
+            'direction' => 'out',
+            'account_id' => FinanceAccount::firstOrFail()->id,
+            'amount' => 98.7,
+            'currency' => 'ALL',
+            'fx_rate' => 98.7,
+            'method' => 'cash',
+            'source' => 'manual',
+            'bill_id' => $bill->id,
+            'description' => 'Pagesë prove',
+            'paid_at' => now(),
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)->get(route('finance.bills.edit', $bill))
+            ->assertRedirect(route('finance.bills'))
+            ->assertSessionHas('error');
+
+        $this->actingAs($receptionist)->get(route('finance.bills.show', $bill))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Finance/BillCreate')
+                ->where('readOnly', true)
+                ->where('bill.id', $bill->id)
+                ->where('bill.number', sprintf('BL-2026-%06d', $bill->id))
+                ->has('inventoryItems', 1)
+                ->where('inventoryItems.0.id', $referencedItem->id)
+                ->missing('inventoryItems.0.average_cost'));
+
+        $this->actingAs($admin)->put(route('finance.bills.update', $bill), [
+            'supplier_id' => $supplier->id,
+            'number' => 'NUK-NDRYSHON',
+            'category' => 'Të tjera',
+            'issue_date' => '2026-07-16',
+        ])->assertRedirect(route('finance.bills'))->assertSessionHas('error');
+
+        $this->assertNull($bill->fresh()->number);
+    }
+
+    public function test_received_stock_locks_bill_lines_but_keeps_header_editable(): void
+    {
+        $this->withoutVite();
+        $admin = $this->role('admin');
+        $supplier = $this->supplier();
+        $warehouse = Warehouse::ensureDefault();
+        $item = InventoryItem::create([
+            'name' => 'Shampo', 'sku' => 'SHAMPO-EDIT', 'type' => 'consumable',
+            'unit' => 'piece', 'average_cost' => 2, 'is_active' => true,
+        ]);
+        $bill = Bill::create([
+            'supplier_id' => $supplier->id, 'number' => 'STOCK-1', 'category' => 'Të tjera',
+            'issue_date' => '2026-07-16', 'currency' => 'EUR', 'total' => 12, 'status' => 'open',
+        ]);
+        $line = BillItem::create([
+            'bill_id' => $bill->id, 'inventory_item_id' => $item->id, 'warehouse_id' => $warehouse->id,
+            'description' => $item->name, 'quantity' => 6, 'unit' => 'piece', 'unit_cost' => 2, 'line_total' => 12,
+        ]);
+        app(InventoryLedger::class)->receiveBillItem($line, $admin->id);
+
+        $this->actingAs($admin)->get(route('finance.bills.edit', $bill))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('bill.stock_locked', true));
+
+        $this->actingAs($admin)->put(route('finance.bills.update', $bill), [
+            'supplier_id' => $supplier->id,
+            'number' => 'STOCK-2',
+            'category' => 'Mirëmbajtje',
+            'issue_date' => '2026-07-17',
+            'due_date' => '2026-07-31',
+            'notes' => 'Vetëm koka e faturës',
+            'currency' => 'ALL',
+            'fx_rate' => 100,
+            'total' => 999,
+            'items' => [],
+        ])->assertRedirect(route('finance.bills'))->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame('STOCK-2', $bill->number);
+        $this->assertSame('Mirëmbajtje', $bill->category);
+        $this->assertSame('EUR', $bill->currency);
+        $this->assertSame(12.0, (float) $bill->total);
+        $this->assertSame(6.0, $item->fresh()->stock($warehouse->id));
+        $this->assertSame(6.0, (float) $bill->items()->firstOrFail()->quantity);
+    }
+
+    public function test_ai_reads_and_matches_a_bill_without_creating_anything_before_confirmation(): void
+    {
+        $manager = $this->role('manager');
+        $supplier = $this->supplier('EKO Market');
+        InventoryItem::create([
+            'name' => 'Ujë 0.5 L',
+            'sku' => 'UJE-05',
+            'type' => 'product',
+            'unit' => 'piece',
+            'average_cost' => 0.3,
+            'is_active' => true,
+        ]);
+
+        config()->set('services.gemini.key', 'secret-test-key');
+        config()->set('services.gemini.model', 'gemini-test-model');
+        config()->set('services.gemini.base_url', 'https://generativelanguage.googleapis.com/v1beta');
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => ['parts' => [[
+                        'functionCall' => [
+                            'name' => 'submit_purchase_invoice',
+                            'args' => [
+                                'supplier_name' => 'EKO Market',
+                                'supplier_tax_id' => '',
+                                'invoice_number' => 'INV-204',
+                                'issue_date' => '2026-07-16',
+                                'due_date' => '2026-07-30',
+                                'currency' => 'EUR',
+                                'category' => 'Ushqim & Pije',
+                                'subtotal' => 16.67,
+                                'tax_total' => 3.33,
+                                'discount_total' => 0,
+                                'grand_total' => 20,
+                                'confidence' => 96,
+                                'line_items' => [
+                                    [
+                                        'description' => 'Ujë 0.5 L', 'sku' => 'UJE-05', 'barcode' => '',
+                                        'quantity' => 10, 'unit' => 'piece', 'item_type' => 'product',
+                                        'line_total' => 5, 'confidence' => 99,
+                                    ],
+                                    [
+                                        'description' => 'Detergjent hoteli', 'sku' => '', 'barcode' => '',
+                                        'quantity' => 3, 'unit' => 'liter', 'item_type' => 'consumable',
+                                        'line_total' => 11.67, 'confidence' => 94,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ]]],
+                ]],
+            ]),
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('finance.bills.import-ai.analyze'), [
+            'document' => UploadedFile::fake()->createWithContent('fatura.pdf', '%PDF-1.4 invoice test'),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertOk()
+            ->assertJsonPath('supplier.match.id', $supplier->id)
+            ->assertJsonPath('invoice.number', 'INV-204')
+            ->assertJsonPath('invoice.grand_total', 20)
+            ->assertJsonPath('invoice.line_costs_adjusted', true)
+            ->assertJsonPath('items.0.match.name', 'Ujë 0.5 L')
+            ->assertJsonPath('items.1.match', null)
+            ->assertJsonPath('summary.matched_items', 1)
+            ->assertJsonPath('summary.new_items', 1);
+
+        $this->assertDatabaseCount('bills', 0);
+        $this->assertDatabaseCount('inventory_items', 1);
+
+        Http::assertSent(function ($request) {
+            $schema = $request->data()['tools'][0]['function_declarations'][0]['parameters'] ?? [];
+            $encodedSchema = json_encode($schema);
+
+            return $request->hasHeader('x-goog-api-key', 'secret-test-key')
+                && ! str_contains($request->url(), 'secret-test-key')
+                && ! str_contains($encodedSchema, '"minimum"')
+                && ! str_contains($encodedSchema, '"maximum"')
+                && ! str_contains($encodedSchema, '"maxItems"');
+        });
+    }
+
+    public function test_confirming_an_ai_bill_creates_missing_items_and_reuses_existing_ones(): void
+    {
+        $manager = $this->role('manager');
+        $supplier = $this->supplier();
+        Warehouse::ensureDefault();
+        $warehouse = Warehouse::firstOrFail();
+        $existing = InventoryItem::create([
+            'name' => 'Ujë 0.5 L', 'sku' => 'UJE-05', 'type' => 'product', 'unit' => 'piece',
+            'average_cost' => 0.3, 'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)->post(route('finance.bills.store'), [
+            'supplier_id' => $supplier->id,
+            'number' => 'AI-204',
+            'category' => 'Ushqim & Pije',
+            'issue_date' => '2026-07-16',
+            'currency' => 'EUR',
+            'total' => 20,
+            'receive_stock' => false,
+            'items' => [
+                [
+                    'inventory_item_id' => $existing->id,
+                    'warehouse_id' => $warehouse->id,
+                    'quantity' => 10,
+                    'unit_cost' => 0.6,
+                ],
+                [
+                    'inventory_item_id' => null,
+                    'warehouse_id' => $warehouse->id,
+                    'quantity' => 2,
+                    'unit_cost' => 7,
+                    'new_item' => [
+                        'name' => 'Detergjent hoteli',
+                        'sku' => '',
+                        'barcode' => '',
+                        'category' => 'Ushqim & Pije',
+                        'type' => 'consumable',
+                        'unit' => 'liter',
+                    ],
+                ],
+            ],
+        ])->assertRedirect(route('finance.bills'))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('bills', 1);
+        $this->assertDatabaseCount('bill_items', 2);
+        $this->assertDatabaseCount('inventory_items', 2);
+        $this->assertDatabaseHas('inventory_items', [
+            'name' => 'Detergjent hoteli',
+            'type' => 'consumable',
+            'unit' => 'liter',
+            'is_active' => true,
+        ]);
+        $this->assertSame(20.0, (float) Bill::firstOrFail()->total);
+    }
+
+    public function test_ai_import_rechecks_duplicates_when_the_bill_is_confirmed(): void
+    {
+        $manager = $this->role('manager');
+        $supplier = $this->supplier();
+        Warehouse::ensureDefault();
+        $warehouse = Warehouse::firstOrFail();
+        $existing = InventoryItem::create([
+            'name' => 'Peshqir Banje', 'sku' => 'PESH-01', 'type' => 'product', 'unit' => 'piece',
+            'average_cost' => 4, 'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)->post(route('finance.bills.store'), [
+            'supplier_id' => $supplier->id,
+            'category' => 'Të tjera',
+            'issue_date' => '2026-07-16',
+            'currency' => 'EUR',
+            'total' => 10,
+            'items' => [[
+                'inventory_item_id' => null,
+                'warehouse_id' => $warehouse->id,
+                'quantity' => 2,
+                'unit_cost' => 5,
+                'new_item' => [
+                    'name' => '  PESHQIR-BANJE ',
+                    'type' => 'product',
+                    'unit' => 'piece',
+                ],
+            ]],
+        ])->assertRedirect(route('finance.bills'))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('inventory_items', 1);
+        $this->assertDatabaseHas('bill_items', ['inventory_item_id' => $existing->id]);
+    }
+
+    public function test_same_supplier_invoice_number_cannot_be_saved_twice(): void
+    {
+        $manager = $this->role('manager');
+        $supplier = $this->supplier();
+        $payload = [
+            'supplier_id' => $supplier->id,
+            'number' => 'INV-777',
+            'category' => 'Të tjera',
+            'issue_date' => '2026-07-16',
+            'currency' => 'EUR',
+            'total' => 10,
+        ];
+
+        $this->actingAs($manager)->post(route('finance.bills.store'), $payload)
+            ->assertRedirect(route('finance.bills'))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($manager)->from(route('finance.bills.create'))
+            ->post(route('finance.bills.store'), $payload + ['number' => 'inv-777'])
+            ->assertRedirect(route('finance.bills.create'))
+            ->assertSessionHasErrors('number');
+
+        $this->assertDatabaseCount('bills', 1);
+        $this->assertSame('INV-777', Bill::firstOrFail()->number);
+    }
+
+    public function test_bill_number_is_generated_when_left_blank_and_can_still_be_changed(): void
+    {
+        $manager = $this->role('manager');
+        $supplier = $this->supplier();
+
+        $this->actingAs($manager)->post(route('finance.bills.store'), [
+            'supplier_id' => $supplier->id,
+            'number' => '',
+            'category' => 'Të tjera',
+            'issue_date' => '2026-07-16',
+            'currency' => 'EUR',
+            'total' => 10,
+        ])->assertRedirect(route('finance.bills'))->assertSessionHasNoErrors();
+
+        $bill = Bill::firstOrFail();
+        $this->assertSame(sprintf('BL-2026-%06d', $bill->id), $bill->number);
+
+        $this->actingAs($manager)->put(route('finance.bills.update', $bill), [
+            'supplier_id' => $supplier->id,
+            'number' => 'FURNITOR-2026-88',
+            'category' => 'Të tjera',
+            'issue_date' => '2026-07-16',
+            'currency' => 'EUR',
+            'total' => 10,
+            'items' => [],
+        ])->assertRedirect(route('finance.bills'))->assertSessionHasNoErrors();
+
+        $this->assertSame('FURNITOR-2026-88', $bill->fresh()->number);
     }
 
     public function test_bills_page_filters_overdue_rows_by_supplier_and_category(): void

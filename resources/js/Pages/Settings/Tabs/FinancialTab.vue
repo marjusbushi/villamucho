@@ -160,7 +160,7 @@ function submit() {
                 </div>
             </div>
 
-            <div class="flex justify-end pt-2">
+            <div class="settings-actions">
                 <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_13d431875cf4') }}</Button>
             </div>
         </form>

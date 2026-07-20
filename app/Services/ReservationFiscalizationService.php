@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\FiscalDocument;
 use App\Models\Reservation;
 use App\Tenancy\TenantContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -44,9 +45,7 @@ class ReservationFiscalizationService
         $invoice = null;
 
         if ($payloadChanged) {
-            if ($existing->status !== FiscalDocument::STATUS_FAILED
-                || $existing->remote_id
-                || $existing->fiscal_number) {
+            if (! $this->canMigratePayload($existing)) {
                 throw ValidationException::withMessages([
                     'fiscalization' => 'Fatura ka ndryshuar pas tentativës së parë. Kontrolloje përpara riprovimit.',
                 ]);
@@ -96,6 +95,21 @@ class ReservationFiscalizationService
         }
 
         return $this->complete($document, $reservation, $invoice);
+    }
+
+    private function canMigratePayload(FiscalDocument $document): bool
+    {
+        if ($document->remote_id || $document->fiscal_number) {
+            return false;
+        }
+
+        if ($document->status === FiscalDocument::STATUS_FAILED) {
+            return true;
+        }
+
+        return $document->status === FiscalDocument::STATUS_PROCESSING
+            && (! $document->attempted_at
+                || $document->attempted_at->lte(now()->subMinutes(5)));
     }
 
     /** @param array<string, mixed> $invoice */
@@ -173,6 +187,14 @@ class ReservationFiscalizationService
             ]);
         }
 
+        $hotelTimezone = $this->tenantContext->tenant()?->timezone ?: config('app.timezone');
+        $hotelToday = CarbonImmutable::today($hotelTimezone)->toDateString();
+        if ($reservation->check_out_date?->toDateString() > $hotelToday) {
+            throw ValidationException::withMessages([
+                'fiscalization' => 'Data e check-out është në të ardhmen. Fatura fiskale mund të lëshohet pasi të përfundojë qëndrimi.',
+            ]);
+        }
+
         $reservation->loadMissing(['room.roomType', 'guest', 'folioItems', 'payments']);
 
         $this->vatConfiguration->ensureConfigured();
@@ -216,10 +238,6 @@ class ReservationFiscalizationService
             'lines' => $lines,
         ];
 
-        if ($client = $this->identifiedClient($reservation)) {
-            $payload['client'] = $client;
-        }
-
         if ($currency !== 'ALL') {
             $exchangeRate = BaseCurrency::rate('ALL');
             if ($exchangeRate === null || $exchangeRate <= 0) {
@@ -239,38 +257,14 @@ class ReservationFiscalizationService
         return $payload;
     }
 
-    /** @return array<string, mixed>|null */
-    private function identifiedClient(Reservation $reservation): ?array
-    {
-        $guest = $reservation->guest;
-        $documentNumber = trim((string) $guest?->document_number);
-        $documentType = match ($guest?->document_type) {
-            'passport' => 'PASS',
-            'id_card' => 'ID',
-            default => null,
-        };
-
-        if ($documentNumber === '' || $documentType === null) {
-            return null;
-        }
-
-        return [
-            'name' => trim((string) $guest->full_name) ?: 'Klient hotelerie',
-            'id' => [
-                'type' => $documentType,
-                'id' => $documentNumber,
-            ],
-        ];
-    }
-
     /** @param array<string, mixed> $payload */
     private function startAttempt(
         Reservation $reservation,
         array $payload,
         string $requestHash,
-        bool $allowFailedPayloadUpdate = false,
+        bool $allowPayloadUpdate = false,
     ): FiscalDocument {
-        return DB::transaction(function () use ($reservation, $payload, $requestHash, $allowFailedPayloadUpdate) {
+        return DB::transaction(function () use ($reservation, $payload, $requestHash, $allowPayloadUpdate) {
             $document = FiscalDocument::query()
                 ->where('reservation_id', $reservation->id)
                 ->where('provider', self::PROVIDER)
@@ -291,10 +285,7 @@ class ReservationFiscalizationService
 
             if ($document
                 && ! hash_equals($document->request_hash, $requestHash)
-                && ! ($allowFailedPayloadUpdate
-                    && $document->status === FiscalDocument::STATUS_FAILED
-                    && ! $document->remote_id
-                    && ! $document->fiscal_number)) {
+                && ! ($allowPayloadUpdate && $this->canMigratePayload($document))) {
                 throw ValidationException::withMessages([
                     'fiscalization' => 'Fatura ka ndryshuar pas tentativës së parë. Kontrolloje përpara riprovimit.',
                 ]);

@@ -132,12 +132,13 @@ class ReservationFiscalizationTest extends TestCase
                 ->where('invoicePrint.currency', 'EUR'));
     }
 
-    public function test_identified_guest_is_sent_as_a_fature_al_client(): void
+    public function test_identified_guest_is_not_sent_as_a_fature_al_client_for_cash_payment(): void
     {
         $reservation = $this->checkedOutStay('cash');
         $reservation->guest()->update([
             'document_type' => 'passport',
             'document_number' => 'BA1234567',
+            'nationality' => 'ALB',
         ]);
 
         Http::preventStrayRequests();
@@ -149,13 +150,29 @@ class ReservationFiscalizationTest extends TestCase
             ->post(route('reservations.fiscalize', $reservation))
             ->assertSessionHasNoErrors();
 
-        Http::assertSent(fn (Request $request) => $request->data()['client'] === [
-            'name' => 'Test Guest',
-            'id' => [
-                'type' => 'PASS',
-                'id' => 'BA1234567',
-            ],
+        Http::assertSent(fn (Request $request) => ! array_key_exists('client', $request->data()));
+    }
+
+    public function test_identified_guest_is_not_sent_as_a_fature_al_client_for_card_payment(): void
+    {
+        $reservation = $this->checkedOutStay('card');
+        $reservation->guest()->update([
+            'document_type' => 'passport',
+            'document_number' => 'w2534542',
+            'nationality' => 'AL',
         ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://demo.fature.al/api/v1/invoice/cash' => Http::response($this->successResponse()),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('reservations.fiscalize', $reservation))
+            ->assertSessionHasNoErrors();
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://demo.fature.al/api/v1/invoice/cash'
+            && ! array_key_exists('client', $request->data()));
     }
 
     public function test_non_vat_hotel_sends_zero_vat_for_accommodation_and_products(): void
@@ -319,7 +336,7 @@ class ReservationFiscalizationTest extends TestCase
         $this->assertSame('IIC-TEST', $document->iic);
     }
 
-    public function test_failed_legacy_payload_is_reconciled_before_adding_exchange_rate(): void
+    public function test_failed_legacy_payload_is_reconciled_before_removing_retail_client(): void
     {
         $reservation = $this->checkedOutStay('cash');
         $payload = app(TenantContext::class)->run(
@@ -328,6 +345,11 @@ class ReservationFiscalizationTest extends TestCase
         );
         $oldPayload = $payload;
         unset($oldPayload['exchange_rate']);
+        $oldPayload['client'] = [
+            'name' => 'Test Guest',
+            'id' => ['type' => 'PASS', 'id' => 'BA1234567'],
+            'country' => 'ALB',
+        ];
         $oldHash = hash('sha256', json_encode($oldPayload, JSON_THROW_ON_ERROR));
 
         app(TenantContext::class)->run($this->tenant, function () use ($reservation, $oldPayload, $oldHash) {
@@ -360,7 +382,8 @@ class ReservationFiscalizationTest extends TestCase
 
         Http::assertSentCount(2);
         Http::assertSent(fn (Request $request) => $request->url() === 'https://demo.fature.al/api/v1/invoice/cash'
-            && (float) $request->data()['exchange_rate'] === 93.7837);
+            && (float) $request->data()['exchange_rate'] === 93.7837
+            && ! array_key_exists('client', $request->data()));
 
         $document = FiscalDocument::query()->sole();
         $this->assertSame(FiscalDocument::STATUS_FISCALIZED, $document->status);
@@ -371,6 +394,59 @@ class ReservationFiscalizationTest extends TestCase
             'subject_type' => Reservation::class,
             'subject_id' => $reservation->id,
         ]);
+    }
+
+    public function test_stale_processing_legacy_payload_is_reconciled_before_removing_retail_client(): void
+    {
+        $reservation = $this->checkedOutStay('card');
+        $payload = app(TenantContext::class)->run(
+            $this->tenant,
+            fn () => app(ReservationFiscalizationService::class)->payload($reservation),
+        );
+        $oldPayload = $payload + [
+            'client' => [
+                'name' => 'Test Guest',
+                'id' => ['type' => 'PASS', 'id' => 'BA1234567'],
+                'country' => 'ALB',
+            ],
+        ];
+        $oldHash = hash('sha256', json_encode($oldPayload, JSON_THROW_ON_ERROR));
+
+        app(TenantContext::class)->run($this->tenant, function () use ($reservation, $oldPayload, $oldHash) {
+            FiscalDocument::query()->create([
+                'reservation_id' => $reservation->id,
+                'provider' => 'fature_al',
+                'environment' => 'sandbox',
+                'document_type' => 'cash_invoice',
+                'internal_id' => $oldPayload['internalId'],
+                'payment_method' => $oldPayload['payment_method'],
+                'currency' => $oldPayload['currency'],
+                'total' => 100,
+                'vat_rate' => 20,
+                'invoice_payload' => $oldPayload,
+                'request_hash' => $oldHash,
+                'status' => FiscalDocument::STATUS_PROCESSING,
+                'attempted_at' => now()->subMinutes(10),
+            ]);
+        });
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://demo.fature.al/api/v1/invoice/details/*' => Http::response([], 404),
+            'https://demo.fature.al/api/v1/invoice/cash' => Http::response($this->successResponse()),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('reservations.fiscalize', $reservation))
+            ->assertSessionHasNoErrors();
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://demo.fature.al/api/v1/invoice/cash'
+            && ! array_key_exists('client', $request->data()));
+
+        $document = FiscalDocument::query()->sole();
+        $this->assertSame(FiscalDocument::STATUS_FISCALIZED, $document->status);
+        $this->assertNotSame($oldHash, $document->request_hash);
     }
 
     public function test_foreign_currency_requires_an_all_exchange_rate(): void
@@ -496,6 +572,33 @@ class ReservationFiscalizationTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('reservations.fiscalize', $otherReservation->id))
             ->assertNotFound();
+
+        Http::assertNothingSent();
+        $this->assertSame(0, FiscalDocument::query()->count());
+    }
+
+    public function test_future_checked_out_stay_is_rejected_before_contacting_provider(): void
+    {
+        $reservation = $this->checkedOutStay('cash');
+        $reservation->forceFill([
+            'check_in_date' => now()->addDay()->toDateString(),
+            'check_out_date' => now()->addDays(3)->toDateString(),
+        ])->save();
+        $this->assertTrue($reservation->fresh()->check_out_date->isAfter(today()));
+
+        $this->actingAs($this->admin)
+            ->get(route('reservations.show', $reservation))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('fiscalization.checkout_in_future', true)
+                ->where('fiscalization.can_issue', false));
+
+        Http::preventStrayRequests();
+
+        $this->actingAs($this->admin)
+            ->post(route('reservations.fiscalize', $reservation))
+            ->assertSessionHasErrors([
+                'fiscalization' => 'Data e check-out është në të ardhmen. Fatura fiskale mund të lëshohet pasi të përfundojë qëndrimi.',
+            ]);
 
         Http::assertNothingSent();
         $this->assertSame(0, FiscalDocument::query()->count());

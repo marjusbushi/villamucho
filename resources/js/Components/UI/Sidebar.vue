@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 
@@ -29,17 +29,39 @@ const toggleLabel = computed(() => {
     return props.collapsed ? t('sidebar.openMenu') : t('sidebar.closeMenu');
 });
 
-// Accordion groups (items with children). A group auto-opens when one of
-// its children is the current page; manual toggles override per session.
-const openGroups = ref({});
+const navigationRef = ref(null);
+const openGroupKey = ref(null);
+const sidebarScrollKey = 'pms-sidebar-scroll-top';
+
+function rememberNavigationPosition() {
+    if (typeof window === 'undefined' || !navigationRef.value) return;
+    window.sessionStorage.setItem(sidebarScrollKey, String(navigationRef.value.scrollTop));
+}
+
+async function restoreNavigationPosition() {
+    if (typeof window === 'undefined') return;
+    await nextTick();
+    const savedPosition = Number(window.sessionStorage.getItem(sidebarScrollKey));
+    if (navigationRef.value && Number.isFinite(savedPosition)) {
+        navigationRef.value.scrollTop = savedPosition;
+    }
+}
+
 function childActive(item) {
     return (item.children || []).some((c) => isActive(c));
 }
-function groupOpen(item) {
-    return openGroups.value[item.label] ?? childActive(item);
+
+function groupKey(item) {
+    return item.href || item.children?.[0]?.href || item.label;
 }
+
+function groupOpen(item) {
+    return openGroupKey.value === groupKey(item);
+}
+
 function toggleGroup(item) {
-    openGroups.value[item.label] = !groupOpen(item);
+    const key = groupKey(item);
+    openGroupKey.value = groupOpen(item) ? null : key;
 }
 
 function isActive(item) {
@@ -52,6 +74,26 @@ function isActive(item) {
     const currentPath = page.url.split('?')[0].split('#')[0];
     return currentPath === base || currentPath.startsWith(base + '/');
 }
+
+function isCurrentChild(child, group) {
+    const matchingChildren = (group.children || [])
+        .filter((item) => isActive(item))
+        .sort((left, right) => {
+            const leftBase = left.match || left.href || '';
+            const rightBase = right.match || right.href || '';
+            return rightBase.length - leftBase.length;
+        });
+
+    return matchingChildren[0] === child;
+}
+
+function syncActiveGroup() {
+    const activeGroup = props.items.find((item) => item.children && childActive(item));
+    openGroupKey.value = activeGroup ? groupKey(activeGroup) : null;
+}
+
+watch(() => page.url, syncActiveGroup, { immediate: true });
+onMounted(restoreNavigationPosition);
 </script>
 
 <template>
@@ -72,10 +114,10 @@ function isActive(item) {
         </div>
 
         <!-- Navigation -->
-        <nav class="flex min-h-0 flex-1 flex-col justify-evenly overflow-hidden px-3 py-2">
+        <nav ref="navigationRef" class="sidebar-navigation flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-3 py-3" @scroll.passive="rememberNavigationPosition">
             <template v-for="item in items" :key="item.href || item.label">
                 <!-- Group with children: accordion (e.g. Financa) -->
-                <div v-if="item.children" class="min-w-0">
+                <div v-if="item.children" class="min-w-0" :data-sidebar-group="groupKey(item)">
                     <component
                         :is="collapsed ? Link : 'button'"
                         :href="collapsed ? item.children[0].href : undefined"
@@ -88,7 +130,8 @@ function isActive(item) {
                                 : 'text-neutral-400 hover:bg-primary-800/60 hover:text-neutral-200',
                         ]"
                         :title="collapsed ? item.label : undefined"
-                        @click="!collapsed && toggleGroup(item)"
+                        :data-sidebar-active="collapsed && childActive(item) ? 'true' : undefined"
+                        @click="collapsed ? rememberNavigationPosition() : toggleGroup(item)"
                     >
                         <span class="h-5 w-5 shrink-0 flex items-center justify-center" v-html="item.icon" />
                         <span v-if="!collapsed" class="whitespace-nowrap flex-1 text-left">{{ item.label }}</span>
@@ -99,14 +142,17 @@ function isActive(item) {
                             v-for="child in item.children"
                             :key="child.href"
                             :href="child.href"
+                            :data-sidebar-active="isCurrentChild(child, item) ? 'true' : undefined"
+                            :aria-current="isCurrentChild(child, item) ? 'page' : undefined"
+                            @click="rememberNavigationPosition"
                             :class="[
                                 'relative flex items-center rounded-md py-2 pl-11 pr-3 text-body-sm leading-5 no-underline transition-colors duration-150',
-                                isActive(child)
-                                    ? 'text-accent-400 font-medium'
+                                isCurrentChild(child, item)
+                                    ? 'bg-primary-800/70 text-accent-300 font-medium'
                                     : 'text-neutral-500 hover:bg-primary-800/60 hover:text-neutral-200',
                             ]"
                         >
-                            <span v-if="isActive(child)" class="absolute left-6 h-1.5 w-1.5 rounded-full bg-accent-500" />
+                            <span v-if="isCurrentChild(child, item)" class="absolute left-6 h-1.5 w-1.5 rounded-full bg-accent-500" />
                             {{ child.label }}
                         </Link>
                     </div>
@@ -123,6 +169,9 @@ function isActive(item) {
                             : 'text-neutral-400 hover:bg-primary-800/60 hover:text-neutral-200',
                     ]"
                     :title="collapsed ? item.label : undefined"
+                    :data-sidebar-active="isActive(item) ? 'true' : undefined"
+                    :aria-current="isActive(item) ? 'page' : undefined"
+                    @click="rememberNavigationPosition"
                 >
                     <!-- Icon placeholder — accepts SVG string or slot -->
                     <span class="h-5 w-5 shrink-0 flex items-center justify-center" v-html="item.icon" />
@@ -156,3 +205,31 @@ function isActive(item) {
         </div>
     </aside>
 </template>
+
+<style scoped>
+.sidebar-navigation {
+    scrollbar-color: transparent transparent;
+    scrollbar-width: thin;
+}
+
+.sidebar-navigation:hover {
+    scrollbar-color: rgb(82 96 91 / 65%) transparent;
+}
+
+.sidebar-navigation::-webkit-scrollbar {
+    width: 5px;
+}
+
+.sidebar-navigation::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-navigation::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: transparent;
+}
+
+.sidebar-navigation:hover::-webkit-scrollbar-thumb {
+    background: rgb(82 96 91 / 65%);
+}
+</style>

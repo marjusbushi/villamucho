@@ -73,6 +73,7 @@ class InventoryController extends Controller
                     ->orWhere('sku', 'like', "%{$search}%")
                     ->orWhere('barcode', 'like', "%{$search}%");
             }))
+            ->when($request->integer('item_id'), fn ($query, $id) => $query->whereKey($id))
             ->orderBy('name')
             ->get();
 

@@ -154,7 +154,7 @@ function submit() {
             <div class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-body-sm text-warning-800">
 {{ $t('admin.generated.k_d233ed5effd0') }} </div>
 
-            <div class="flex justify-end">
+            <div class="settings-actions">
                 <Button type="submit" variant="primary" :loading="form.processing">{{ $t('admin.generated.k_c83df3c31df6') }}</Button>
             </div>
         </form>

@@ -189,6 +189,9 @@ class PlatformBillingTest extends TestCase
                 ->where('invoice.attempts.0.id', $attempt->id)
                 ->where('invoice.events.0.id', $event->id));
 
+        $this->get("https://admin.lorapms.test/super-admin/billing/bills/{$invoice->id}")
+            ->assertNotFound();
+
         $this->get("https://admin.lorapms.test/super-admin/billing/payments/{$payment->id}")
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page

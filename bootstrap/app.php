@@ -11,12 +11,14 @@ use App\Http\Middleware\ResolveTenant;
 use App\Models\ChannelSyncLog;
 use App\Models\WebsiteSearchLog;
 use App\Services\TenantBillingService;
+use App\Support\TrustedHostPatterns;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -27,8 +29,38 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+        then: static function (): void {
+            Route::get('/up/release', static function () {
+                $headers = [
+                    'Cache-Control' => 'no-store',
+                    'Content-Type' => 'text/plain; charset=UTF-8',
+                ];
+                $releasePath = app()->environment('production')
+                    ? '/var/lib/lora-release/current'
+                    : storage_path('framework/release');
+
+                if (! is_file($releasePath) || ! is_readable($releasePath)) {
+                    return response('release unavailable', 503, $headers);
+                }
+
+                $release = trim((string) file_get_contents($releasePath));
+
+                if (preg_match('/\A[0-9a-f]{40}\z/D', $release) !== 1) {
+                    return response('release unavailable', 503, $headers);
+                }
+
+                return response($release, 200, $headers);
+            })->name('health.release');
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Exact platform + registered tenant hosts only. Do not trust arbitrary
+        // subdomains of APP_URL; every hotel domain must be explicitly registered.
+        $middleware->trustHosts(
+            at: static fn (): array => TrustedHostPatterns::all(),
+            subdomains: false,
+        );
+
         $middleware->web(append: [
             ResolveTenant::class,
             HandleInertiaRequests::class,
@@ -111,6 +143,11 @@ return Application::configure(basePath: dirname(__DIR__))
             requiredModule: TenantBillingService::HOUSEKEEPING,
         ))
             ->name('tenants:housekeeping:archive-inspected')->daily();
+        $schedule->call(fn () => app(TenantCommandRunner::class)->run('reports:deliver-scheduled'))
+            ->name('tenants:reports:deliver-scheduled')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
         // Platform billing is driven by each active subscription's next_billing_at.
         $schedule->command('billing:run-recurring')
             ->name('platform:billing:run-recurring')

@@ -4,9 +4,14 @@ import Sidebar from '@/Components/UI/Sidebar.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
+import GlobalSearch from '@/Components/GlobalSearch.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { ChevronDown, LogOut, Settings, UserRound } from 'lucide-vue-next';
+
+defineProps({
+    immersive: { type: Boolean, default: false },
+});
 
 // Persist the collapsed state so it survives Inertia navigations
 // (AppLayout re-mounts per page, so we restore from localStorage).
@@ -137,18 +142,31 @@ const icons = {
     pricing: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.94 6.94a.75.75 0 00-1.06-1.06A5.733 5.733 0 006.2 9.25H5.5a.75.75 0 000 1.5h.531a5.78 5.78 0 000 .5H5.5a.75.75 0 000 1.5h.7a5.733 5.733 0 001.68 3.37.75.75 0 101.06-1.06A4.235 4.235 0 017.733 13H10.5a.75.75 0 000-1.5H7.531a4.282 4.282 0 010-.5H10.5a.75.75 0 000-1.5H7.733a4.235 4.235 0 011.207-2.06z" clip-rule="evenodd" /></svg>',
     tenants: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M1 5.25A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25v9.5A2.25 2.25 0 0116.75 17H3.25A2.25 2.25 0 011 14.75v-9.5zM5 7.5A1.5 1.5 0 016.5 6h1A1.5 1.5 0 019 7.5v1A1.5 1.5 0 017.5 10h-1A1.5 1.5 0 015 8.5v-1zm6.25-.75a.75.75 0 000 1.5h3.5a.75.75 0 000-1.5h-3.5zm0 3a.75.75 0 000 1.5h3.5a.75.75 0 000-1.5h-3.5zM5.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z" clip-rule="evenodd" /></svg>',
     inventory: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M2.25 5.5 10 1.625 17.75 5.5 10 9.375 2.25 5.5Z"/><path d="m2 7.25 7.25 3.625v7.25L2 14.5V7.25Zm8.75 3.625L18 7.25v7.25l-7.25 3.625v-7.25Z"/></svg>',
+    ai: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M10.75 2.75a.75.75 0 00-1.5 0v.64A5.5 5.5 0 004.5 8.83v3.92A2.25 2.25 0 006.75 15h6.5a2.25 2.25 0 002.25-2.25V8.83a5.5 5.5 0 00-4.75-5.44v-.64zM7.5 9a1 1 0 110 2 1 1 0 010-2zm5 0a1 1 0 110 2 1 1 0 010-2zM7 17.25a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75z"/></svg>',
 };
 
 // All possible nav items with permission requirements
 const allNavItems = computed(() => [
     { label: t('admin.sidebar.dashboard'), href: '/dashboard', routeName: 'dashboard', icon: icons.dashboard, permission: null },
-    { label: t('admin.sidebar.rooms'), href: '/pms/rooms', icon: icons.rooms, permission: 'view_rooms' },
+    { label: 'Lora AI', href: '/pms/lora-ai', match: '/pms/lora-ai', icon: icons.ai, permission: 'view_settings', nonAdminOnly: true },
     { label: t('admin.sidebar.reservations'), href: '/pms/reservations', match: '/pms/reservations', icon: icons.reservations, permission: 'view_reservations' },
-    { label: t('admin.sidebar.messages'), href: '/pms/messages', match: '/pms/messages', icon: icons.messages, permission: 'view_reservations', module: 'channel_manager' },
+    { label: t('admin.sidebar.rooms'), href: '/pms/rooms', icon: icons.rooms, permission: 'view_rooms' },
     { label: t('admin.sidebar.guests'), href: '/pms/guests', icon: icons.guests, permission: 'view_guests' },
+    { label: t('admin.sidebar.messages'), href: '/pms/messages', match: '/pms/messages', icon: icons.messages, permission: 'view_reservations', module: 'channel_manager' },
     { label: t('admin.sidebar.housekeeping'), href: '/pms/housekeeping', icon: icons.housekeeping, permission: 'view_housekeeping', module: 'housekeeping' },
     { label: t('maintenance.title'), href: '/pms/maintenance', icon: icons.maintenance, permission: 'view_maintenance' },
-    { label: t('admin.sidebar.pos'), href: '/pms/pos', icon: icons.pos, permission: 'view_pos_orders', module: 'pos' },
+    {
+        label: t('admin.sidebar.pos'),
+        icon: icons.pos,
+        permission: 'view_pos_orders',
+        module: 'pos',
+        children: [
+            { label: 'Shitje', href: '/pms/pos/tables' },
+            { label: 'Porositë', href: '/pms/pos/orders' },
+            { label: 'Shitjet & kuponët', href: '/pms/pos/receipts' },
+            { label: 'Turnet', href: '/pms/pos/shifts' },
+        ],
+    },
     {
         label: t('admin.sidebar.finance'),
         icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M20 7V6a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v8a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3V7"/><path d="M16 14h4"/></svg>',
@@ -158,6 +176,7 @@ const allNavItems = computed(() => [
             { label: t('admin.sidebar.financeDashboard'), href: '/pms/finance' },
             { label: t('admin.sidebar.cashAndBank'), href: '/pms/finance/accounts' },
             { label: t('admin.sidebar.payments'), href: '/pms/finance/payments' },
+            { label: t('admin.sidebar.salesInvoices'), href: '/pms/finance/invoices' },
             { label: t('admin.sidebar.bills'), href: '/pms/finance/bills' },
             { label: t('admin.sidebar.suppliers'), href: '/pms/finance/suppliers' },
         ],
@@ -173,9 +192,9 @@ const allNavItems = computed(() => [
             { label: t('admin.sidebar.inventoryWarehouses'), href: '/pms/inventory/warehouses' },
         ],
     },
-    { label: t('admin.sidebar.reports'), href: '/pms/reports', icon: icons.reports, permission: 'view_reports' },
     { label: t('admin.sidebar.pricing'), href: '/pms/pricing', icon: icons.pricing, permission: 'view_settings' },
     { label: t('admin.sidebar.smartPricing'), href: '/pms/pricing/smart', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.684a1 1 0 01.633.632l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.551a1 1 0 01-.632.633l-.551.183a1 1 0 000 1.898l.551.184a1 1 0 01.633.632l.183.551a1 1 0 001.898 0l.184-.551a1 1 0 01.632-.633l.551-.183a1 1 0 000-1.898l-.551-.184a1 1 0 01-.633-.632l-.183-.551z" /></svg>', permission: 'view_settings', module: 'smart_pricing' },
+    { label: t('admin.sidebar.reports'), href: '/pms/reports', icon: icons.reports, permission: 'view_reports' },
 ]);
 
 // Filter nav items based on user permissions
@@ -184,14 +203,22 @@ const navItems = computed(() =>
         (!item.permission || can(item.permission))
         && hasModule(item.module)
         && (!item.role || page.props.auth.user?.role === item.role)
+        && (!item.nonAdminOnly || page.props.auth.user?.role !== 'admin')
     )
 );
+
+const globalSearchLinks = computed(() => navItems.value.flatMap((item) => {
+    if (item.children?.length) {
+        return item.children.map((child) => ({ label: child.label, href: child.href }));
+    }
+    return item.href ? [{ label: item.label, href: item.href }] : [];
+}));
 </script>
 
 <template>
-    <div class="flex min-h-screen bg-neutral-50">
+    <div :class="['flex bg-neutral-50', immersive ? 'h-screen overflow-hidden' : 'min-h-screen']">
         <!-- Desktop sidebar -->
-        <div class="hidden lg:block">
+        <div v-if="!immersive" class="hidden lg:block">
             <Sidebar
                 :items="navItems"
                 :collapsed="sidebarCollapsed"
@@ -200,7 +227,7 @@ const navItems = computed(() =>
         </div>
 
         <!-- Mobile overlay -->
-        <Teleport to="body">
+        <Teleport v-if="!immersive" to="body">
             <Transition
                 enter-active-class="duration-200 ease-out"
                 enter-from-class="opacity-0"
@@ -226,7 +253,7 @@ const navItems = computed(() =>
         <!-- Main content -->
         <div class="flex-1 flex flex-col min-w-0">
             <!-- Top bar -->
-            <header class="flex items-center justify-between h-16 px-4 sm:px-6 bg-white border-b border-neutral-200 sticky top-0 z-30">
+            <header v-if="!immersive" class="flex items-center justify-between h-16 px-4 sm:px-6 bg-white border-b border-neutral-200 sticky top-0 z-30">
                 <!-- Mobile hamburger -->
                 <button
                     class="lg:hidden rounded-md p-2 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100"
@@ -237,7 +264,7 @@ const navItems = computed(() =>
                     </svg>
                 </button>
 
-                <div class="hidden lg:block" />
+                <GlobalSearch :quick-links="globalSearchLinks" />
 
                 <!-- User dropdown -->
                 <div class="flex items-center gap-4">
@@ -287,7 +314,7 @@ const navItems = computed(() =>
             </header>
 
             <!-- Page content -->
-            <main class="flex-1 p-4 sm:p-6">
+            <main :class="immersive ? 'min-h-0 flex-1 overflow-hidden p-0' : 'flex-1 p-4 sm:p-6'">
                 <slot />
             </main>
         </div>
