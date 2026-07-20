@@ -159,6 +159,10 @@ class RoomController extends Controller
             ];
         });
 
+        if ($request->integer('room_id')) {
+            $roomRows = $roomRows->where('id', $request->integer('room_id'))->values();
+        }
+
         $search = Str::lower(mb_substr(trim((string) $request->input('search', '')), 0, 100));
         if ($search !== '') {
             $roomRows = $roomRows->filter(fn (array $room) => $this->matchesSearch($room, $search))->values();

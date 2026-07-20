@@ -1,4 +1,5 @@
 <?php
+
 namespace Tests\Feature;
 
 use App\Models\FolioItem;
@@ -58,20 +59,96 @@ class ReportsLoadTest extends TestCase
             'reports.vat' => 'Reports/Vat',
             'reports.performance' => 'Reports/Performance',
             'reports.repeatGuests' => 'Reports/RepeatGuests',
+            'reports.guestSegments' => 'Reports/GuestSegments',
             'reports.nationality' => 'Reports/Nationality',
             'reports.bookingBehavior' => 'Reports/BookingBehavior',
             'reports.posHourly' => 'Reports/PosHourly',
             'reports.posPaymentMix' => 'Reports/PosPaymentMix',
-            'reports.posVoids' => 'Reports/PosVoids',
+            'reports.posVoids' => 'Reports/PosPaymentMix',
+            'reports.stockValuation' => 'Reports/StockValuation',
+            'reports.supplierPerformance' => 'Reports/SupplierPerformance',
             'reports.roomStatus' => 'Reports/RoomStatus',
             'reports.housekeepingReport' => 'Reports/Housekeeping',
+            'reports.maintenanceSla' => 'Reports/MaintenanceSla',
+            'reports.recurringMaintenance' => 'Reports/RecurringMaintenance',
+            'reports.roomReadiness' => 'Reports/RoomReadiness',
+            'reports.operationsExecutive' => 'Reports/OperationsExecutive',
+            'reports.guestMovements' => 'Reports/GuestMovements',
             'reports.inHouse' => 'Reports/InHouse',
             'reports.discounts' => 'Reports/Discounts',
+            'reports.departmentRevenue' => 'Reports/DepartmentRevenue',
         ];
         foreach ($routes as $name => $component) {
             $this->actingAs($admin)->get(route($name))
                 ->assertOk()
                 ->assertInertia(fn (AssertableInertia $p) => $p->component($component));
         }
+
+        $this->actingAs($admin)
+            ->get(route('reports.roomStatus'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Reports/RoomStatus')
+                ->where('counts.total', 1)
+                ->where('counts.occupied', 1)
+                ->where('counts.available', 0)
+                ->where('rows.0.room_number', '101')
+                ->where('rows.0.status', 'occupied'));
+
+        $this->actingAs($admin)->from(route('reports.channels'))
+            ->get(route('reports.channels', ['from' => '2026-07-31', 'to' => '2026-07-01']))
+            ->assertRedirect(route('reports.channels'))
+            ->assertSessionHasErrors('to');
+
+        $this->actingAs($admin)->from(route('reports.bookingBehavior'))
+            ->get(route('reports.bookingBehavior', ['from' => '2026-07-31', 'to' => '2026-07-01']))
+            ->assertRedirect(route('reports.bookingBehavior'))
+            ->assertSessionHasErrors('to');
+
+        $this->actingAs($admin)
+            ->get(route('reports.bookingBehavior', ['to' => today()->toDateString()]))
+            ->assertOk();
+
+        $this->actingAs($admin)
+            ->get(route('reports.nationality', [
+                'from' => today()->toDateString(),
+                'to' => today()->toDateString(),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Reports/Nationality')
+                ->where('totals.stays', 1)
+                ->where('totals.nights', 0)
+                ->where('totals.revenue', 0));
+
+        $this->actingAs($admin)->from(route('reports.cancellations'))
+            ->get(route('reports.cancellations', ['from' => '2026-07-31', 'to' => '2026-07-01']))
+            ->assertRedirect(route('reports.cancellations'))
+            ->assertSessionHasErrors('to');
+
+        $this->actingAs($admin)->from(route('reports.cancellations'))
+            ->get(route('reports.cancellations', ['from' => '2025-01-01', 'to' => '2026-07-31']))
+            ->assertRedirect(route('reports.cancellations'))
+            ->assertSessionHasErrors('to');
+
+        $this->actingAs($admin)->from(route('reports.payments'))
+            ->get(route('reports.payments', ['from' => '2025-01-01', 'to' => '2026-07-31']))
+            ->assertRedirect(route('reports.payments'))
+            ->assertSessionHasErrors('to');
+
+        $this->actingAs($admin)->from(route('reports.payments'))
+            ->get(route('reports.payments', ['from' => '2025-01-01']))
+            ->assertRedirect(route('reports.payments'))
+            ->assertSessionHasErrors('to');
+
+        $this->actingAs($admin)->from(route('reports.pace'))
+            ->get(route('reports.pace', ['from' => today()->subDay()->toDateString(), 'to' => today()->toDateString()]))
+            ->assertRedirect(route('reports.pace'))
+            ->assertSessionHasErrors('from');
+
+        $this->actingAs($admin)->from(route('reports.pace'))
+            ->get(route('reports.pace', ['from' => today()->toDateString(), 'to' => today()->addDays(365)->toDateString()]))
+            ->assertRedirect(route('reports.pace'))
+            ->assertSessionHasErrors('to');
     }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import Button from '@/Components/UI/Button.vue';
@@ -28,6 +28,7 @@ const props = defineProps({
     currencyOptions: Array,
     timezoneGroups: Object,
     roleOptions: Array,
+    initialConfigTab: String,
 });
 
 const activeDrawer = ref(null);
@@ -245,6 +246,10 @@ function openConfig(tab = 'domains') {
     activeDrawer.value = 'config';
 }
 
+onMounted(() => {
+    if (props.initialConfigTab) openConfig(props.initialConfigTab);
+});
+
 function addDomain() {
     domainForm.post(route('super-admin.tenants.domains.store', props.tenant.id), {
         preserveScroll: true,
@@ -354,6 +359,7 @@ function toggleStatus() {
                 <a href="#members" class="grid h-11 shrink-0 place-items-center border-b-2 border-transparent px-3 text-xs font-semibold text-neutral-500 no-underline hover:text-neutral-800">Përdoruesit</a>
                 <button type="button" class="h-11 shrink-0 border-b-2 border-transparent px-3 text-xs font-semibold text-neutral-500 hover:text-neutral-800" @click="openBilling">Abonimi</button>
                 <button type="button" class="h-11 shrink-0 border-b-2 border-transparent px-3 text-xs font-semibold text-neutral-500 hover:text-neutral-800" @click="openConfig('domains')">Konfigurimi</button>
+                <Link :href="route('super-admin.onboarding.show', tenant.id)" class="grid h-11 shrink-0 place-items-center border-b-2 border-transparent px-3 text-xs font-semibold text-neutral-500 no-underline hover:text-neutral-800">Onboarding</Link>
                 <Link :href="route('super-admin.activity', { tenant: tenant.id, range: 30 })" class="grid h-11 shrink-0 place-items-center border-b-2 border-transparent px-3 text-xs font-semibold text-neutral-500 no-underline hover:text-neutral-800">Aktiviteti</Link>
             </div>
 

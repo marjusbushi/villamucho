@@ -85,7 +85,7 @@ class Tenant extends Model
     {
         return $this->belongsToMany(User::class)
             ->withoutGlobalScopes()
-            ->withPivot(['is_owner', 'is_active'])
+            ->withPivot(['is_owner', 'is_active', 'pos_salesperson_enabled', 'pos_pin_hash'])
             ->wherePivot('is_active', true)
             ->withTimestamps();
     }
@@ -123,6 +123,11 @@ class Tenant extends Model
     public function providerEvents(): HasMany
     {
         return $this->hasMany(ProviderEvent::class);
+    }
+
+    public function onboarding(): HasOne
+    {
+        return $this->hasOne(TenantOnboarding::class);
     }
 
     public function scopeActive($query)

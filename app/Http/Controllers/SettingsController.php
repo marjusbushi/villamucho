@@ -18,6 +18,7 @@ use App\Models\RoomTypeImage;
 use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\TenantIntegration;
+use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AuditTimeline;
 use App\Services\BaseCurrency;
@@ -26,6 +27,7 @@ use App\Services\FatureAlClient;
 use App\Services\FatureAlConfiguration;
 use App\Services\IntegrationCatalog;
 use App\Services\MarketRates;
+use App\Services\PosSalespersonService;
 use App\Services\PricingRulesVersion;
 use App\Services\VatConfiguration;
 use App\Support\TenantStorage;
@@ -34,12 +36,15 @@ use App\Tenancy\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
+use Spatie\Permission\Models\Role;
 use Throwable;
 
 class SettingsController extends Controller
@@ -51,8 +56,16 @@ class SettingsController extends Controller
         AuditTimeline $timeline,
         IntegrationCatalog $integrationCatalog,
         FatureAlConfiguration $fatureAlConfiguration,
+        PosSalespersonService $posSalespeople,
     ): Response {
         $settings = Setting::allGrouped();
+        $tenant = app(TenantContext::class)->tenant();
+        $settings['hotel'] = array_merge($settings['hotel'] ?? [], [
+            // Tenant.currency is authoritative. A stale legacy Setting must never
+            // make the form display a currency that operations do not use.
+            'currency' => BaseCurrency::code(),
+            'base_currency_locked' => $tenant ? BaseCurrency::isLocked($tenant) : true,
+        ]);
 
         // Never ship the raw AI key to the browser — expose only a masked hint + a configured flag.
         $aiKey = $settings['ai']['gemini_key'] ?? null;
@@ -116,6 +129,7 @@ class SettingsController extends Controller
             'userManagement' => $userController->pageData($request, 'user_'),
             'auditHistory' => $auditLogController->pageData($request, $timeline, 'audit_'),
             'integrations' => $integrationCatalog->forSettings($settings),
+            'posStaff' => $posSalespeople->staff(),
         ]);
     }
 
@@ -259,6 +273,30 @@ class SettingsController extends Controller
         return back()->with('success', 'Informacionet e hotelit u ruajten.');
     }
 
+    public function updateBookingPolicies(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'check_in_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}$/'],
+            'check_out_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}$/'],
+        ]);
+
+        Setting::set('hotel.check_in_time', $data['check_in_time']);
+        Setting::set('hotel.check_out_time', $data['check_out_time']);
+
+        return back()->with('success', 'Politikat e rezervimeve u ruajtën.');
+    }
+
+    public function updateNotifications(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'email_new_reservations' => ['required', 'boolean'],
+        ]);
+
+        Setting::set('notifications.email_new_reservations', $data['email_new_reservations'], 'boolean');
+
+        return back()->with('success', 'Njoftimet u ruajtën.');
+    }
+
     // --- Website (public site media + links) ---
     public function updateWebsite(Request $request): RedirectResponse
     {
@@ -394,6 +432,133 @@ class SettingsController extends Controller
         ]);
 
         return back()->with('success', 'Konfigurimet financiare u ruajten.');
+    }
+
+    public function updatePos(Request $request, PosSalespersonService $posSalespeople): RedirectResponse
+    {
+        $data = $request->validate([
+            'service_mode' => ['required', Rule::in(['hybrid', 'tables', 'direct'])],
+            'opening_view' => ['required', Rule::in(['tables', 'products'])],
+            'salesperson_enabled' => ['required', 'boolean'],
+            'salesperson_required' => ['required', 'boolean'],
+            'staff' => ['required', 'array'],
+            'staff.*.id' => ['required', 'integer'],
+            'staff.*.enabled' => ['required', 'boolean'],
+            'staff.*.pin' => ['nullable', 'digits:4'],
+            'staff.*.clear_pin' => ['nullable', 'boolean'],
+        ]);
+
+        $tenantId = app(TenantContext::class)->id() ?? abort(404);
+        if ($data['salesperson_enabled'] && collect($data['staff'])->where('enabled', true)->isEmpty()) {
+            throw ValidationException::withMessages([
+                'staff' => 'Aktivizo të paktën një salesperson.',
+            ]);
+        }
+        $validIds = DB::table('tenant_user')
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->pluck('user_id');
+
+        $changingPinUserIds = collect($data['staff'])
+            ->filter(fn (array $staff) => filled($staff['pin'] ?? null) || ($staff['clear_pin'] ?? false))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+        $newPins = [];
+
+        foreach ($data['staff'] as $index => $staff) {
+            $pin = $staff['pin'] ?? null;
+            if (! filled($pin)) {
+                continue;
+            }
+
+            if (in_array($pin, $newPins, true)) {
+                throw ValidationException::withMessages([
+                    "staff.{$index}.pin" => 'Ky PIN është vendosur për një kamarier tjetër.',
+                ]);
+            }
+
+            $posSalespeople->assertPinAvailable($pin, $changingPinUserIds, "staff.{$index}.pin");
+            $newPins[] = $pin;
+        }
+
+        DB::transaction(function () use ($data, $tenantId, $validIds) {
+            Setting::set('pos.service_mode', $data['service_mode']);
+            Setting::set('pos.opening_view', $data['opening_view']);
+            Setting::set('pos.salesperson_enabled', $data['salesperson_enabled'] ? '1' : '0', 'boolean');
+            Setting::set('pos.salesperson_required', $data['salesperson_required'] ? '1' : '0', 'boolean');
+
+            foreach ($data['staff'] as $staff) {
+                if (! $validIds->contains((int) $staff['id'])) {
+                    continue;
+                }
+                $updates = ['pos_salesperson_enabled' => (bool) $staff['enabled']];
+                if ($staff['clear_pin'] ?? false) {
+                    $updates['pos_pin_hash'] = null;
+                } elseif (filled($staff['pin'] ?? null)) {
+                    $updates['pos_pin_hash'] = Hash::make($staff['pin']);
+                }
+                DB::table('tenant_user')
+                    ->where('tenant_id', $tenantId)
+                    ->where('user_id', $staff['id'])
+                    ->update($updates);
+            }
+        });
+
+        AuditLog::record('settings.pos.update', null, [
+            'service_mode' => $data['service_mode'],
+            'opening_view' => $data['opening_view'],
+            'salesperson_enabled' => $data['salesperson_enabled'],
+        ]);
+
+        return back()->with('success', 'Konfigurimi POS u ruajt.');
+    }
+
+    public function storePosSalesperson(Request $request, PosSalespersonService $posSalespeople): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'password' => ['required', Password::min(8)],
+            'pin' => ['required', 'digits:4'],
+        ]);
+
+        $tenantId = app(TenantContext::class)->id() ?? abort(404);
+        $posSalespeople->assertPinAvailable($data['pin']);
+
+        $user = DB::transaction(function () use ($data, $tenantId) {
+            $role = Role::query()
+                ->where('team_id', $tenantId)
+                ->where('guard_name', 'web')
+                ->where('name', 'pos_staff')
+                ->firstOrFail();
+
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => strtolower(trim($data['email'])),
+                'password' => $data['password'],
+                'current_tenant_id' => $tenantId,
+            ]);
+            $user->unsetRelation('roles')->assignRole($role);
+
+            DB::table('tenant_user')
+                ->where('tenant_id', $tenantId)
+                ->where('user_id', $user->id)
+                ->update([
+                    'pos_salesperson_enabled' => true,
+                    'pos_pin_hash' => Hash::make($data['pin']),
+                    'updated_at' => now(),
+                ]);
+
+            return $user;
+        });
+
+        AuditLog::record('settings.pos.salesperson.create', $user, [
+            'role' => 'pos_staff',
+        ]);
+
+        return back()->with('success', "Kamarieri {$user->name} u krijua dhe u aktivizua në POS.");
     }
 
     // --- OTA pricing programs (Booking.com / Expedia) ---

@@ -117,7 +117,7 @@ function submit() {
 {{ $t('admin.generated.k_26c819da9004') }} </p>
             </div>
 
-            <div class="flex justify-end">
+            <div class="settings-actions">
                 <Button :disabled="form.processing" @click="submit">{{ $t('admin.generated.k_e6510eb3029c') }}</Button>
             </div>
         </div>

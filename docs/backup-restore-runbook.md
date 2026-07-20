@@ -26,10 +26,31 @@
 
 ## Secrets në server
 
-Secrets nuk futen në git, chat ose `.env` të aplikacionit. Ato ruhen vetëm në:
+Secrets e backup-it nuk futen në git, chat ose `.env` të aplikacionit. Ato ruhen vetëm në:
 
 - `/etc/lora-backup/restic.env` — `root:root`, mode `0600`;
-- `/etc/lora-backup/restic-password` — `root:root`, mode `0600`.
+- `/etc/lora-backup/restic-password` — `root:root`, mode `0600`;
+- `/etc/lora-backup/mysql.cnf` — credential i dedikuar vetëm për backup,
+  `root:root`, mode `0600`.
+
+Çelësat Laravel Passport ruhen jashtë release-it në `/etc/lora-passport`, directory
+`root:www-data` mode `0750`; `oauth-private.key` dhe `oauth-public.key` janë
+`root:www-data` mode `0440`. Production `.env` duhet të ketë ekzaktësisht një herë:
+
+```text
+PASSPORT_PRIVATE_KEY=file:///etc/lora-passport/oauth-private.key
+PASSPORT_PUBLIC_KEY=file:///etc/lora-passport/oauth-public.key
+```
+
+Rehearsal-i i parë adopton çiftin ekzistues nga `storage/` pa e rrotulluar; gjeneron
+një çift të ri vetëm kur të dy skedarët mungojnë dhe refuzon gjendje të pjesshme ose
+çelësa që nuk përputhen. Çelësat realë nuk futen në git ose në këtë dokument.
+
+Çdo snapshot përfshin edhe `application-key.txt` si file `root:root 0600` brenda
+repository-t të enkriptuar nga Restic. Ky file nuk printohet në log dhe mbulohet nga
+`SHA256SUMS`; pa të nuk mund të dekriptohen kolonat Laravel `encrypted:*`, përfshirë
+`tenant_integrations.credentials`. `APP_KEY` duhet të mbahet edhe në password manager
+si escrow i dytë, i ndarë nga fjalëkalimi Restic.
 
 Shembulli i strukturës (pa vlera reale):
 
@@ -45,6 +66,28 @@ Application Key duhet të ketë akses vetëm te ky bucket. Master Key nuk përdo
 Fjalëkalimi Restic ruhet edhe në password manager; humbja e tij e bën backup-in të
 parikuperueshëm.
 
+MySQL event scheduler duhet të jetë globalisht `OFF` ose `DISABLED`; një event i
+përcaktuar në një schema tjetër mund të shkruajë në production, prandaj kontrolli vetëm
+i `event_schema` nuk mjafton. Konfiguroje si administrator dhe verifikoje:
+
+```sql
+SET PERSIST event_scheduler = OFF;
+SELECT @@GLOBAL.event_scheduler;
+```
+
+Llogaria MySQL e backup-it duhet të lidhet me të njëjtin server/schema si aplikacioni
+dhe të ketë vetëm allowlist-in e mëposhtëm. `EVENT` përdoret për të dump-uar definicionet,
+jo si provë që scheduler-i është i ndalur. Shembull me placeholder-a:
+
+```sql
+CREATE USER 'lora_backup'@'localhost' IDENTIFIED BY '<password-from-vault>';
+GRANT SELECT, SHOW VIEW, TRIGGER, EVENT ON `<production_database>`.* TO 'lora_backup'@'localhost';
+GRANT SHOW_ROUTINE ON *.* TO 'lora_backup'@'localhost';
+```
+
+`/etc/lora-backup/mysql.cnf` përmban vetëm seksionin `[client]` me `user`,
+`password` dhe `socket` ose `host`/`port`; vlera reale nuk futet në git.
+
 Më 2026-07-14, fjalëkalimi i rikuperimit u ruajt si hyrje personale në Zoho Vault
 me emrin `Lora PMS Production — Restic Recovery`. Vlera sekrete nuk ruhet në git
 ose në këtë dokument.
@@ -55,7 +98,7 @@ Instalimi production u krye më 2026-07-14. Komandat e riprodhueshme janë:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y restic
+sudo apt-get install -y default-mysql-client restic rsync util-linux
 sudo install -d -m 0700 -o root -g root /etc/lora-backup /var/lib/lora-backup /var/cache/restic
 sudo install -m 0700 -o root -g root /var/www/villamucho/ops/backup/run-offsite-backup.sh /usr/local/sbin/lora-offsite-backup
 sudo cp /var/www/villamucho/ops/backup/lora-backup.service /etc/systemd/system/
@@ -79,29 +122,68 @@ sudo systemctl list-timers lora-backup.timer
 - `storage/app/private` (dokumente private të tenant-ëve);
 - `storage/app/public` (logo dhe imazhe);
 - snapshot PII-free me numra rekordesh dhe totale financiare;
+- `APP_KEY` në `application-key.txt`, vetëm brenda snapshot-it Restic të enkriptuar;
+- çiftin Passport në `passport/oauth-private.key` dhe `passport/oauth-public.key`,
+  `root:root` mode `0600`, të lidhur me checksum dhe fingerprint publik në metadata;
 - SHA-256 për dump-in dhe snapshot-in.
 
-Script-i dështon pa upload nëse integriteti multitenant nuk kalon, dump-i është
+Gjatë snapshot-it, PHP-FPM dhe queue bllokohen me systemd runtime fences, cron-i
+ndalet, scheduler-i mbahet në një file root-only dhe aplikacioni qëndron në maintenance.
+Storage lidhet në bind-mount-e read-only të izoluara dhe skanohet edhe destinacioni.
+Skedarët dhe DB-ja kapen vetëm pasi fence verifikohet; writer-at rikthehen e
+verifikohen para `artisan up` për backup-et normale të timer-it.
+
+Gjatë një production release, deploy-i krijon një request root:root 0600 me nonce
+unik dhe mban `production-release.lock`. Ai pre-armon start-fences për PHP-FPM,
+queue dhe cron. Pas upload-it dhe `restic check`, backup-i publikon atomikisht një
+ready marker root:root 0600 me `snapshot_id`, kohën reale të snapshot-it, kohën e
+upload-it dhe identitetet e shërbimeve. Në këtë mode writer-at nuk rifillojnë:
+maintenance, scheduler hold dhe të tre fences i kalojnë deploy-it pa boshllëk.
+Request/ready marker-at nuk krijohen kurrë manualisht. Një dështim para ready
+marker-it rifillon versionin e vjetër; një handoff aktiv ose i paqartë mbetet
+fail-closed për operator recovery.
+
+Script-i dështon pa upload nëse integriteti multitenant/storage nuk kalon, MySQL event
+scheduler është aktiv, mungon ndonjë storage root, ekziston nested mount/symlink, dump-i është
 bosh, config-u lexohet nga përdorues të tjerë ose një backup tjetër është në punë.
+
+Për RPO afër zeros pa maintenance të gjatë, hapi afatgjatë është MySQL PITR me
+ROW binlog + GTID të replikuar të enkriptuar offsite, së bashku me storage të
+versionuar/replikuar. DB PITR vetëm nuk rikthen upload-et e skedarëve.
 
 ## Restore drill i detyrueshëm
 
 Restore-i nuk bëhet mbi production. Përdoret një host ose container i izoluar:
 
 1. `restic check --read-data` për lexim të plotë të repository-t.
-2. `restic restore latest --tag lora-production --target /restore/lora`.
-3. Verifiko `sha256sum -c SHA256SUMS` në folderin e run-it të restauruar.
-4. Krijo databazë MySQL testuese bosh dhe importo `database.sql`.
-5. Konfiguro një checkout të të njëjtit commit kundrejt DB-së së restauruar.
-6. Ekzekuto `php artisan tenants:verify-integrity --snapshot=/tmp/before.json`.
-7. Ekzekuto migrimet kandidate me `php artisan migrate --force`.
-8. Ekzekuto `php artisan tenants:verify-integrity --compare=/tmp/before.json --allow-additive-schema --allow-additive-settings`.
+2. Zgjidh nga `restic snapshots --host <production-host> --tag lora-production`
+   snapshot-in e saktë 64-karakterësh dhe ekzekuto
+   `restic restore <snapshot-id> --target /restore/lora`; mos përdor `latest` pa e pin-uar ID-në.
+3. Në folderin `run.*`, ekzekuto `sha256sum -c SHA256SUMS`, pastaj
+   `(cd storage && sha256sum -c ../storage-SHA256SUMS)`. Nëse manifesti storage është
+   bosh, verifiko që edhe `storage/app` nuk përmban asnjë file.
+4. Verifiko që `application-key.txt` është `0600`, ka vetëm një rresht dhe përdore
+   vetëm si `APP_KEY` në ambientin e izoluar; mos e printo.
+5. Nëse kandidati përdor Passport, verifiko që të dy skedarët e restauruar në
+   `passport/` janë `root:root 0600`, formojnë të njëjtin çift dhe fingerprint-i
+   publik përputhet me `passport_public_key_sha256` në `metadata.txt`.
+6. Krijo databazë MySQL testuese bosh dhe importo `database.sql`.
+7. Konfiguro një checkout të të njëjtit commit kundrejt DB-së së restauruar dhe
+   monto ose kopjo ekzaktësisht `storage/app/private` dhe `storage/app/public` të
+   restauruara te disqet `local`/`public` të checkout-it.
+8. Lexo të paktën një model `TenantIntegration` me `credentials` jo-null dhe provo
+   që cast-i `encrypted:array` dekriptohet pa nxjerrë vlerën në terminal/log. Nëse
+   nuk ka rreshta të tillë, bëj një encrypt/decrypt round-trip në container.
+9. Ekzekuto `php artisan tenants:verify-integrity --verify-storage --snapshot=/tmp/before.json`.
+10. Ekzekuto migrimet kandidate me `php artisan migrate --force`.
+11. Ekzekuto `php artisan tenants:verify-integrity --verify-storage --compare=/tmp/before.json --allow-additive-schema --allow-additive-settings`.
    Kjo lejon vetëm tabela të reja, rritje të permissions dhe settings të reja
    për tenantët ekzistues; fshirjet dhe totalet financiare duhet të mbeten identike.
-9. Kontrollo manualisht rezervime, pagesa, financë, POS dhe skedarë.
-10. Fshi ambientin testues dhe regjistro datën/rezultatin e drill-it.
+12. Kontrollo manualisht rezervime, pagesa, financë, POS dhe skedarë.
+13. Fshi ambientin testues, `application-key.txt`, kopjet e çelësave Passport dhe
+    regjistro datën/rezultatin.
 
-Restore drill-i është porta kryesore e sigurisë. Hapi 9 mbyllet pasi, përveç këtij
+Restore drill-i është porta kryesore e sigurisë. Hapi 12 mbyllet pasi, përveç këtij
 testi, të aktivizohen replica immutable dhe alarmi i jashtëm për dështimet.
 
 ## Restore drill — 2026-07-14

@@ -6,20 +6,25 @@ use App\Http\Controllers\ChannexWebhookController;
 use App\Http\Controllers\CleaningTaskController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\GuestController;
 use App\Http\Controllers\GuestMergeController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\LoraAiController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\MessagesController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\PosSalespersonController;
 use App\Http\Controllers\PosShiftController;
+use App\Http\Controllers\PosTableServiceController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\ReservationFiscalizationController;
 use App\Http\Controllers\RoomController;
+use App\Http\Controllers\SavedReportController;
 use App\Http\Controllers\SeasonCopyController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SmartPricingController;
@@ -27,14 +32,19 @@ use App\Http\Controllers\SuperAdmin\BillingInvoiceController as SuperAdminBillin
 use App\Http\Controllers\SuperAdmin\BillingPaymentAttemptController as SuperAdminBillingPaymentAttemptController;
 use App\Http\Controllers\SuperAdmin\BillingPaymentController as SuperAdminBillingPaymentController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
+use App\Http\Controllers\SuperAdmin\FatureAlOnboardingController as SuperAdminFatureAlOnboardingController;
+use App\Http\Controllers\SuperAdmin\OnboardingController as SuperAdminOnboardingController;
 use App\Http\Controllers\SuperAdmin\ProfileController as SuperAdminProfileController;
 use App\Http\Controllers\SuperAdmin\ProviderEventController as SuperAdminProviderEventController;
 use App\Http\Controllers\SuperAdmin\TenantController as SuperAdminTenantController;
 use App\Http\Controllers\TenantHandoffController;
+use App\Http\Controllers\TenantUserInvitationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WebsiteController;
+use App\Http\Middleware\AuthenticateSignedTenantInvitation;
+use App\Models\Setting;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -82,12 +92,27 @@ Route::get('/tenant-handoff', TenantHandoffController::class)
     ->middleware(['hotel_host', 'throttle:10,1'])
     ->name('tenant-handoff.consume');
 
+// Existing global accounts must explicitly accept before tenant membership or
+// roles are granted. Both the review page and the state-changing POST are
+// short-lived signed URLs on the invited hotel's own domain.
+Route::middleware([
+    AuthenticateSignedTenantInvitation::class,
+    'hotel_host',
+    'throttle:10,1',
+])
+    ->prefix('tenant-invitations')
+    ->name('tenant-invitations.')
+    ->group(function () {
+        Route::get('/{invitation}', [TenantUserInvitationController::class, 'show'])->name('show');
+        Route::post('/{invitation}/accept', [TenantUserInvitationController::class, 'accept'])->name('accept');
+    });
+
 // PWA manifest — dynamic so the installed app carries the hotel's own name
-// (same cached branding the <title> uses). display:standalone is what removes
+// (same tenant branding the <title> uses). display:standalone is what removes
 // the browser URL bar when the site is added to a phone's home screen.
 Route::get('/manifest.webmanifest', function () {
-    $brand = Cache::get('app.settings', []);
-    $name = $brand['hotel_name'] ?? 'Villa Mucho';
+    $tenant = app(TenantContext::class)->tenant();
+    $name = (string) (Setting::get('hotel.name') ?: $tenant?->name ?: 'Hotel');
 
     return response()->json([
         'name' => $name,
@@ -101,8 +126,9 @@ Route::get('/manifest.webmanifest', function () {
             ['src' => '/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any maskable'],
             ['src' => '/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any maskable'],
         ],
-    ], 200, ['Content-Type' => 'application/manifest+json'])->setCache(['public' => true, 'max_age' => 3600]);
-})->name('pwa.manifest');
+    ], 200, ['Content-Type' => 'application/manifest+json'])
+        ->setCache(['private' => true, 'max_age' => 3600]);
+})->middleware('hotel_host')->name('pwa.manifest');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'hotel_host', 'dedicated_control_redirect'])->name('dashboard');
@@ -113,6 +139,23 @@ Route::middleware(['auth', 'verified', 'super_admin', 'control_panel_host'])
     ->group(function () {
         Route::get('/', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
         Route::get('/activity', [SuperAdminDashboardController::class, 'activity'])->name('activity');
+        Route::get('/onboarding', [SuperAdminOnboardingController::class, 'index'])->name('onboarding.index');
+        Route::get('/onboarding/{tenant}', [SuperAdminOnboardingController::class, 'show'])->name('onboarding.show');
+        Route::get('/onboarding/{tenant}/fiscalization', [SuperAdminFatureAlOnboardingController::class, 'show'])->name('onboarding.fiscalization.show');
+        Route::post('/onboarding/{tenant}/fiscalization/register', [SuperAdminFatureAlOnboardingController::class, 'register'])->middleware('throttle:30,1')->name('onboarding.fiscalization.register');
+        Route::post('/onboarding/{tenant}/fiscalization/certificate', [SuperAdminFatureAlOnboardingController::class, 'certificate'])->middleware('throttle:30,1')->name('onboarding.fiscalization.certificate');
+        Route::post('/onboarding/{tenant}/fiscalization/branch', [SuperAdminFatureAlOnboardingController::class, 'branch'])->middleware('throttle:30,1')->name('onboarding.fiscalization.branch');
+        Route::post('/onboarding/{tenant}/fiscalization/device', [SuperAdminFatureAlOnboardingController::class, 'device'])->middleware('throttle:30,1')->name('onboarding.fiscalization.device');
+        Route::post('/onboarding/{tenant}/fiscalization/user', [SuperAdminFatureAlOnboardingController::class, 'user'])->middleware('throttle:30,1')->name('onboarding.fiscalization.user');
+        Route::post('/onboarding/{tenant}/fiscalization/bank-account', [SuperAdminFatureAlOnboardingController::class, 'bankAccount'])->middleware('throttle:30,1')->name('onboarding.fiscalization.bank-account');
+        Route::post('/onboarding/{tenant}/fiscalization/verify', [SuperAdminFatureAlOnboardingController::class, 'verify'])->middleware('throttle:10,1')->name('onboarding.fiscalization.verify');
+        Route::patch('/onboarding/{tenant}', [SuperAdminOnboardingController::class, 'update'])->name('onboarding.update');
+        Route::patch('/onboarding/{tenant}/steps/{step}', [SuperAdminOnboardingController::class, 'updateStep'])->name('onboarding.steps.update');
+        Route::patch('/onboarding/{tenant}/steps/{step}/tasks/{task}', [SuperAdminOnboardingController::class, 'updateTask'])->name('onboarding.tasks.update');
+        Route::post('/onboarding/{tenant}/documents', [SuperAdminOnboardingController::class, 'storeDocument'])->name('onboarding.documents.store');
+        Route::get('/onboarding/{tenant}/documents/{document}', [SuperAdminOnboardingController::class, 'downloadDocument'])->name('onboarding.documents.download');
+        Route::delete('/onboarding/{tenant}/documents/{document}', [SuperAdminOnboardingController::class, 'destroyDocument'])->name('onboarding.documents.destroy');
+        Route::post('/onboarding/{tenant}/activate', [SuperAdminOnboardingController::class, 'activate'])->name('onboarding.activate');
         Route::get('/profile', [SuperAdminProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [SuperAdminProfileController::class, 'update'])->name('profile.update');
         Route::get('/tenants', [SuperAdminTenantController::class, 'index'])->name('tenants.index');
@@ -155,9 +198,19 @@ Route::get('/design-system', function () {
 
 // ===== PMS (authenticated) =====
 Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
+    Route::get('/global-search', GlobalSearchController::class)
+        ->middleware('throttle:120,1')
+        ->name('global-search');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::middleware('permission:view_settings')->group(function () {
+        Route::get('/lora-ai', [LoraAiController::class, 'index'])->name('lora-ai.index');
+        Route::put('/lora-ai', [LoraAiController::class, 'update'])->name('lora-ai.update');
+        Route::delete('/lora-ai/connection', [LoraAiController::class, 'disconnect'])->name('lora-ai.disconnect');
+    });
 
     Route::redirect('/maintenance-design', '/pms/maintenance')->name('maintenance.design');
 
@@ -256,13 +309,25 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
 
     // POS Bar/Restaurant
     Route::middleware(['module:pos', 'permission:view_pos_orders'])->group(function () {
+        Route::get('/pos/tables', [PosTableServiceController::class, 'index'])->name('pos.tables');
+        Route::post('/pos/tables/{posTable}/rounds', [PosTableServiceController::class, 'storeRound'])->middleware('permission:create_pos_orders')->name('pos.tables.rounds.store');
+        Route::post('/pos/rounds/{posOrderRound}/send', [PosTableServiceController::class, 'sendRound'])->middleware('permission:update_pos_orders')->name('pos.rounds.send');
+        Route::post('/pos/tables/{posTable}/bill', [PosTableServiceController::class, 'requestBill'])->middleware('permission:update_pos_orders')->name('pos.tables.bill');
+        Route::post('/pos/tables/{posTable}/transfer', [PosTableServiceController::class, 'transfer'])->middleware('permission:update_pos_orders')->name('pos.tables.transfer');
+        Route::post('/pos/salesperson/switch', [PosSalespersonController::class, 'switch'])->middleware(['permission:create_pos_orders', 'throttle:10,1'])->name('pos.salesperson.switch');
+        Route::post('/pos/orders/{posOrder}/salesperson', [PosSalespersonController::class, 'transfer'])->middleware(['permission:update_pos_orders', 'throttle:10,1'])->name('pos.salesperson.transfer');
         Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
+        Route::get('/pos/orders', [PosController::class, 'index'])->defaults('view', 'orders')->name('pos.orders');
+        Route::get('/pos/receipts', [PosController::class, 'index'])->defaults('view', 'receipts')->name('pos.receipts');
+        Route::get('/pos/shifts', [PosController::class, 'index'])->defaults('view', 'shifts')->name('pos.shifts');
         Route::post('/pos', [PosController::class, 'store'])->middleware('permission:create_pos_orders')->name('pos.store');
+        Route::put('/pos/{posOrder}', [PosController::class, 'update'])->middleware('permission:update_pos_orders')->name('pos.update');
         Route::post('/pos/{posOrder}/complete', [PosController::class, 'complete'])->middleware('permission:update_pos_orders')->name('pos.complete');
         Route::post('/pos/{posOrder}/fiscalize', [PosController::class, 'fiscalize'])
             ->middleware(['module:finance', 'permission:update_pos_orders', 'throttle:10,1'])
             ->name('pos.fiscalize');
         Route::post('/pos/{posOrder}/cancel', [PosController::class, 'cancel'])->middleware('permission:update_pos_orders')->name('pos.cancel');
+        Route::post('/pos/{posOrder}/refund', [PosController::class, 'refund'])->middleware('permission:update_pos_orders')->name('pos.refund');
 
         // Cash-drawer shifts (hapje/mbyllje turni)
         Route::post('/pos/shift/open', [PosShiftController::class, 'open'])->middleware('permission:open_pos_shift')->name('pos.shift.open');
@@ -272,6 +337,9 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
     // Reports
     Route::middleware('permission:view_reports')->group(function () {
         Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+        Route::get('/reports/saved/list', [SavedReportController::class, 'index'])->name('reports.saved.index');
+        Route::post('/reports/saved', [SavedReportController::class, 'store'])->name('reports.saved.store');
+        Route::delete('/reports/saved/{savedReport}', [SavedReportController::class, 'destroy'])->name('reports.saved.destroy');
         Route::get('/reports/executive', [ReportsController::class, 'executive'])->name('reports.executive');
         Route::get('/reports/channels', [ReportsController::class, 'channels'])->name('reports.channels');
         Route::get('/reports/outstanding', [ReportsController::class, 'outstanding'])->name('reports.outstanding');
@@ -286,15 +354,24 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
         Route::get('/reports/vat', [ReportsController::class, 'vat'])->name('reports.vat');
         Route::get('/reports/performance', [ReportsController::class, 'performance'])->name('reports.performance');
         Route::get('/reports/repeat-guests', [ReportsController::class, 'repeatGuests'])->name('reports.repeatGuests');
+        Route::get('/reports/guest-segments', [ReportsController::class, 'guestSegments'])->name('reports.guestSegments');
         Route::get('/reports/nationality', [ReportsController::class, 'nationality'])->name('reports.nationality');
         Route::get('/reports/booking-behavior', [ReportsController::class, 'bookingBehavior'])->name('reports.bookingBehavior');
         Route::get('/reports/pos-hourly', [ReportsController::class, 'posHourly'])->middleware('module:pos')->name('reports.posHourly');
         Route::get('/reports/pos-payment-mix', [ReportsController::class, 'posPaymentMix'])->middleware('module:pos')->name('reports.posPaymentMix');
         Route::get('/reports/pos-voids', [ReportsController::class, 'posVoids'])->middleware('module:pos')->name('reports.posVoids');
+        Route::get('/reports/stock-valuation', [ReportsController::class, 'stockValuation'])->middleware('module:finance')->name('reports.stockValuation');
+        Route::get('/reports/supplier-performance', [ReportsController::class, 'supplierPerformance'])->middleware('module:finance')->name('reports.supplierPerformance');
         Route::get('/reports/room-status', [ReportsController::class, 'roomStatus'])->name('reports.roomStatus');
         Route::get('/reports/housekeeping', [ReportsController::class, 'housekeepingReport'])->middleware('module:housekeeping')->name('reports.housekeepingReport');
+        Route::get('/reports/maintenance-sla', [ReportsController::class, 'maintenanceSla'])->name('reports.maintenanceSla');
+        Route::get('/reports/recurring-maintenance', [ReportsController::class, 'recurringMaintenance'])->name('reports.recurringMaintenance');
+        Route::get('/reports/room-readiness', [ReportsController::class, 'roomReadiness'])->name('reports.roomReadiness');
+        Route::get('/reports/operations-executive', [ReportsController::class, 'operationsExecutive'])->name('reports.operationsExecutive');
+        Route::get('/reports/guest-movements', [ReportsController::class, 'guestMovements'])->name('reports.guestMovements');
         Route::get('/reports/in-house', [ReportsController::class, 'inHouse'])->name('reports.inHouse');
         Route::get('/reports/discounts', [ReportsController::class, 'discounts'])->name('reports.discounts');
+        Route::get('/reports/department-revenue', [ReportsController::class, 'departmentRevenue'])->name('reports.departmentRevenue');
     });
 
     // Finance (module #11): NOT admin-only — the view gate is view_finance and
@@ -309,13 +386,20 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
         Route::get('/payments/export', [FinanceController::class, 'exportPayments'])->name('finance.payments.export');
         Route::post('/payments', [FinanceController::class, 'storePayment'])->middleware('permission:create_payment')->name('finance.payments.store');
         Route::post('/transfers', [FinanceController::class, 'storeTransfer'])->middleware('permission:manage_transfers')->name('finance.transfers.store');
+        Route::get('/invoices', [FinanceController::class, 'invoices'])->name('finance.invoices');
 
         // Phase 2: Blerjet (Bills) + Furnitorët
         Route::get('/bills/create', [FinanceController::class, 'createBill'])->middleware('permission:manage_bills')->name('finance.bills.create');
         Route::get('/bills', [FinanceController::class, 'bills'])->name('finance.bills');
+        Route::get('/bills/{bill}/edit', [FinanceController::class, 'editBill'])->middleware('permission:manage_bills')->name('finance.bills.edit');
+        Route::get('/bills/{bill}', [FinanceController::class, 'showBill'])->name('finance.bills.show');
+        Route::post('/bills/import-ai/analyze', [FinanceController::class, 'analyzeBillDocument'])->middleware('permission:manage_bills')->name('finance.bills.import-ai.analyze');
         Route::post('/bills', [FinanceController::class, 'storeBill'])->middleware('permission:manage_bills')->name('finance.bills.store');
+        Route::put('/bills/{bill}', [FinanceController::class, 'updateBill'])->middleware('permission:manage_bills')->name('finance.bills.update');
         Route::post('/bills/{bill}/receive', [FinanceController::class, 'receiveBill'])->middleware('permission:manage_inventory')->name('finance.bills.receive');
-        Route::post('/bills/categories', [FinanceController::class, 'storeBillCategory'])->middleware('permission:manage_bills')->name('finance.bill-categories.store');
+        Route::post('/bills/categories', [FinanceController::class, 'storeBillCategory'])->middleware('permission:manage_bills|manage_suppliers')->name('finance.bill-categories.store');
+        Route::put('/bills/categories/{category}', [FinanceController::class, 'updateBillCategory'])->where('category', '.*')->middleware('permission:manage_bills|manage_suppliers')->name('finance.bill-categories.update');
+        Route::delete('/bills/categories/{category}', [FinanceController::class, 'destroyBillCategory'])->where('category', '.*')->middleware('permission:manage_bills|manage_suppliers')->name('finance.bill-categories.destroy');
         Route::post('/bills/{bill}/pay', [FinanceController::class, 'payBill'])->middleware('permission:pay_bills')->name('finance.bills.pay');
         Route::get('/suppliers', [FinanceController::class, 'suppliers'])->name('finance.suppliers');
         Route::post('/suppliers', [FinanceController::class, 'storeSupplier'])->middleware('permission:manage_suppliers')->name('finance.suppliers.store');
@@ -387,9 +471,13 @@ Route::middleware(['auth', 'hotel_host'])->prefix('pms')->group(function () {
 
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/settings/hotel', [SettingsController::class, 'updateHotel'])->name('settings.hotel');
+        Route::put('/settings/booking-policies', [SettingsController::class, 'updateBookingPolicies'])->name('settings.booking-policies');
+        Route::put('/settings/notifications', [SettingsController::class, 'updateNotifications'])->name('settings.notifications');
         Route::post('/settings/website', [SettingsController::class, 'updateWebsite'])->name('settings.website');
         Route::post('/settings/about', [SettingsController::class, 'updateAbout'])->name('settings.about');
         Route::put('/settings/financial', [SettingsController::class, 'updateFinancial'])->name('settings.financial');
+        Route::put('/settings/pos', [SettingsController::class, 'updatePos'])->middleware('module:pos')->name('settings.pos');
+        Route::post('/settings/pos/salespeople', [SettingsController::class, 'storePosSalesperson'])->middleware('module:pos')->name('settings.pos.salespeople.store');
         Route::put('/settings/market-rates', [SettingsController::class, 'updateMarketRates'])->name('settings.market-rates');
         Route::put('/settings/currencies', [SettingsController::class, 'updateCurrencies'])->middleware('module:finance')->name('settings.currencies');
         Route::post('/settings/currencies/refresh', [SettingsController::class, 'refreshCurrencies'])->middleware('module:finance')->name('settings.currencies.refresh');

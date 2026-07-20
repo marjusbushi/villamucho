@@ -60,6 +60,7 @@ class ChannexBookingImportTest extends TestCase
                 'currency' => 'EUR',
                 'amount' => '200.00',
                 'ota_commission' => '30.00',
+                'inserted_at' => '2026-06-20T09:30:00Z',
                 'customer' => ['name' => 'John', 'surname' => 'Doe', 'mail' => 'John@Example.com', 'phone' => '+355691234567', 'country' => 'GB'],
                 'rooms' => [[
                     'room_type_id' => 'RT-1',
@@ -94,6 +95,7 @@ class ChannexBookingImportTest extends TestCase
         $this->assertSame('2026-08-03', $res->check_out_date->toDateString());
         $this->assertEquals(200.0, (float) $res->total_amount);
         $this->assertEquals(30.0, (float) $res->commission_amount);
+        $this->assertSame('2026-06-20 09:30:00', $res->booked_at->format('Y-m-d H:i:s'));
         $this->assertSame($type->id, Room::find($res->room_id)->room_type_id);
     }
 
@@ -107,6 +109,7 @@ class ChannexBookingImportTest extends TestCase
         // same ref re-delivered with a new price/dates (modification)
         $importer->importRevision($this->revision([
             'status' => 'modified',
+            'inserted_at' => '2026-07-01T12:00:00Z',
             'amount' => '250.00',
             'rooms' => [['room_type_id' => 'RT-1', 'checkin_date' => '2026-08-01', 'checkout_date' => '2026-08-04', 'amount' => '250.00', 'occupancy' => ['adults' => 2]]],
         ]));
@@ -116,6 +119,7 @@ class ChannexBookingImportTest extends TestCase
         $this->assertEquals(250.0, (float) $res->total_amount);
         $this->assertSame('2026-08-04', $res->check_out_date->toDateString());
         $this->assertSame(Reservation::CREATED_VIA_IMPORT, $res->created_via);
+        $this->assertSame('2026-06-20 09:30:00', $res->booked_at->format('Y-m-d H:i:s'));
     }
 
     public function test_cancelled_revision_cancels_the_reservation(): void
@@ -200,7 +204,7 @@ class ChannexBookingImportTest extends TestCase
         $uuid = '11111111-1111-1111-1111-111111111111';
         Http::fake([
             '*/ack' => Http::response(['meta' => ['message' => 'Success']]),
-            '*booking_revisions/*' => Http::response(['data' => $this->revision()]),
+            '*booking_revisions/*' => Http::response(['data' => $this->revision(['property_id' => 'PROP-1'])]),
         ]);
 
         $this->postJson('/channex/webhook', ['event' => 'booking', 'payload' => ['revision_id' => $uuid]], ['X-Channex-Webhook-Secret' => 'topsecret'])
@@ -248,7 +252,7 @@ class ChannexBookingImportTest extends TestCase
         $this->studio();
         Http::fake([
             '*/ack' => Http::response(['meta' => ['message' => 'Success']]),
-            '*booking_revisions/feed*' => Http::response(['data' => [$this->revision()], 'meta' => ['total' => 1]]),
+            '*booking_revisions/feed*' => Http::response(['data' => [$this->revision(['property_id' => 'PROP-1'])], 'meta' => ['total' => 1]]),
         ]);
 
         $this->artisan('channex:pull-bookings')->assertSuccessful();
@@ -356,6 +360,7 @@ class ChannexBookingImportTest extends TestCase
 
         $this->assertSame(1, Reservation::first()->payments()->where('method', 'ota')->count()); // not duplicated
     }
+
     public function test_foreign_property_revision_is_not_imported_and_flagged_for_no_ack(): void
     {
         $this->studio();
@@ -386,6 +391,20 @@ class ChannexBookingImportTest extends TestCase
         $this->assertSame(1, Reservation::count());
     }
 
+    public function test_revision_without_property_identity_is_not_imported(): void
+    {
+        $this->studio();
+
+        $summary = app(ChannexBookingImporter::class)->importRevision(
+            $this->revision(),
+            'PROP-1',
+        );
+
+        $this->assertSame('foreign_property', $summary['status']);
+        $this->assertSame(0, Reservation::count());
+        $this->assertSame(0, Guest::count());
+    }
+
     public function test_unmapped_room_type_leaves_a_sync_log_trace(): void
     {
         // No studio()/mapping created — the revision's room type is unknown.
@@ -397,6 +416,7 @@ class ChannexBookingImportTest extends TestCase
             ChannelSyncLog::where('action', 'booking.room_type_unmapped')->where('status', 'skipped')->exists(),
         );
     }
+
     public function test_unverifiable_property_refuses_import_entirely(): void
     {
         $this->studio();
