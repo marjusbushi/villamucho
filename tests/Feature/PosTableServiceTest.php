@@ -279,4 +279,84 @@ class PosTableServiceTest extends TestCase
 
         $this->assertSame($waiter->id, $order->fresh()->salesperson_id);
     }
+
+    public function test_admin_can_create_a_dedicated_waiter_account_with_unique_pos_pin(): void
+    {
+        $this->actingAs($this->admin)->post(route('settings.pos.salespeople.store'), [
+            'name' => 'Arta Kamarierja',
+            'email' => 'arta.waiter@example.com',
+            'password' => 'WaiterPass1!',
+            'pin' => '2580',
+        ])->assertSessionHasNoErrors();
+
+        $waiter = User::withoutGlobalScopes()->where('email', 'arta.waiter@example.com')->firstOrFail();
+        $membership = DB::table('tenant_user')->where('user_id', $waiter->id)->firstOrFail();
+
+        $this->assertTrue($waiter->hasRole('pos_staff'));
+        $this->assertTrue((bool) $membership->pos_salesperson_enabled);
+        $this->assertTrue(Hash::check('2580', $membership->pos_pin_hash));
+    }
+
+    public function test_waiter_creation_rejects_a_pin_used_by_another_waiter(): void
+    {
+        $existing = User::factory()->create();
+        DB::table('tenant_user')->where('user_id', $existing->id)->update([
+            'pos_salesperson_enabled' => true,
+            'pos_pin_hash' => Hash::make('2580'),
+        ]);
+
+        $this->actingAs($this->admin)->post(route('settings.pos.salespeople.store'), [
+            'name' => 'Kamarieri i Ri',
+            'email' => 'second.waiter@example.com',
+            'password' => 'WaiterPass2!',
+            'pin' => '2580',
+        ])->assertSessionHasErrors('pin');
+
+        $this->assertDatabaseMissing('users', ['email' => 'second.waiter@example.com']);
+    }
+
+    public function test_waiter_creation_reserves_pin_held_by_an_inactive_membership(): void
+    {
+        $inactive = User::factory()->create();
+        DB::table('tenant_user')->where('user_id', $inactive->id)->update([
+            'is_active' => false,
+            'pos_salesperson_enabled' => true,
+            'pos_pin_hash' => Hash::make('2580'),
+        ]);
+
+        $this->actingAs($this->admin)->post(route('settings.pos.salespeople.store'), [
+            'name' => 'Kamarieri i Ri',
+            'email' => 'inactive-pin.waiter@example.com',
+            'password' => 'WaiterPass2!',
+            'pin' => '2580',
+        ])->assertSessionHasErrors('pin');
+
+        $this->assertDatabaseMissing('users', ['email' => 'inactive-pin.waiter@example.com']);
+    }
+
+    public function test_pos_settings_reject_assigning_an_existing_pin_to_another_waiter(): void
+    {
+        $first = User::factory()->create();
+        $second = User::factory()->create();
+        DB::table('tenant_user')->where('user_id', $first->id)->update([
+            'pos_salesperson_enabled' => true,
+            'pos_pin_hash' => Hash::make('2580'),
+        ]);
+
+        $this->actingAs($this->admin)->put(route('settings.pos'), [
+            'service_mode' => 'hybrid',
+            'opening_view' => 'tables',
+            'salesperson_enabled' => true,
+            'salesperson_required' => true,
+            'staff' => [[
+                'id' => $second->id,
+                'enabled' => true,
+                'pin' => '2580',
+                'clear_pin' => false,
+            ]],
+        ])->assertSessionHasErrors('staff.0.pin');
+
+        $membership = DB::table('tenant_user')->where('user_id', $second->id)->firstOrFail();
+        $this->assertNull($membership->pos_pin_hash);
+    }
 }

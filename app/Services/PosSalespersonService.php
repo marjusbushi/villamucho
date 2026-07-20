@@ -108,6 +108,33 @@ class PosSalespersonService
         return User::query()->findOrFail($userId);
     }
 
+    /**
+     * POS PINs identify the acting salesperson, so they must be unique inside
+     * one hotel even when a salesperson is temporarily disabled.
+     *
+     * @param  list<int>  $ignoredUserIds
+     */
+    public function assertPinAvailable(string $pin, array $ignoredUserIds = [], string $errorKey = 'pin'): void
+    {
+        $ignoredUserIds = array_map('intval', $ignoredUserIds);
+        $memberships = DB::table('tenant_user')
+            ->where('tenant_id', $this->tenantContext->id())
+            ->whereNotNull('pos_pin_hash')
+            ->get(['user_id', 'pos_pin_hash']);
+
+        foreach ($memberships as $membership) {
+            if (in_array((int) $membership->user_id, $ignoredUserIds, true)) {
+                continue;
+            }
+
+            if (Hash::check($pin, $membership->pos_pin_hash)) {
+                throw ValidationException::withMessages([
+                    $errorKey => 'Ky PIN përdoret nga një kamarier tjetër.',
+                ]);
+            }
+        }
+    }
+
     private function membership(int $userId): ?object
     {
         return DB::table('tenant_user')
