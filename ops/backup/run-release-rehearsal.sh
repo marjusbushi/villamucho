@@ -486,18 +486,57 @@ load_restic_environment() {
 
 latest_snapshot_id() {
     local backup_host="$1"
-    restic snapshots --host "${backup_host}" --tag lora-production --latest 1 --json 2>/dev/null \
+    restic snapshots --host "${backup_host}" --tag lora-production --json 2>/dev/null \
         | php -r '
             $data = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
             if (! is_array($data) || $data === []) {
                 exit(0);
             }
-            $id = $data[0]["id"] ?? "";
-            if (! is_string($id) || preg_match("/^[0-9a-f]{64}$/", $id) !== 1) {
-                fwrite(STDERR, "Invalid Restic snapshot id.\n");
-                exit(1);
+            $latestId = "";
+            $latestSeconds = null;
+            $latestNanoseconds = null;
+            foreach ($data as $snapshot) {
+                if (! is_array($snapshot)) {
+                    fwrite(STDERR, "Invalid Restic snapshot entry.\n");
+                    exit(1);
+                }
+                $id = $snapshot["id"] ?? "";
+                $time = $snapshot["time"] ?? "";
+                if (! is_string($id) || preg_match("/^[0-9a-f]{64}$/", $id) !== 1
+                    || ! is_string($time)
+                    || preg_match(
+                        "/^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,9}))?(Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/D",
+                        $time,
+                        $matches,
+                    ) !== 1) {
+                    fwrite(STDERR, "Invalid Restic snapshot metadata.\n");
+                    exit(1);
+                }
+                $zone = $matches[3] === "Z" ? "+00:00" : $matches[3];
+                $dateTime = DateTimeImmutable::createFromFormat(
+                    "!Y-m-d\\TH:i:sP",
+                    $matches[1].$zone,
+                );
+                $dateErrors = DateTimeImmutable::getLastErrors();
+                if ($dateTime === false
+                    || ($dateErrors !== false
+                        && ($dateErrors["warning_count"] !== 0 || $dateErrors["error_count"] !== 0))
+                    || $dateTime->format("Y-m-d\\TH:i:sP") !== $matches[1].$zone) {
+                    fwrite(STDERR, "Invalid Restic snapshot time.\n");
+                    exit(1);
+                }
+                $seconds = (int) $dateTime->format("U");
+                $nanoseconds = (int) str_pad((string) ($matches[2] ?? ""), 9, "0");
+                if ($latestSeconds === null || $seconds > $latestSeconds
+                    || ($seconds === $latestSeconds && $nanoseconds > $latestNanoseconds)
+                    || ($seconds === $latestSeconds && $nanoseconds === $latestNanoseconds
+                        && strcmp($id, $latestId) > 0)) {
+                    $latestId = $id;
+                    $latestSeconds = $seconds;
+                    $latestNanoseconds = $nanoseconds;
+                }
             }
-            echo $id;
+            echo $latestId;
         '
 }
 
