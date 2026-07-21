@@ -1646,10 +1646,12 @@ run_mode() {
     docker network create --driver bridge --internal \
         --opt com.docker.network.bridge.gateway_mode_ipv4=isolated \
         "${NETWORK_NAME}" >/dev/null
+    [[ "$(docker network inspect "${NETWORK_NAME}" --format '{{.Internal}}')" == true ]] \
+        || fail 'rehearsal network did not retain internal mode'
     [[ "$(docker network inspect "${NETWORK_NAME}" --format '{{index .Options "com.docker.network.bridge.gateway_mode_ipv4"}}')" == isolated ]] \
         || fail 'rehearsal network did not retain isolated gateway mode'
-    [[ -z "$(docker network inspect "${NETWORK_NAME}" --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')" ]] \
-        || fail 'rehearsal network unexpectedly exposes a host gateway'
+    [[ "$(docker network inspect "${NETWORK_NAME}" --format '{{range .IPAM.Config}}{{json .Gateway}}{{end}}')" == '""' ]] \
+        || fail 'rehearsal network unexpectedly allocated an IPv4 gateway'
     docker run --detach \
         --name "${CONTAINER_NAME}" \
         --label com.lora.release-rehearsal=true \
