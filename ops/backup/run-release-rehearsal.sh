@@ -378,7 +378,7 @@ require_commands() {
     for binary in \
         awk bash certbot chmod chown cmp cryptsetup cut date df docker fallocate find findmnt \
         flock git grep head hostname install mkfs.ext4 mktemp mount mountpoint mysql mysqldump nginx openssl php restic \
-        rsync runuser sed sha256sum sleep sort stat sync systemctl tar tr umount wc xargs; do
+        rsync runuser sed sha256sum sleep sort stat sync systemctl tail tar tee tr umount wc xargs; do
         command -v "${binary}" >/dev/null 2>&1 || fail "required binary is missing: ${binary}"
     done
 }
@@ -873,6 +873,55 @@ on_exit() {
     fi
 
     exit "${status}"
+}
+
+publish_migration_diagnostic() {
+    local path="$1"
+    local trusted_repository="$2"
+    local diagnostic
+    local exception_class
+    local git_mode
+    local migration
+    local sqlstate
+
+    [[ -f "${path}" && ! -L "${path}" ]] || return 0
+    diagnostic="$(tail -c 65536 -- "${path}" | tr -cd '\11\12\15\40-\176')" || return 0
+    migration="$(
+        grep -Eo '[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{6}_[A-Za-z0-9_]+' <<< "${diagnostic}" \
+            | tail -n 1 || true
+    )"
+    migration="${migration:0:160}"
+    git_mode=''
+    if [[ "${migration}" =~ ^[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{6}_[A-Za-z0-9_]+$ ]]; then
+        git_mode="$(
+            git -C "${trusted_repository}" ls-tree "${CANDIDATE_SHA}" -- \
+                "database/migrations/${migration}.php" \
+                | awk 'NR == 1 { mode = $1 } END { if (NR == 1) print mode; else exit 1 }' \
+                || true
+        )"
+    fi
+    if [[ ! "${git_mode}" =~ ^100(644|755)$ ]]; then
+        migration=unknown
+    fi
+    sqlstate="$(
+        grep -Eo 'SQLSTATE\[[0-9A-Z]{5}\]' <<< "${diagnostic}" \
+            | tail -n 1 | sed -E 's/^SQLSTATE\[([0-9A-Z]{5})\]$/\1/' || true
+    )"
+    case "${sqlstate}" in
+        23000 | 40001 | 42000 | 42S01 | 42S02 | 42S21 | 42S22 | HY000 | HY001 | HY013) ;;
+        *) sqlstate=other ;;
+    esac
+    exception_class="$(
+        grep -Eo 'Illuminate\\Database\\QueryException|PDOException|RuntimeException' \
+            <<< "${diagnostic}" | tail -n 1 || true
+    )"
+    [[ "${exception_class}" =~ ^(Illuminate\\Database\\QueryException|PDOException|RuntimeException)$ ]] \
+        || exception_class=unknown
+
+    printf 'REHEARSAL_DIAGNOSTIC_PHASE=candidate-migrate\n' >&3
+    printf 'REHEARSAL_DIAGNOSTIC_MIGRATION=%s\n' "${migration}" >&3
+    printf 'REHEARSAL_DIAGNOSTIC_SQLSTATE=%s\n' "${sqlstate}" >&3
+    printf 'REHEARSAL_DIAGNOSTIC_CLASS=%s\n' "${exception_class}" >&3
 }
 
 php_container() {
@@ -1498,6 +1547,7 @@ run_mode() {
     local mysql_fingerprint_hash
     local table_count
     local marker_tmp
+    local migration_log
     local attempt
     local baseline_migration_status
 
@@ -1870,7 +1920,12 @@ run_mode() {
     assert_isolated_database_fingerprint "${candidate_checkout}"
     artisan "${candidate_checkout}" tenants:verify-integrity \
         --verify-storage --snapshot="${integrity_before}"
-    artisan "${candidate_checkout}" migrate --force
+    migration_log="${WORKSPACE}/candidate-migration.log"
+    if ! artisan "${candidate_checkout}" migrate --force 2>&1 | tee "${migration_log}"; then
+        printf 'REHEARSAL_ERROR=candidate migrations failed\n' >&3
+        publish_migration_diagnostic "${migration_log}" "${source_repo}"
+        exit 1
+    fi
     release_batch="$(mysql_exec -N -e 'SELECT COALESCE(MAX(batch), 0) FROM migrations')"
     [[ "${release_batch}" =~ ^[0-9]+$ ]] || fail 'release migration batch is invalid'
     (( release_batch >= baseline_batch )) || fail 'candidate removed an existing migration batch'
