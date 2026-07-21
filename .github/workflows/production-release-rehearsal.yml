@@ -360,11 +360,18 @@ jobs:
             local source="$RUNNER_TEMP/lora-candidate-node-source"
             local archive="$RUNNER_TEMP/lora-candidate-assets.tar.gz"
             local build_id="${CANDIDATE_SHA:0:12}"
+            local vendor_source="$PWD/dependency-candidate/vendor"
             local uid
             local gid
             local path
 
             [[ "$(git -C dependency-candidate rev-parse HEAD)" == "$CANDIDATE_SHA" ]]
+            [[ -d "$vendor_source" && ! -L "$vendor_source" ]]
+            while IFS= read -r -d '' path; do
+              [[ "$path" != *$'\n'* && "$path" != *$'\r'* ]]
+              [[ -f "$path" || -d "$path" ]]
+              [[ ! -L "$path" ]]
+            done < <(find "$vendor_source" -print0)
             if git -C dependency-candidate ls-files -s | grep -q '^120000 '; then
               echo 'Tracked symbolic links are prohibited in the release source.' >&2
               exit 1
@@ -374,6 +381,8 @@ jobs:
               | tar --extract --no-same-owner --directory="$source"
             [[ -f "$source/package-lock.json" && ! -L "$source/package-lock.json" ]]
             [[ -f "$source/package.json" && ! -L "$source/package.json" ]]
+            [[ ! -e "$source/vendor" && ! -L "$source/vendor" ]]
+            install -d -m 0700 "$source/vendor"
             uid="$(id -u)"
             gid="$(id -g)"
 
@@ -415,6 +424,7 @@ jobs:
               --env npm_config_cache=/tmp/npm \
               --env "VITE_BUILD_ID=$CANDIDATE_SHA" \
               --mount "type=bind,source=$source,target=/workspace" \
+              --mount "type=bind,source=$vendor_source,target=/workspace/vendor,readonly" \
               --workdir /workspace \
               --entrypoint /usr/local/bin/npm \
               "$NODE_IMAGE" run build -- --mode=production
@@ -479,8 +489,8 @@ jobs:
           docker pull "$PHP_IMAGE" >/dev/null
           docker image inspect "$PHP_IMAGE" >/dev/null
           build_vendor baseline dependency-baseline "$BASELINE_SHA"
-          build_assets
           build_vendor candidate dependency-candidate "$CANDIDATE_SHA"
+          build_assets
 
       - name: Upload verified dependency artifacts to the rehearsal inbox
         env:
