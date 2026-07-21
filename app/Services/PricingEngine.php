@@ -228,6 +228,7 @@ class PricingEngine
             $rounding['rule'] = 'no_price_signal';
         }
         $suggested = $rounding['after'];
+        $guarded = $rounding['before'];
 
         $pctTotal = $reference > 0 ? round(($suggested / $reference - 1) * 100, 1) : 0.0;
         // A suggestion must MOVE the price meaningfully vs what's live today —
@@ -235,6 +236,19 @@ class PricingEngine
         // revenue advice. 1% floor; the autopilot keeps its own ≥5% gate.
         $moveVsCurrent = $current > 0 ? abs($suggested / $current - 1) * 100 : 0.0;
         $actionable = ! $isPast && $reference > 0 && $pctTotal != 0.0 && $moveVsCurrent >= 1.0;
+
+        // When the movement gate suppresses a recommendation, the returned
+        // price is the live price. Keep the public explanation aligned with
+        // that value instead of describing a rounding step we did not apply.
+        $returnedPrice = $actionable ? $suggested : round($current, 2);
+        if (! $actionable) {
+            $rounding['before'] = $returnedPrice;
+            $rounding['after'] = $returnedPrice;
+            $rounding['applied'] = false;
+            if ($rounding['rule'] !== 'no_price_signal') {
+                $rounding['rule'] = 'not_actionable';
+            }
+        }
 
         // WHY is this day quiet? Silence without a reason reads as a bug to
         // the owner — say it plainly (shown in the day panel).
@@ -258,8 +272,8 @@ class PricingEngine
             'reference' => round($reference, 2),
             'current_price' => round($current, 2),
             'calculated_price' => $calculated,
-            'guarded_price' => $rounding['before'],
-            'suggested_price' => $actionable ? $suggested : round($current, 2),
+            'guarded_price' => $guarded,
+            'suggested_price' => $returnedPrice,
             'adjustment_pct' => $actionable ? $pctTotal : 0.0,
             'factors' => $factors,
             'events' => $eventContext,

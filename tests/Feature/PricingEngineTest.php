@@ -293,6 +293,11 @@ class PricingEngineTest extends TestCase
         $row = $this->rowFor($type, $date);
         $this->assertFalse($row['actionable'], '0.39% move is below the 1% floor');
         $this->assertEquals(129.50, $row['suggested_price'], 'non-actionable → shows current');
+        $this->assertEquals(130.0, $row['guarded_price'], 'the calculated guardrail result remains auditable');
+        $this->assertEquals(129.50, $row['rounding']['before']);
+        $this->assertEquals(129.50, $row['rounding']['after']);
+        $this->assertFalse($row['rounding']['applied']);
+        $this->assertSame('not_actionable', $row['rounding']['rule']);
         $this->assertStringContainsString('i vogël', $row['quiet_reason']);
 
         // But a real gap (129.50 → 120 override → 8.3%) stays actionable.
