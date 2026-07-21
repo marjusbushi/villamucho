@@ -565,7 +565,6 @@ jobs:
           command_timeout: 300m
           envs: LORA_REHEARSAL_MODE,LORA_REHEARSAL_CANDIDATE,LORA_REHEARSAL_PR_NUMBER,LORA_REHEARSAL_BASELINE_SHA,LORA_REHEARSAL_BASELINE_VENDOR_SHA256,LORA_REHEARSAL_CANDIDATE_VENDOR_SHA256,LORA_REHEARSAL_CANDIDATE_ASSETS_SHA256
           script_path: ops/backup/run-release-rehearsal.sh
-          capture_stdout: true
 
       - name: Cleanup encrypted rehearsal resources
         if: >-
@@ -589,13 +588,15 @@ jobs:
       - name: Publish rehearsal result
         if: success()
         env:
-          REHEARSAL_OUTPUT: ${{ steps.rehearsal.outputs.stdout }}
+          CANDIDATE_SHA: ${{ env.REHEARSAL_CANDIDATE }}
+          PRODUCTION_SHA: ${{ needs.production-preflight.outputs.production_sha }}
         run: |
           set -Eeuo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PRODUCTION_SHA" =~ ^[0-9a-f]{40}$ ]]
           {
             echo '### Production release rehearsal'
             echo
-            echo '```text'
-            printf '%s\n' "$REHEARSAL_OUTPUT"
-            echo '```'
+            printf -- '- Candidate `%s` passed isolated restore, upgrade, and exact rollback.\n' "$CANDIDATE_SHA"
+            printf -- '- Production baseline remained `%s`.\n' "$PRODUCTION_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
